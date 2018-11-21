@@ -5,6 +5,6 @@
 *.swp
 .DStore/
 thumbs.db
-storage/profiles
+#storage/profiles
 #config.py
 .idea/*
