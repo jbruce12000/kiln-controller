@@ -80,11 +80,8 @@ class Oven (threading.Thread):
         self.runtime = 0
         self.totaltime = 0
         self.target = 0
-        self.door = self.get_door_state()
         self.state = Oven.STATE_IDLE
         self.set_heat(False)
-        self.set_cool(False)
-        self.set_air(False)
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
 
     def run_profile(self, profile):
@@ -103,7 +100,6 @@ class Oven (threading.Thread):
         last_temp = 0
         pid = 0
         while True:
-            self.door = self.get_door_state()
 
             if self.state == Oven.STATE_RUNNING:
                 if self.simulate:
@@ -111,13 +107,12 @@ class Oven (threading.Thread):
                 else:
                     runtime_delta = datetime.datetime.now() - self.start_time
                     self.runtime = runtime_delta.total_seconds()
-                log.info("running at %.1f deg C (Target: %.1f) , heat %.2f, cool %.2f, air %.2f, door %s (%.1fs/%.0f)" % (self.temp_sensor.temperature, self.target, self.heat, self.cool, self.air, self.door, self.runtime, self.totaltime))
+                log.info("running at %.1f deg C (Target: %.1f) , heat %.2f, (%.1fs/%.0f)" % (self.temp_sensor.temperature, self.target, self.heat, self.runtime, self.totaltime))
                 self.target = self.profile.get_target_temperature(self.runtime)
                 pid = self.pid.compute(self.target, self.temp_sensor.temperature)
 
                 log.info("pid: %.3f" % pid)
 
-                self.set_cool(pid <= -1)
                 if(pid > 0):
                     # The temp should be changing with the heat on
                     # Count the number of time_steps encountered with no change and the heat on
@@ -145,11 +140,6 @@ class Oven (threading.Thread):
                 #else:
                 #    self.set_heat(False)
                 #    self.set_cool(self.temp_sensor.temperature > self.target)
-
-                if self.temp_sensor.temperature > 200:
-                    self.set_air(False)
-                elif self.temp_sensor.temperature < 180:
-                    self.set_air(True)
 
                 if self.runtime >= self.totaltime:
                     self.reset()
@@ -180,25 +170,6 @@ class Oven (threading.Thread):
                else:
                  GPIO.output(config.gpio_heat, GPIO.LOW)
 
-    def set_cool(self, value):
-        if value:
-            self.cool = 1.0
-            if gpio_available:
-                GPIO.output(config.gpio_cool, GPIO.LOW)
-        else:
-            self.cool = 0.0
-            if gpio_available:
-                GPIO.output(config.gpio_cool, GPIO.HIGH)
-
-    def set_air(self, value):
-        if value:
-            self.air = 1.0
-            if gpio_available:
-                GPIO.output(config.gpio_air, GPIO.LOW)
-        else:
-            self.air = 0.0
-            if gpio_available:
-                GPIO.output(config.gpio_air, GPIO.HIGH)
 
     def get_state(self):
         state = {
@@ -207,18 +178,9 @@ class Oven (threading.Thread):
             'target': self.target,
             'state': self.state,
             'heat': self.heat,
-            'cool': self.cool,
-            'air': self.air,
             'totaltime': self.totaltime,
-            'door': self.door
         }
         return state
-
-    def get_door_state(self):
-        if gpio_available:
-            return "OPEN" if GPIO.input(config.gpio_door) else "CLOSED"
-        else:
-            return "UNKNOWN"
 
 
 class TempSensor(threading.Thread):
@@ -271,9 +233,8 @@ class TempSensorSimulate(TempSensor):
         c_oven     = config.sim_c_oven
         p_heat     = config.sim_p_heat
         R_o_nocool = config.sim_R_o_nocool
-        R_o_cool   = config.sim_R_o_cool
         R_ho_noair = config.sim_R_ho_noair
-        R_ho_air   = config.sim_R_ho_air
+        R_ho = R_ho_noair
 
         t = t_env  # deg C  temp in oven
         t_h = t    # deg C temp of heat element
@@ -284,11 +245,6 @@ class TempSensorSimulate(TempSensor):
             #temperature change of heat element by heating
             t_h += Q_h / c_heat
 
-            if self.oven.air:
-                R_ho = R_ho_air
-            else:
-                R_ho = R_ho_noair
-
             #energy flux heat_el -> oven
             p_ho = (t_h - t) / R_ho
 
@@ -296,13 +252,8 @@ class TempSensorSimulate(TempSensor):
             t   += p_ho * self.time_step / c_oven
             t_h -= p_ho * self.time_step / c_heat
 
-            #energy flux oven -> env
-            if self.oven.cool:
-                p_env = (t - t_env) / R_o_cool
-            else:
-                p_env = (t - t_env) / R_o_nocool
-
             #temperature change of oven by cooling to env
+            p_env = (t - t_env) / R_o_nocool
             t -= p_env * self.time_step / c_oven
             log.debug("energy sim: -> %dW heater: %.0f -> %dW oven: %.0f -> %dW env" % (int(p_heat * self.oven.heat), t_h, int(p_ho), t, int(p_env)))
             self.temperature = t
