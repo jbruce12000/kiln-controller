@@ -6,5 +6,5 @@
 .DStore/
 thumbs.db
 storage/profiles
-config.py
+#config.py
 .idea/*
