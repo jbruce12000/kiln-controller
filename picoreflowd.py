@@ -120,7 +120,8 @@ def handle_storage():
             elif msgdict.get("cmd") == "PUT":
                 log.info("PUT command received")
                 profile_obj = msgdict.get('profile')
-                force = msgdict.get('force', False)
+                #force = msgdict.get('force', False)
+                force = True
                 if profile_obj:
                     #del msgdict["cmd"]
                     if save_profile(profile_obj, force):
