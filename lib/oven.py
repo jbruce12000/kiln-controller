@@ -109,11 +109,32 @@ class Oven (threading.Thread):
                 else:
                     runtime_delta = datetime.datetime.now() - self.start_time
                     self.runtime = runtime_delta.total_seconds()
-                log.info("running at %.1f deg C (Target: %.1f) , heat %.2f, (%.1fs/%.0f)" % (self.temp_sensor.temperature, self.target, self.heat, self.runtime, self.totaltime))
+                #log.info("running at %.1f deg C (Target: %.1f) , heat %.2f, (%.1fs/%.0f)" % (self.temp_sensor.temperature, self.target, self.heat, self.runtime, self.totaltime))
+
                 self.target = self.profile.get_target_temperature(self.runtime)
                 pid = self.pid.compute(self.target, self.temp_sensor.temperature)
 
-                log.info("pid: %.3f" % pid)
+                heat_on = float(0)
+                heat_off = float(self.time_step)
+                if pid > 0:
+                    heat_on = float(self.time_step * pid)
+                    heat_off = float(self.time_step * (1 - pid))
+                time_left = self.totaltime - self.runtime
+
+                #import pdb; pdb.set_trace()
+
+                log.info("temp=%.1f, target=%.1f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%.1f, total_time=%.1f, time_left=%.1f" % 
+                    (self.temp_sensor.temperature,
+                     self.target,
+                     pid,
+                     heat_on,
+                     heat_off,
+                     self.runtime,
+                     self.totaltime,
+                     time_left))
+
+
+                #log.info("pid: %.3f" % pid)
 
                 if(pid > 0):
                     # The temp should be changing with the heat on
@@ -146,7 +167,8 @@ class Oven (threading.Thread):
                 if self.runtime >= self.totaltime:
                     self.reset()
 
-            
+            # amount of time to sleep with the heater off
+            # for example if pid = .6 and time step is 1, sleep for .4s
             if pid > 0:
                 time.sleep(self.time_step * (1 - pid))
             else:
