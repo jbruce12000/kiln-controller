@@ -64,7 +64,9 @@ class Oven (threading.Thread):
         self.time_step = time_step
         self.reset()
         if simulate:
-            self.temp_sensor = TempSensorSimulate(self, 0.5, self.time_step)
+            self.temp_sensor = TempSensorSimulate(self,
+                                                  self.time_step,
+                                                  self.time_step)
         if sensor_available:
             self.temp_sensor = TempSensorReal(self.time_step)
         else:
@@ -161,7 +163,10 @@ class Oven (threading.Thread):
                else:
                  GPIO.output(config.gpio_heat, GPIO.HIGH)
                  time.sleep(self.time_step * value)
-                 GPIO.output(config.gpio_heat, GPIO.LOW)   
+                 GPIO.output(config.gpio_heat, GPIO.LOW)
+            else:
+                 #for runs that are simulations
+                 time.sleep(self.time_step * value)
         else:
             self.heat = 0.0
             if gpio_available:

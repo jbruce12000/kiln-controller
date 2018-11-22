@@ -52,7 +52,7 @@ gpio_sensor_data = 17
 spi_sensor_chip_id = 0
 
 ### amount of time, in seconds, to wait between reads of the thermocouple
-sensor_time_wait = .5
+sensor_time_wait = 1
 
 
 ########################################################################
