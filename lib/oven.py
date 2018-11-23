@@ -120,7 +120,7 @@ class Oven (threading.Thread):
                     heat_off = float(self.time_step * (1 - pid))
                 time_left = self.totaltime - self.runtime
 
-                log.info("temp=%.1f, target=%.1f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%.1f, total_time=%.1f, time_left=%.1f" % 
+                log.info("temp=%.1f, target=%.1f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" % 
                     (self.temp_sensor.temperature,
                      self.target,
                      pid,
