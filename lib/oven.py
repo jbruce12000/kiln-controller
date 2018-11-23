@@ -109,7 +109,6 @@ class Oven (threading.Thread):
                 else:
                     runtime_delta = datetime.datetime.now() - self.start_time
                     self.runtime = runtime_delta.total_seconds()
-                #log.info("running at %.1f deg C (Target: %.1f) , heat %.2f, (%.1fs/%.0f)" % (self.temp_sensor.temperature, self.target, self.heat, self.runtime, self.totaltime))
 
                 self.target = self.profile.get_target_temperature(self.runtime)
                 pid = self.pid.compute(self.target, self.temp_sensor.temperature)
@@ -120,8 +119,6 @@ class Oven (threading.Thread):
                     heat_on = float(self.time_step * pid)
                     heat_off = float(self.time_step * (1 - pid))
                 time_left = self.totaltime - self.runtime
-
-                #import pdb; pdb.set_trace()
 
                 log.info("temp=%.1f, target=%.1f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%.1f, total_time=%.1f, time_left=%.1f" % 
                     (self.temp_sensor.temperature,

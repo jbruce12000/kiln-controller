@@ -52,7 +52,7 @@ gpio_sensor_data = 17
 spi_sensor_chip_id = 0
 
 ### amount of time, in seconds, to wait between reads of the thermocouple
-sensor_time_wait = 1
+sensor_time_wait = 2
 
 
 ########################################################################
@@ -70,7 +70,7 @@ pid_kp = 0.5  # Proportional
 
 sim_t_env      = 25.0   # deg C
 sim_c_heat     = 100.0  # J/K  heat capacity of heat element
-sim_c_oven     = 2000.0 # J/K  heat capacity of oven
+sim_c_oven     = 5000.0 # J/K  heat capacity of oven
 sim_p_heat     = 9450.0 # W    heating power of oven
 sim_R_o_nocool = 1.0    # K/W  thermal resistance oven -> environment
 sim_R_o_cool   = 0.05   # K/W  " with cooling

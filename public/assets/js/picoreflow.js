@@ -175,11 +175,12 @@ function formatDPS(val) {
 }
 
 function hazardTemp(){
+   
     if (temp_scale == "f") {
-        return (45 * 9 / 5) + 32
+        return (1500 * 9 / 5) + 32
     } 
     else {
-        return 45
+        return 1500
     }
 }
 
