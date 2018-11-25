@@ -33,6 +33,7 @@ Don't forget to share and drop a link, when you do :)
     $ cd kiln-controller
     $ virtualenv venv
     $ source venv/bin/activate
+    $ pip install --upgrade setuptools
     $ pip install -r requirements.txt
     $ ./kiln-controller.py
 
