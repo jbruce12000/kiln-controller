@@ -1,9 +1,9 @@
-Kiln-Controller
+Kiln Controller
 ==========
 
 Turns a Raspberry Pi into a cheap, universal & web-enabled kiln controller.
 Of course, since it is basically just a robot sensing temperature and controlling
-environmental agitators (heating/cooling) you can use it as inspiration / basis
+environmental agitators (heating) you can use it as inspiration / basis
 when you're in need of a PID based temperature controller for your project.
 Don't forget to share and drop a link, when you do :)
 
@@ -23,19 +23,48 @@ Don't forget to share and drop a link, when you do :)
 
 ## Installation
 
-#### Ubuntu/Raspbian libraries
+### Dependencies
 
-    $ sudo apt-get install python-pip python-dev libevent-dev python-virtualenv
+We've tried to keep external dependencies to a minimum to make it easily
+deployable on any flavor of open-source operating system. If you deploy it
+successfully on any other OS, please update this:
 
-### Quick Start for all linux environments
+#### Currently tested versions
 
-    $ git clone https://github.com/jbruce12000/kiln-controller.git 
-    $ cd kiln-controller
-    $ virtualenv venv
-    $ source venv/bin/activate
-    $ pip install --upgrade setuptools
-    $ pip install -r requirements.txt
-    $ ./kiln-controller.py
+  * greenlet-0.4.2
+  * bottle-0.12.4
+  * gevent-1.0
+  * gevent-websocket-0.9.3
+
+#### Ubuntu/Raspbian
+
+    $ sudo apt-get install python-pip python-dev libevent-dev
+    $ sudo pip install ez-setup
+    $ sudo pip install greenlet bottle gevent gevent-websocket
+
+#### Gentoo
+
+    $ emerge -av dev-libs/libevent dev-python/pip
+    $ pip install ez-setup
+    $ pip install greenlet bottle gevent gevent-websocket
+
+#### Raspberry PI deployment
+
+If you want to deploy the code on a PI for production:
+
+    $ pip install RPi.GPIO
+
+This **only applies to non-Raspbian installations**, since Raspbian ships
+RPi.GPIO with the default installation.
+
+If you also want to use the in-kernel SPI drivers with a MAX31855 sensor:
+
+    $ sudo pip install Adafruit-MAX31855
+
+### Clone repo
+
+    $ git clone https://github.com/apollo-ng/picoReflow.git
+    $ cd picoReflow
 
 ## Configuration
 
@@ -43,6 +72,11 @@ All parameters are defined in config.py, just copy the example and review/change
 
     $ cp config.py.EXAMPLE config.py
 
+## Usage
+
+### Server Startup
+
+    $ ./picoReflowd.py
 
 ### Autostart Server onBoot
 If you want the server to autostart on boot, run the following commands
@@ -71,3 +105,8 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+## Support & Contact
+
+Please use the issue tracker for project related issues.
+
+More info: https://apollo.open-resource.org/mission:resources:picoreflow
