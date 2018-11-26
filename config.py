@@ -27,13 +27,7 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 
 ### Outputs
 gpio_heat = 11  # Switches zero-cross solid-state-relay
-gpio_cool = 10  # Regulates PWM for 12V DC Blower
-gpio_air  = 9   # Switches 0-phase det. solid-state-relay
-
 heater_invert = 0 # switches the polarity of the heater control
-
-### Inputs
-gpio_door = 18
 
 ### Thermocouple Adapter selection:
 #   max31855 - bitbang SPI interface
