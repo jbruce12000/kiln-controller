@@ -90,6 +90,13 @@ If you want the server to autostart on boot, run the following commands
 Open Browser and goto http://127.0.0.1:8080 (for local development) or the IP
 of your PI and the port defined in config.py (default 8080).
 
+### Simulation
+
+Select a profile and click Start. If you do not have a raspberry pi connected
+and configured, or if you don't install the Adafruit-MAX31855 library, then
+your run will be simulated.  Simulations run at near real time and kiln
+characteristics are defined in config.py.
+
 ## License
 
 This program is free software: you can redistribute it and/or modify
