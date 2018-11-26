@@ -14,7 +14,7 @@ listening_port = 8081
 
 ### Cost Estimate
 kwh_rate        = 0.18  # Rate in currency_type to calculate cost to run job
-currency_type   = "USA"   # Currency Symbol to show when calculating cost to run job
+currency_type   = "$"   # Currency Symbol to show when calculating cost to run job
 
 ########################################################################
 #
