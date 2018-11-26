@@ -1,11 +1,17 @@
 Kiln Controller
 ==========
 
-Turns a Raspberry Pi into a cheap, universal & web-enabled kiln controller.
-Of course, since it is basically just a robot sensing temperature and controlling
-environmental agitators (heating) you can use it as inspiration / basis
-when you're in need of a PID based temperature controller for your project.
-Don't forget to share and drop a link, when you do :)
+Turns a Raspberry Pi into a cheap, web-enabled kiln controller.
+
+## Features
+
+  * easy to install and run on most Raspberry Pi versions
+  * easy to create new kiln schedules and edit / modify existing schedules
+  * no limit to runtime - fire for days if you want
+  * view status from multiple devices at once - computer, tablet etc
+  * firing cost estimate
+  * NIST-linearized conversion for accurate K type thermocouple readings
+  * supports PID parameters you define
 
 **Standard Interface**
 
