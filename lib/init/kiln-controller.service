@@ -1,0 +1,8 @@
+[Unit]
+Description=kiln-controller
+
+[Service]
+ExecStart=/home/pi/kiln-controller/venv/bin/python /home/pi/kiln-controller/kiln-controller.py
+
+[Install]
+WantedBy=multi-user.target
