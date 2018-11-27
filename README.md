@@ -11,7 +11,7 @@ Turns a Raspberry Pi into a cheap, web-enabled kiln controller.
   * view status from multiple devices at once - computer, tablet etc
   * firing cost estimate
   * NIST-linearized conversion for accurate K type thermocouple readings
-  * supports PID parameters you define
+  * supports PID parameters you tune to your kiln
 
 **Standard Interface**
 
@@ -28,8 +28,6 @@ Turns a Raspberry Pi into a cheap, web-enabled kiln controller.
   * GPIO driven Solid-State-Relay
 
 ## Installation
-
-Download NOOBs and install raspian
 
 ### Raspbian
 
