@@ -31,7 +31,7 @@ Turns a Raspberry Pi into a cheap, web-enabled kiln controller.
 
 ### Raspbian
 
-Download NOOBs. Copy files to an SD card. Install raspian on RPi using NOOBs.
+Download [NOOBs](https://www.raspberrypi.org/downloads/noobs/). Copy files to an SD card. Install raspian on RPi using NOOBs.
 
     $ sudo apt-get install python-pip python-dev libevent-dev python-virtualenv
     $ git clone https://github.com/jbruce12000/kiln-controller.git
