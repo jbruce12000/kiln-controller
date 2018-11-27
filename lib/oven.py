@@ -134,27 +134,11 @@ class Oven (threading.Thread):
                 # a warning low and warning high below and above
                 # set value.  If either of these are exceeded,
                 # warn in the interface. DO NOT RESET.
-                #
-                # Maybe add an absolute MAX above which your kiln
-                # will be damaged and RESET then.
 
-
-
-                if(pid > 0):
-                    # The temp should be changing with the heat on
-                    # Count the number of time_steps encountered with no change and the heat on
-                    if last_temp == self.temp_sensor.temperature:
-                        temperature_count += 1
-                    else:
-                        temperature_count = 0
-                    # If the heat is on and nothing is changing, reset
-                    # The direction or amount of change does not matter
-                    # This prevents runaway in the event of a sensor read failure                   
-                    #if temperature_count > 20:
-                    #    log.info("Error reading sensor, oven temp not responding to heat.")
-                    #    self.reset()
-                else:
-                    temperature_count = 0
+                # if we are WAY TOO HOT, shut down
+                if(self.temp_sensor.temperature >= config.emergency_shutoff_temp):
+                    log.info("emergency temperature too high, shutting down")
+                    self.reset()
                     
                 #Capture the last temperature value.  This must be done before set_heat, since there is a sleep in there now.
                 last_temp = self.temp_sensor.temperature
