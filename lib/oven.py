@@ -87,7 +87,7 @@ class Oven (threading.Thread):
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
 
     def run_profile(self, profile):
-        log.info("Running profile %s" % profile.name)
+        log.info("Running schedule %s" % profile.name)
         self.profile = profile
         self.totaltime = profile.get_duration()
         self.state = Oven.STATE_RUNNING
@@ -130,8 +130,15 @@ class Oven (threading.Thread):
                      self.totaltime,
                      time_left))
 
+                # FIX - this whole thing should be replaced with
+                # a warning low and warning high below and above
+                # set value.  If either of these are exceeded,
+                # warn in the interface. DO NOT RESET.
+                #
+                # Maybe add an absolute MAX above which your kiln
+                # will be damaged and RESET then.
 
-                #log.info("pid: %.3f" % pid)
+
 
                 if(pid > 0):
                     # The temp should be changing with the heat on
@@ -153,13 +160,6 @@ class Oven (threading.Thread):
                 last_temp = self.temp_sensor.temperature
                 
                 self.set_heat(pid)
-                
-                #if self.profile.is_rising(self.runtime):
-                #    self.set_cool(False)
-                #    self.set_heat(self.temp_sensor.temperature < self.target)
-                #else:
-                #    self.set_heat(False)
-                #    self.set_cool(self.temp_sensor.temperature > self.target)
 
                 if self.runtime >= self.totaltime:
                     self.reset()
