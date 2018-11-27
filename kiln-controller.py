@@ -21,7 +21,7 @@ except:
     exit(1)
 
 logging.basicConfig(level=config.log_level, format=config.log_format)
-log = logging.getLogger("picoreflowd")
+log = logging.getLogger("kiln-controller")
 log.info("Starting kill controller")
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
