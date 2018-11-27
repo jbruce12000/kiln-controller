@@ -23,54 +23,39 @@ Turns a Raspberry Pi into a cheap, web-enabled kiln controller.
 
 ## Hardware
 
-  * Raspberry Pi (Rev 2B)
+  * Raspberry Pi
   * MAX 31855/6675 Cold-Junction K-Type Thermocouple
-  * GPIO driven Solid-State-Relays/MOSFETs
+  * GPIO driven Solid-State-Relay
 
 ## Installation
 
-### Dependencies
+Download NOOBs and install raspian
 
-We've tried to keep external dependencies to a minimum to make it easily
-deployable on any flavor of open-source operating system. If you deploy it
-successfully on any other OS, please update this:
+### Raspbian
 
-#### Currently tested versions
+Download NOOBs. Copy files to an SD card. Install raspian on RPi using NOOBs.
 
-  * greenlet-0.4.2
-  * bottle-0.12.4
-  * gevent-1.0
-  * gevent-websocket-0.9.3
-
-#### Ubuntu/Raspbian
-
-    $ sudo apt-get install python-pip python-dev libevent-dev
-    $ sudo pip install ez-setup
-    $ sudo pip install greenlet bottle gevent gevent-websocket
-
-#### Gentoo
-
-    $ emerge -av dev-libs/libevent dev-python/pip
-    $ pip install ez-setup
+    $ sudo apt-get install python-pip python-dev libevent-dev python-virtualenv
+    $ git clone https://github.com/jbruce12000/kiln-controller.git
+    $ cd kiln-controller
+    $ virtualenv venv
+    $ source venv/bin/activate
     $ pip install greenlet bottle gevent gevent-websocket
 
-#### Raspberry PI deployment
+Note: the above steps work on ubuntu if you prefer
+
+### Raspberry PI deployment
 
 If you want to deploy the code on a PI for production:
 
+    $ cd kiln-controller
+    $ virtualenv venv
+    $ source venv/bin/activate
     $ pip install RPi.GPIO
-
-This **only applies to non-Raspbian installations**, since Raspbian ships
-RPi.GPIO with the default installation.
 
 If you also want to use the in-kernel SPI drivers with a MAX31855 sensor:
 
-    $ sudo pip install Adafruit-MAX31855
-
-### Clone repo
-
-    $ git clone https://github.com/apollo-ng/picoReflow.git
-    $ cd picoReflow
+    $ pip install Adafruit-MAX31855
 
 ## Configuration
 
@@ -82,14 +67,12 @@ All parameters are defined in config.py, just copy the example and review/change
 
 ### Server Startup
 
-    $ ./picoReflowd.py
+    $ ./kiln-controller.py
 
 ### Autostart Server onBoot
 If you want the server to autostart on boot, run the following commands
 
-    sudo cp /home/pi/kiln-controller/lib/init/kiln-controller /etc/init.d/
-    sudo chmod +x /etc/init.d/kiln-controller 
-    sudo update-rc.d kiln-controller defaults
+    $ /home/pi/kiln-controller/start-on-boot
 
 ### Client Access
 
