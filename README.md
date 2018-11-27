@@ -87,9 +87,9 @@ All parameters are defined in config.py, just copy the example and review/change
 ### Autostart Server onBoot
 If you want the server to autostart on boot, run the following commands
 
-    sudo cp /home/pi/picoReflow/lib/init/reflow /etc/init.d/
-    sudo chmod +x /etc/init.d/reflow
-    sudo update-rc.d reflow defaults
+    sudo cp /home/pi/kiln-controller/lib/init/kiln-controller /etc/init.d/
+    sudo chmod +x /etc/init.d/kiln-controller 
+    sudo update-rc.d kiln-controller defaults
 
 ### Client Access
 
