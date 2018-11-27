@@ -1,31 +1,31 @@
 ### BEGIN INIT INFO
-# Provides: Start reflow server
+# Provides: Start kiln-controller server
 # Required-Start: $remote_fs $syslog
 # Required-Stop: $remote_fs $syslog
 # Default-Start: 2 3 4 5
 # Default-Stop: 0 1 6
-# Short-Description: Start  Reflow Server
+# Short-Description: Start kiln-controller Server
 # Description: picoFlow On Raspberry Pi
 ### END INIT INFO
 
 
 #! /bin/sh
-# /etc/init.d/reflow
+# /etc/init.d/kiln-controller
 
 
 export HOME
 case "$1" in
     start)
-        echo "Starting Reflow Server"
+        echo "Starting kiln-controller Server"
         /home/pi/picoReflow/picoreflowd.py  2>&1 &
     ;;
     stop)
-        echo "Stopping Reflow Server"
-        reflow_PID=`ps auxwww | grep picoreflowd.py | head -1 | awk '{print $2}'`
+        echo "Stopping kiln-controller Server"
+        reflow_PID=`ps auxwww | grep kiln-controller.py | head -1 | awk '{print $2}'`
         kill -9 $reflow_PID
     ;;
     *)
-        echo "Usage: /etc/init.d/reflow {start|stop}"
+        echo "Usage: /etc/init.d/kiln-controller {start|stop}"
         exit 1
     ;;
 esac
