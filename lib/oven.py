@@ -137,7 +137,7 @@ class Oven (threading.Thread):
 
                 # if we are WAY TOO HOT, shut down
                 if(self.temp_sensor.temperature >= config.emergency_shutoff_temp):
-                    log.info("emergency temperature too high, shutting down")
+                    log.info("emergency!!! temperature too high, shutting down")
                     self.reset()
                     
                 #Capture the last temperature value.  This must be done before set_heat, since there is a sleep in there now.
@@ -146,6 +146,7 @@ class Oven (threading.Thread):
                 self.set_heat(pid)
 
                 if self.runtime >= self.totaltime:
+                    log.info("schedule ended, shutting down")
                     self.reset()
 
             # amount of time to sleep with the heater off
