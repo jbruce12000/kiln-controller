@@ -17,7 +17,7 @@ export HOME
 case "$1" in
     start)
         echo "Starting kiln-controller Server"
-        /home/pi/picoReflow/picoreflowd.py  2>&1 &
+        /home/pi/kiln-controller/venv/bin/python /home/pi/kiln-controller/kiln-controller.py  2>&1 &
     ;;
     stop)
         echo "Stopping kiln-controller Server"
