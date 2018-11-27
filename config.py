@@ -80,3 +80,17 @@ temp_scale          = "f" # c = Celsius | f = Fahrenheit - Unit to display
 time_scale_slope    = "h" # s = Seconds | m = Minutes | h = Hours - Slope displayed in temp_scale per time_scale_slope
 time_scale_profile  = "m" # s = Seconds | m = Minutes | h = Hours - Enter and view target time in time_scale_profile
 
+# not used yet
+# if measured value is N degrees below set point
+warning_temp_low = 5
+
+# not used yet
+# if measured value is N degrees above set point
+warning_temp_high = 5
+
+# not used yet
+# emergency shutoff the kiln if this temp is reached.
+# when solid state relays fail, they usually fail closed.  this means your
+# kiln receives full power until your house burns down.
+# this should not replace you watching your kiln or use of a kiln-sitter
+emergency_shutoff_temp = 155
