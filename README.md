@@ -23,6 +23,13 @@ Turns a Raspberry Pi into a cheap, web-enabled kiln controller.
 
 ## Hardware
 
+| Image | Hardware | Description |
+| ------| -------- | ----------- |
+| ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/rpi.png) | Raspberry Pi | Virtually any Raspberry Pi will work |
+| ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/max31855.png) | MAX 31855 | Thermocouple circuit board |
+
+
+
   * Raspberry Pi
   * MAX 31855/6675 Cold-Junction K-Type Thermocouple
   * GPIO driven Solid-State-Relay
