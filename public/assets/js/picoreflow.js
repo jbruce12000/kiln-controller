@@ -104,7 +104,7 @@ function updateProfileTable()
     var slope = "";
     var color = "";
 
-    var html = '<h3>Profile Points</h3><div class="table-responsive" style="scroll: none"><table class="table table-striped">';
+    var html = '<h3>Schedule Points</h3><div class="table-responsive" style="scroll: none"><table class="table table-striped">';
         html += '<tr><th style="width: 50px">#</th><th>Target Time in ' + time_scale_long+ '</th><th>Target Temperature in °'+temp_scale_display+'</th><th>Slope in &deg;'+temp_scale_display+'/'+time_scale_slope+'</th><th></th></tr>';
 
     for(var i=0; i<graph.profile.data.length;i++)
