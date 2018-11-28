@@ -13,13 +13,13 @@ Turns a Raspberry Pi into a cheap, web-enabled kiln controller.
   * NIST-linearized conversion for accurate K type thermocouple readings
   * supports PID parameters you tune to your kiln
 
-**Standard Interface**
+**Run Kiln Schedule**
 
-![Image](https://apollo.open-resource.org/_media/mission:resources:picoreflow_webinterface.jpg)
+![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/kiln-running.png)
 
-**Curve Editor**
+**Edit Kiln Schedule**
 
-![Image](https://apollo.open-resource.org/_media/mission:resources:picoreflow_webinterface_edit.jpg)
+![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/kiln-schedule.png)
 
 ## Hardware
 
@@ -65,7 +65,7 @@ All parameters are defined in config.py, just copy the example and review/change
 
 ### Server Startup
 
-    $ ./kiln-controller.py
+    $ source venv/bin/activate; ./kiln-controller.py
 
 ### Autostart Server onBoot
 If you want the server to autostart on boot, run the following commands
