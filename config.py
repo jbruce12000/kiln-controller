@@ -92,4 +92,4 @@ warning_temp_high = 5
 # when solid state relays fail, they usually fail closed.  this means your
 # kiln receives full power until your house burns down.
 # this should not replace you watching your kiln or use of a kiln-sitter
-emergency_shutoff_temp = 2400
+emergency_shutoff_temp = 2250
