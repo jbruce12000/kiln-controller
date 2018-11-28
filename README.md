@@ -25,14 +25,13 @@ Turns a Raspberry Pi into a cheap, web-enabled kiln controller.
 
 | Image | Hardware | Description |
 | ------| -------- | ----------- |
-| ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/rpi.png) | Raspberry Pi | Virtually any Raspberry Pi will work |
-| ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/max31855.png) | MAX 31855 | Thermocouple circuit board |
+| ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/rpi.png) | [Raspberry Pi](https://www.adafruit.com/category/105) | Virtually any Raspberry Pi will work since only a few GPIO pins are being used. |
+| ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/max31855.png) | [MAX 31855](https://www.adafruit.com/product/269) | Thermocouple breakout board |
+| ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/k-type-thermocouple.png) | [K-Type Thermocouple](https://www.auberins.com/index.php?main_page=product_info&cPath=20_3&products_id=39) | Invest in a heavy duty, ceramic, k-type thermocouple designed for kilns |
+| ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/breadboard.png) | Breadboard | breadboard, ribbon cable, connector for pi's gpio pins & connecting wires |
+| ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/ssr.png) | Solid State Relay | zero crossing, make sure it can handle the max current of your kiln. You only need one SSR, even if the kiln is 240V. |
+| ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/kiln.png) | electric kiln | 120V or 240V, mine is a Skutt ks-1018 |
 
-
-
-  * Raspberry Pi
-  * MAX 31855/6675 Cold-Junction K-Type Thermocouple
-  * GPIO driven Solid-State-Relay
 
 ## Installation
 
