@@ -455,7 +455,7 @@ $(document).ready(function()
         {
             console.log("Status Socket has been opened");
 
-            $.bootstrapGrowl("<span class=\"glyphicon glyphicon-exclamation-sign\"></span> <b>Yay</b><br/>I'm alive",
+            $.bootstrapGrowl("<span class=\"glyphicon glyphicon-exclamation-sign\"></span>Getting data from server",
             {
             ele: 'body', // which element to append to
             type: 'success', // (null, 'info', 'error', 'success')
@@ -484,8 +484,10 @@ $(document).ready(function()
 
         ws_status.onmessage = function(e)
         {
-            x = JSON.parse(e.data);
+            console.log("received status data")
+            console.log(e.data);
 
+            x = JSON.parse(e.data);
             if (x.type == "backlog")
             {
                 if (x.profile)
@@ -612,6 +614,7 @@ $(document).ready(function()
         ws_control.onmessage = function(e)
         {
             //Data from Simulation
+            console.log ("control socket has been opened")
             console.log (e.data);
             x = JSON.parse(e.data);
             graph.live.data.push([x.runtime, x.temperature]);
