@@ -14,6 +14,13 @@ class OvenWatcher(threading.Thread):
         self.oven = oven
         self.start()
 
+# FIXME - need to save runs of schedules in near-real-time
+# FIXME - this will enable re-start in case of power outage
+# FIXME - re-start also requires safety start (pausing at the beginning
+# until a temp is reached)
+# FIXME - re-start requires a time setting in minutes.  if power has been
+# out more than N minutes, don't restart
+
     def run(self):
         while True:
             oven_state = self.oven.get_state()
