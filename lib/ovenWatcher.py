@@ -11,24 +11,29 @@ class OvenWatcher(threading.Thread):
         self.observers = []
         threading.Thread.__init__(self)
         self.daemon = True
-        self.log_skip_counter = 0
-
         self.oven = oven
         self.start()
 
     def run(self):
         while True:
             oven_state = self.oven.get_state()
-            
+           
+            # record state for any new clients that join
             if oven_state.get("state") == Oven.STATE_RUNNING:
-                if self.log_skip_counter==0:
-                    self.last_log.append(oven_state)
+                self.last_log.append(oven_state)
             else:
                 self.recording = False
             self.notify_all(oven_state)
-            self.log_skip_counter = (self.log_skip_counter +1)%20
             time.sleep(self.oven.time_step)
-    
+   
+    def lastlog_subset(self,maxpts=50):
+        '''send about maxpts from lastlog by skipping unwanted data'''
+        totalpts = len(self.last_log)
+        if (totalpts <= maxpts):
+            return self.last_log
+        every_nth = totalpts / (maxpts - 1)
+        return self.last_log[::every_nth]
+
     def record(self, profile):
         self.last_profile = profile
         self.last_log = []
@@ -50,7 +55,7 @@ class OvenWatcher(threading.Thread):
         backlog = {
             'type': "backlog",
             'profile': p,
-            'log': self.last_log,
+            'log': self.lastlog_subset(),
             #'started': self.started
         }
         print backlog
