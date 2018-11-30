@@ -11,6 +11,7 @@ Turns a Raspberry Pi into a cheap, web-enabled kiln controller.
   * firing cost estimate
   * NIST-linearized conversion for accurate K type thermocouple readings
   * supports PID parameters you tune to your kiln
+  * monitors temperature in kiln after schedule has ended
 
 **Run Kiln Schedule**
 
@@ -79,15 +80,14 @@ If you want the server to autostart on boot, run the following commands
 
 ### Client Access
 
-Open Browser and goto http://127.0.0.1:8081 (for local development) or the IP
+Click http://127.0.0.1:8081 for local development or the IP
 of your PI and the port defined in config.py (default 8081).
 
 ### Simulation
 
 Select a profile and click Start. If you do not have a raspberry pi connected
-and configured, or if you don't install the Adafruit-MAX31855 library, then
-your run will be simulated.  Simulations run at near real time and kiln
-characteristics are defined in config.py.
+and configured, then your run will be simulated.  Simulations run at near real
+time and kiln characteristics are defined in config.py.
 
 ## License
 
@@ -107,5 +107,3 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ## Support & Contact
 
 Please use the issue tracker for project related issues.
-
-More info: https://apollo.open-resource.org/mission:resources:picoreflow
