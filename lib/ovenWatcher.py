@@ -20,6 +20,7 @@ class OvenWatcher(threading.Thread):
 # until a temp is reached)
 # FIXME - re-start requires a time setting in minutes.  if power has been
 # out more than N minutes, don't restart
+# FIXME - this should not be done in the Watcher, but in the Oven class
 
     def run(self):
         while True:
