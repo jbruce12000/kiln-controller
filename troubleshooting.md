@@ -78,9 +78,7 @@ having to type.
 
 ```watch gpio readall```
 
-
-connect a 3V3 pin in series to a 1k ohm resistor
-connect the other end of the resistor to each gpio pin
-when it is connected V should be 1
-when it is disconnected V should be 0 
-my breadboard uses the BCM gpio pin numbering
+* connect a 3V3 pin in series to a 1k ohm resistor
+* connect the other end of the resistor to each gpio pin one at a time
+* when it is connected V should be 1
+* when it is disconnected V should be 0 
