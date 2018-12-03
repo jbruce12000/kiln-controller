@@ -6,7 +6,7 @@ just about everything backwards possible.  I blew up a MAX-31855 chip... POOF,
 up in smoke!
 
 So, invest a little time to learn the hardware and the software available to
-you to veriy everything works as expected.
+you to verify everything works as expected.
 
 ## Breadboard Orientation
 
