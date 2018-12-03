@@ -107,3 +107,4 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ## Support & Contact
 
 Please use the issue tracker for project related issues.
+If you're having trouble with hardware, I did too.  Here is a [troubleshooting guide](https://github.com/jbruce12000/kiln-controller/blob/master/troubleshooting.md) I created for testing RPi gpio pins.
