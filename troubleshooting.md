@@ -76,7 +76,7 @@ This will show you the output of gpio readall every 2 seconds. This way you can 
 moving a wire to each gpio pin and then look up to verify V has changed as you expect without
 having to type.
 
-'''watch gpio readall'''
+```watch gpio readall```
 
 
 connect a 3V3 pin in series to a 1k ohm resistor
