@@ -1,31 +1,31 @@
-I sucked at handling my Rpi gpio pins.
-I got everything backward you could.
-I blew up a MAX-31855 chip. POOF, UP IN SMOKE!
-Don't be like me...
+Troubleshooting
+==========
 
-If you're using a breadboard with a labeled break-out board, verify
-where pin one is using a multimeter.  it sounds stupid, but it will save you time.
-measure the voltage between all the 3V3 pins and a GND pin
-measure the voltage betwwen all the GND pins and a GND pin
-measure the voltage between the 5V pins and a GND pin.
-if everything measures as expected, continue.  if not, go back to the first step.
+When I started this project, I'd never worked with RPi gpio.  I think I got
+just about everything backwards possible.  I blew up a MAX-31855 chip... POOF,
+up in smoke!
 
-run
-gpio readall
-and make sure the mode for all GPIO pins you want to test have a Mode of IN
-if not, set the mode for each.. 
+So, invest a little time to learn the hardware and the software available to
+you to veriy everything works as expected.
 
-# set BCM pin 4 as an input
-gpio -g mode 4 input
+## Breadboard Orientation
 
-# verify it got set correctly using
-gpio readall
+![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/breadboard.png)
 
-# enable pull-down resistor for pin 4 to make sure V stays
-# zero when nothing is connected to the input 
-gpio -g mode 4 down
+If you're using a breadboard with a labeled break-out board, verify:
 
+* where pin one is using a multimeter.  it sounds stupid, but it will save you time.
+* measure the voltage between all the 3V3 pins and a GND pin
+* measure the voltage betwwen all the GND pins and a GND pin
+* measure the voltage between the 5V pins and a GND pin.
 
+## Test Each GPIO Pin
+At thought I one point that I had fried my RPi.  I needed to verify that it
+still worked as expected.  Here's what I did to verify GPIO on my pi.
+
+'''gpio readall'''
+
+'''
  +-----+-----+---------+------+---+---Pi 3---+---+------+---------+-----+-----+
  | BCM | wPi |   Name  | Mode | V | Physical | V | Mode | Name    | wPi | BCM |
  +-----+-----+---------+------+---+----++----+---+------+---------+-----+-----+
@@ -52,6 +52,23 @@ gpio -g mode 4 down
  +-----+-----+---------+------+---+----++----+---+------+---------+-----+-----+
  | BCM | wPi |   Name  | Mode | V | Physical | V | Mode | Name    | wPi | BCM |
  +-----+-----+---------+------+---+---Pi 3---+---+------+---------+-----+-----+
+'''
+
+
+make sure the mode for all GPIO pins you want to test have a Mode of IN
+if not, set the mode for each.. 
+
+# set BCM pin 4 as an input
+gpio -g mode 4 input
+
+# verify it got set correctly using
+gpio readall
+
+# enable pull-down resistor for pin 4 to make sure V stays
+# zero when nothing is connected to the input 
+gpio -g mode 4 down
+
+
 
 watch gpio readall
 
