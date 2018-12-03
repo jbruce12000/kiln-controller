@@ -21,7 +21,7 @@ If you're using a breadboard with a labeled break-out board, verify:
 
 ## Test Each GPIO Pin
 
-At thought I one point that I had fried my RPi.  I needed to verify that it
+I thought at one point that I had fried my RPi.  I needed to verify that it
 still worked as expected.  Here's what I did to verify GPIO on my pi.
 
 ```gpio readall```
@@ -61,17 +61,21 @@ make sure the mode for all GPIO pins you want to test have a Mode of IN
 if not, set the mode for each.. 
 
 set BCM pin 4 as an input
+
 ```gpio -g mode 4 input```
 
 verify it got set correctly using
+
 ```gpio readall```
 
 enable pull-down resistor for pin 4 to make sure V stays zero when nothing is connected to the input 
+
 ```gpio -g mode 4 down```
 
 This will show you the output of gpio readall every 2 seconds. This way you can concentrate on
 moving a wire to each gpio pin and then look up to verify V has changed as you expect without
 having to type.
+
 '''watch gpio readall'''
 
 
