@@ -26,6 +26,8 @@ still worked as expected.  Here's what I did to verify GPIO on my pi.
 
 ```gpio readall```
 
+and you'll get output that looks something like this...
+
 ```
  +-----+-----+---------+------+---+---Pi 3---+---+------+---------+-----+-----+
  | BCM | wPi |   Name  | Mode | V | Physical | V | Mode | Name    | wPi | BCM |
@@ -55,23 +57,23 @@ still worked as expected.  Here's what I did to verify GPIO on my pi.
  +-----+-----+---------+------+---+---Pi 3---+---+------+---------+-----+-----+
 ```
 
-
 make sure the mode for all GPIO pins you want to test have a Mode of IN
 if not, set the mode for each.. 
 
-# set BCM pin 4 as an input
-gpio -g mode 4 input
+set BCM pin 4 as an input
+```gpio -g mode 4 input```
 
-# verify it got set correctly using
-gpio readall
+verify it got set correctly using
+```gpio readall```
 
-# enable pull-down resistor for pin 4 to make sure V stays
-# zero when nothing is connected to the input 
-gpio -g mode 4 down
+enable pull-down resistor for pin 4 to make sure V stays zero when nothing is connected to the input 
+```gpio -g mode 4 down```
 
+This will show you the output of gpio readall every 2 seconds. This way you can concentrate on
+moving a wire to each gpio pin and then look up to verify V has changed as you expect without
+having to type.
+'''watch gpio readall'''
 
-
-watch gpio readall
 
 connect a 3V3 pin in series to a 1k ohm resistor
 connect the other end of the resistor to each gpio pin
