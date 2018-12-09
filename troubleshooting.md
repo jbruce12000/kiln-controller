@@ -16,7 +16,7 @@ If you're using a breadboard with a labeled break-out board, verify:
 
 * where pin one is using a multimeter.  it sounds stupid, but it will save you time.
 * measure the voltage between all the 3V3 pins and a GND pin
-* measure the voltage betwwen all the GND pins and a GND pin
+* measure the voltage between all the GND pins and a GND pin
 * measure the voltage between the 5V pins and a GND pin
 
 ## Test Each GPIO Pin

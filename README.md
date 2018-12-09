@@ -23,6 +23,8 @@ Turns a Raspberry Pi into a cheap, web-enabled kiln controller.
 
 ## Hardware
 
+### Parts
+
 | Image | Hardware | Description |
 | ------| -------- | ----------- |
 | ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/rpi.png) | [Raspberry Pi](https://www.adafruit.com/category/105) | Virtually any Raspberry Pi will work since only a few GPIO pins are being used. |
@@ -32,8 +34,11 @@ Turns a Raspberry Pi into a cheap, web-enabled kiln controller.
 | ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/ssr.png) | Solid State Relay | zero crossing, make sure it can handle the max current of your kiln. You only need one SSR, even if the kiln is 240V. |
 | ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/ks-1018.png) | Electric Kiln | There are many old electric kilns on the market that don't have digital controls. You can pick one up on the used market cheaply.  This controller will work with 120V or 240V (pick a proper SSR). My kiln is a Skutt KS-1018 |
 
+### Schematic
 
-## Installation
+![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/schematic.png)
+
+## Software 
 
 ### Raspbian
 
