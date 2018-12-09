@@ -36,6 +36,8 @@ Turns a Raspberry Pi into a cheap, web-enabled kiln controller.
 
 ### Schematic
 
+The pi has three gpio pins connected to the MAX31855 chip. D0 is configured as an input and CS and CLK are outputs. The signal that controls the solid state relay starts as a gpio output which drives a transistor acting as a switch in front of it. This transistor provides 5V and plenty of current to control the ssr. Since only four gpio pins are in use, any pi can be used for this project. See the [config](https://github.com/jbruce12000/kiln-controller/blob/master/config.py) file for gpio pin configuration. 
+
 ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/schematic.png)
 
 ## Software 
