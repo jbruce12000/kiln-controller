@@ -10,11 +10,11 @@ My kiln is Skutt KS-1018 with a kiln vent.  Try the current settings for pid_kp,
 
 ## The Tuning Process
 
-in config.py...
+in config.py set the PID values like so...
 
-    set pid_kp to 1
-    set pid_ki to 0
-    set pid_kd to 0
+    pid_kp = 1.0
+    pid_ki = 0.0
+    pid_kd = 0.0
 
 run a test schedule. I used a schedule that switches between 200 and 250 F every 30 minutes.
 
@@ -22,15 +22,15 @@ What you are looking for is overshoot (in my case 25F) past 200F to 225F. The ne
 
 Once you get the overshoot and minimal undershoot, you need to record some values.  First grab the overshoot... in my case 25F.
 
-    set pid_kp = 25
+    pid_kp = 25
 
-Measure the time in seconds from high peak to low peak. In my case this was 725 seconds.  Multiply that number by 1.5 to get the Integral.
+Measure the time in seconds from high peak to low peak. In my case this was 725 seconds.  Multiply that number by 1.5 to get the Integral. So 725 * 1.5 = 1088.
 
-    set pid_ki = 725 * 1.5 = 1088
+    pid_ki = 1088
 
-Now set the derivative at 1/5 of the Integral...
+Now set the derivative at 1/5 of the Integral. So 1088/5 = 217
 
-    set pid_kd = 1088/5 = 217
+    pid_kd = 217
 
 in essence these values mean...
 
