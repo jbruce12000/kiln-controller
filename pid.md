@@ -10,25 +10,27 @@ My kiln is Skutt KS-1018 with a kiln vent.  Try the current settings for pid_kp,
 
 ## The Tuning Process
 
-* in config.py...
-* set pid_kp to 1
-* set pid_ki to 0
-* set pid_kd to 0
-* run a test schedule. I used a schedule that switches between 200 and 250 F evey 30 minutes.
+in config.py...
+
+    set pid_kp to 1
+    set pid_ki to 0
+    set pid_kd to 0
+
+run a test schedule. I used a schedule that switches between 200 and 250 F every 30 minutes.
 
 What you are looking for is overshoot (in my case 25F) past 200F to 225F. The next thing the controller should do is settle to just below the set point of 200F. If these two things happen, great.  If not, you will need to change pid_kp to a higher or lower value.
 
 Once you get the overshoot and minimal undershoot, you need to record some values.  First grab the overshoot... in my case 25F.
 
-* set pid_kp = 25
+    set pid_kp = 25
 
 Measure the time in seconds from high peak to low peak. In my case this was 725 seconds.  Multiply that number by 1.5 to get the Integral.
 
-* set pid_ki = 725 * 1.5 = 1088
+    set pid_ki = 725 * 1.5 = 1088
 
 Now set the derivative at 1/5 of the Integral...
 
-* set pid_kd = 1088/5 = 217
+    set pid_kd = 1088/5 = 217
 
 in essence these values mean...
 
@@ -39,7 +41,6 @@ in essence these values mean...
 | pid_kd | 217 | heavily dampen oscillations |
 
 Now, run the test schedule again and see how well it works.  Expect some overshoot as the kiln reaches the set temperature the first time, but no oscillation.  Any holds or ramps after that should have a smooth transition and should remain really close to the set point [1 or 2 degrees F].
-
 
 ## Troubleshooting
 
