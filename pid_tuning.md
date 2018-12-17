@@ -18,7 +18,7 @@ in config.py set the PID values like so...
 
 run a test schedule. I used a schedule that switches between 200 and 250 F every 30 minutes.
 
-What you are looking for is overshoot (in my case 25F) past 200F to 225F. The next thing the controller should do is settle to just below the set point of 200F. If these two things happen, great.  If not, you will need to change pid_kp to a higher or lower value.
+What you are looking for is overshoot (in my case 25F) past 200F to 225F. The next thing the controller should do is undershoot by just a little below the set point of 200F. If these two things happen, great.  If not, you will need to change pid_kp to a higher or lower value.
 
 Once you get the overshoot and minimal undershoot, you need to record some values.  First grab the overshoot... in my case 25F.
 
