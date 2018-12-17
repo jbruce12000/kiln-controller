@@ -47,4 +47,3 @@ Now, run the test schedule again and see how well it works.  Expect some oversho
 * only change one value at a time, then test it.
 * If there is too much overshoot, decrease pid_kp.
 * If the temp is always below the set point, increase pid_ki.
-* make sure pid_kd is always 1/5 of pid_ki
