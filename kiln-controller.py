@@ -8,8 +8,10 @@ import json
 import bottle
 import gevent
 import geventwebsocket
+#from bottle import post, get
 from gevent.pywsgi import WSGIServer
 from geventwebsocket.handler import WebSocketHandler
+
 
 try:
     sys.dont_write_bytecode = True
@@ -35,11 +37,46 @@ app = bottle.Bottle()
 oven = Oven()
 ovenWatcher = OvenWatcher(oven)
 
-
 @app.route('/')
 def index():
     return bottle.redirect('/picoreflow/index.html')
 
+@app.post('/api')
+def handle_api():
+    log.info("/api is alive")
+    log.info(bottle.request.json)
+
+    # run a kiln schedule
+    if bottle.request.json['cmd'] == 'run':
+        wanted = bottle.request.json['profile']
+        log.info('api requested run of profile = %s' % wanted)
+
+        # get the wanted profile/kiln schedule
+        profile = find_profile(wanted)
+        if profile is None:
+            return { "success" : False, "error" : "profile %s not found" % wanted }
+
+        # FIXME juggling of json should happen in the Profile class
+        profile_json = json.dumps(profile)
+        profile = Profile(profile_json)
+        oven.run_profile(profile)
+        ovenWatcher.record(profile)
+    return { "success" : True }
+
+def find_profile(wanted):
+    '''
+    given a wanted profile name, find it and return the parsed
+    json profile object or None.
+    '''
+    #load all profiles from disk
+    profiles = get_profiles()
+    json_profiles = json.loads(profiles)
+
+    # find the wanted profile
+    for profile in json_profiles:
+        if profile['name'] == wanted:
+            return profile
+    return None
 
 @app.route('/picoreflow/:filename#.*#')
 def send_static(filename):
@@ -108,7 +145,7 @@ def handle_storage():
                 msgdict = {}
 
             if message == "GET":
-                log.info("GET command recived")
+                log.info("GET command received")
                 wsock.send(get_profiles())
             elif msgdict.get("cmd") == "DELETE":
                 log.info("DELETE command received")
