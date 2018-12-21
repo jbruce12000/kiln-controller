@@ -86,12 +86,13 @@ class Oven (threading.Thread):
         self.set_heat(False)
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
 
-    def run_profile(self, profile):
+    def run_profile(self, profile, startat=0):
         log.info("Running schedule %s" % profile.name)
         self.profile = profile
         self.totaltime = profile.get_duration()
         self.state = Oven.STATE_RUNNING
         self.start_time = datetime.datetime.now()
+        self.startat = startat * 60
         log.info("Starting")
 
     def abort_run(self):
@@ -108,7 +109,10 @@ class Oven (threading.Thread):
                     self.runtime += 0.5
                 else:
                     runtime_delta = datetime.datetime.now() - self.start_time
-                    self.runtime = runtime_delta.total_seconds()
+                    if self.startat > 0:
+                        self.runtime = self.startat + runtime_delta.total_seconds();
+                    else:
+                        self.runtime = runtime_delta.total_seconds()
 
                 self.target = self.profile.get_target_temperature(self.runtime)
                 pid = self.pid.compute(self.target, self.temp_sensor.temperature)

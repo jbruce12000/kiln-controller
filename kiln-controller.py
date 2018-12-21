@@ -51,6 +51,12 @@ def handle_api():
         wanted = bottle.request.json['profile']
         log.info('api requested run of profile = %s' % wanted)
 
+        # start at a specific minute in the schedule
+        # for restarting and skipping over early parts of a schedule
+        startat = 0;      
+        if 'startat' in bottle.request.json:
+            startat = bottle.request.json['startat']
+
         # get the wanted profile/kiln schedule
         profile = find_profile(wanted)
         if profile is None:
@@ -59,7 +65,7 @@ def handle_api():
         # FIXME juggling of json should happen in the Profile class
         profile_json = json.dumps(profile)
         profile = Profile(profile_json)
-        oven.run_profile(profile)
+        oven.run_profile(profile,startat=startat)
         ovenWatcher.record(profile)
     return { "success" : True }
 

@@ -1,2 +1,9 @@
+# start a run
+
 curl -d '{"cmd":"run", "profile":"cone-05-lo"}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
+
+# skip the first part of a run
+# restart the kiln on a specific profile and start at minute 60
+
+curl -d '{"cmd":"run", "profile":"cone-05-lo","startat":60}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
 
