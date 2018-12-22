@@ -67,6 +67,11 @@ def handle_api():
         profile = Profile(profile_json)
         oven.run_profile(profile,startat=startat)
         ovenWatcher.record(profile)
+
+    if bottle.request.json['cmd'] == 'stop':
+        log.info("api stop command received")
+        oven.abort_run()
+
     return { "success" : True }
 
 def find_profile(wanted):

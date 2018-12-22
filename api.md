@@ -7,3 +7,5 @@ curl -d '{"cmd":"run", "profile":"cone-05-lo"}' -H "Content-Type: application/js
 
 curl -d '{"cmd":"run", "profile":"cone-05-lo","startat":60}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
 
+# stop a schedule
+curl -d '{"cmd":"stop"}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
