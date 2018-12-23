@@ -228,10 +228,10 @@ class TempSensorReal(TempSensor):
     def run(self):
         while True:
 
-            maxtries = 5.0
-            sleeptime = self.time_step / maxtries
+            maxtries = 5
+            sleeptime = self.time_step / float(maxtries)
             maxtemp = 0 
-            for x in range(0,5):
+            for x in range(0,maxtries):
                 try:
                     temp = self.thermocouple.get()
                 except Exception:
