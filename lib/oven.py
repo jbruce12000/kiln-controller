@@ -228,16 +228,19 @@ class TempSensorReal(TempSensor):
     def run(self):
         while True:
 
-            last = self.temperature
-            try:
-                temp = self.thermocouple.get()
-            except Exception:
-                log.exception("problem reading temp")
-
-            if abs(last-temp) > 5:
-              self.temperature = (last + temp) / 2.0
-
-            time.sleep(self.time_step)
+            maxtries = 5.0
+            sleeptime = self.time_step / maxtries
+            maxtemp = 0 
+            for x in range(0,5):
+                try:
+                    temp = self.thermocouple.get()
+                except Exception:
+                    log.exception("problem reading temp")
+                if temp > maxtemp:
+                    maxtemp = temp
+                time.sleep(sleeptime)
+            self.temperature = maxtemp
+            #time.sleep(self.time_step)
 
 
 class TempSensorSimulate(TempSensor):
