@@ -227,18 +227,17 @@ class TempSensorReal(TempSensor):
 
     def run(self):
         while True:
-            try:
-                temp1 = self.thermocouple.get()
-            except Exception:
-                log.exception("problem reading temp")
-            try:
-                temp2 = self.thermocouple.get()
-            except Exception:
-                log.exception("problem reading temp")
-            if temp1 >= temp2:
-                self.temperature = temp1 
-            else:
-                self.temperature = temp2
+            maxtries = 10
+            final = 0
+            for x in range(0,maxtries):
+                try:
+                    temp = self.thermocouple.get()
+                except Exception:
+                    log.exception("problem reading temp")
+                if temp > final:
+                    final = temp
+            if final > 0:
+                self.temperature = final
             time.sleep(self.time_step)
 
 
