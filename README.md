@@ -116,5 +116,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ## Support & Contact
 
 Please use the issue tracker for project related issues.
-If you're having trouble with hardware, I did too.  Here is a [troubleshooting guide](https://github.com/jbruce12000/kiln-controller/blob/master/troubleshooting.md) I created for testing RPi gpio pins.
-If you're having trouble setting PID values, I did too.  Here is a [PID Tuning Guide](https://github.com/jbruce12000/kiln-controller/blob/master/pid_tuning.md)
+If you're having trouble with hardware, I did too.  Here is a [troubleshooting guide](https://github.com/jbruce12000/kiln-controller/blob/master/docs/troubleshooting.md) I created for testing RPi gpio pins.
+If you're having trouble setting PID values, I did too.  Here is a [PID Tuning Guide](https://github.com/jbruce12000/kiln-controller/blob/master/docs/pid_tuning.md)
+
+## Origin
+This project was originally forked from https://github.com/apollo-ng/picoReflow but has diverged a large amount.
