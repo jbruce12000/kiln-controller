@@ -37,11 +37,13 @@ Turns a Raspberry Pi into an inexpensive, web-enabled kiln controller.
 
 ### Schematic
 
-The pi has three gpio pins connected to the MAX31855 chip. D0 is configured as an input and CS and CLK are outputs. The signal that controls the solid state relay starts as a gpio output which drives a transistor acting as a switch in front of it. This transistor provides 5V and plenty of current to control the ssr. Since only four gpio pins are in use, any pi can be used for this project. See the [config](https://github.com/jbruce12000/kiln-controller/blob/master/config.py) file for gpio pin configuration. 
+The pi has three gpio pins connected to the MAX31855 chip. D0 is configured as an input and CS and CLK are outputs. The signal that controls the solid state relay starts as a gpio output which drives a transistor acting as a switch in front of it. This transistor provides 5V and plenty of current to control the ssr. Since only four gpio pins are in use, any pi can be used for this project. See the [config](https://github.com/jbruce12000/kiln-controller/blob/master/config.py) file for gpio pin configuration.
+
+My controller plugs into the wall, and the kiln plugs into the controller. Only a single hot leg is switched by the SSR.  The other hot leg, neutral, and ground are all pass through without modification.
 
 ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/schematic.png)
 
-*Note: I tried to power my ssr directly using a gpio pin. The pin could not provide enough current (16ma max) to control my ssr. My ssr was rated at 25ma max current, and 3V minimum to switch so I figured it would work. YMMV.*
+*Note: I tried to power my ssr directly using a gpio pin, but it did not work. My ssr required 25ma to switch and rpi's gpio could only provide 16ma. YMMV.*
 
 ## Software 
 
