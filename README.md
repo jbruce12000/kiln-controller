@@ -41,6 +41,8 @@ The pi has three gpio pins connected to the MAX31855 chip. D0 is configured as a
 
 My controller plugs into the wall, and the kiln plugs into the controller. 
 
+**WARNING** This project involves high voltages and high currents. Please make sure that anything you build conforms to local electrical codes and aligns with industry best practices.
+
 ![Image](https://github.com/jbruce12000/kiln-controller/blob/master/public/assets/images/schematic.png)
 
 *Note: I tried to power my ssr directly using a gpio pin, but it did not work. My ssr required 25ma to switch and rpi's gpio could only provide 16ma. YMMV.*
