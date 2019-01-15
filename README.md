@@ -12,7 +12,7 @@ Turns a Raspberry Pi into an inexpensive, web-enabled kiln controller.
   * NIST-linearized conversion for accurate K type thermocouple readings
   * supports PID parameters you tune to your kiln
   * monitors temperature in kiln after schedule has ended
-  * api for starting and stopping schedules
+  * api for starting and stopping at any point in a schedule
 
 **Run Kiln Schedule**
 
