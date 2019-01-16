@@ -83,6 +83,8 @@ All parameters are defined in config.py, just copy the example and review/change
 
 You should change, test, and verify PID parameters in config.py.  Here is a [PID Tuning Guide](https://github.com/jbruce12000/kiln-controller/blob/master/docs/pid_tuning.md).
 
+You may want to change the configuration parameter sensor_time_wait. It's the duty cycle for the entire system.  It's set to two seconds by default which means that a decision is made every 2s about whether to turn on relay[s] and for how long. If you use mechanical relays, you may want to increase this. At 2s, my SSR switches 11,000 times in 13 hours.
+
 ## Usage
 
 ### Server Startup
