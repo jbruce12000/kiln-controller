@@ -1,6 +1,8 @@
 Tuning PID Values
 =================
 
+This animation is worth a thousand words...
+
 ![Image](https://upload.wikimedia.org/wikipedia/commons/3/33/PID_Compensation_Animated.gif)
 
 ## The Goal
