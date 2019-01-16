@@ -1,6 +1,8 @@
 Tuning PID Vaules
 =================
 
+![Image](https://upload.wikimedia.org/wikipedia/commons/3/33/PID_Compensation_Animated.gif)
+
 ## The Goal
 A controller with properly tuned PID values reacts quickly to changes in the set point, but does not overshoot much.  It settles quickly from any oscillations and hovers really close to the set point.  What do I mean by close? The average error for my kiln on a 13 hour schedule is .75 degrees F... and I have a noisy thermocouple, so it is possible to do even better.
 
