@@ -1,4 +1,4 @@
-Tuning PID Vaules
+Tuning PID Values
 =================
 
 ![Image](https://upload.wikimedia.org/wikipedia/commons/3/33/PID_Compensation_Animated.gif)
