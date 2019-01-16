@@ -81,6 +81,8 @@ All parameters are defined in config.py, just copy the example and review/change
 
     $ cp config.py.EXAMPLE config.py
 
+You should change, test, and verify PID parameters in config.py.  Here is a [PID Tuning Guide](https://github.com/jbruce12000/kiln-controller/blob/master/docs/pid_tuning.md).
+
 ## Usage
 
 ### Server Startup
@@ -122,7 +124,6 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 Please use the issue tracker for project related issues.
 If you're having trouble with hardware, I did too.  Here is a [troubleshooting guide](https://github.com/jbruce12000/kiln-controller/blob/master/docs/troubleshooting.md) I created for testing RPi gpio pins.
-If you're having trouble setting PID values, I did too.  Here is a [PID Tuning Guide](https://github.com/jbruce12000/kiln-controller/blob/master/docs/pid_tuning.md)
 
 ## Origin
 This project was originally forked from https://github.com/apollo-ng/picoReflow but has diverged a large amount.
