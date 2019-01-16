@@ -26,7 +26,7 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 #   can use whichever GPIO you prefer/have available.
 
 ### Outputs
-gpio_heat = 11  # Switches zero-cross solid-state-relay
+gpio_heat = 23  # Switches zero-cross solid-state-relay
 heater_invert = 0 # switches the polarity of the heater control
 
 ### Thermocouple Adapter selection:
@@ -45,7 +45,10 @@ gpio_sensor_data = 17
 ### Thermocouple SPI Connection (using adafrut drivers + kernel SPI interface)
 spi_sensor_chip_id = 0
 
-### amount of time, in seconds, to wait between reads of the thermocouple
+### duty cycle of the entire system in seconds. Every N seconds a decision
+### is made about switching the relay[s] on & off and for how long.
+### The thermocouple is read five times during this period and the highest
+### value is used.
 sensor_time_wait = 2
 
 
@@ -53,9 +56,9 @@ sensor_time_wait = 2
 #
 #   PID parameters
 
-pid_ki = 0.1  # Integration
-pid_kd = 0.4  # Derivative
-pid_kp = 0.5  # Proportional
+pid_kp = 25  # Proportional
+pid_ki = 1088  # Integration
+pid_kd = 217  # Derivative was 217
 
 
 ########################################################################
@@ -65,7 +68,7 @@ pid_kp = 0.5  # Proportional
 sim_t_env      = 25.0   # deg C
 sim_c_heat     = 100.0  # J/K  heat capacity of heat element
 sim_c_oven     = 5000.0 # J/K  heat capacity of oven
-sim_p_heat     = 9450.0 # W    heating power of oven
+sim_p_heat     = 5450.0 # W    heating power of oven
 sim_R_o_nocool = 1.0    # K/W  thermal resistance oven -> environment
 sim_R_o_cool   = 0.05   # K/W  " with cooling
 sim_R_ho_noair = 0.1    # K/W  thermal resistance heat element -> oven
