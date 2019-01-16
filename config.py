@@ -45,7 +45,10 @@ gpio_sensor_data = 17
 ### Thermocouple SPI Connection (using adafrut drivers + kernel SPI interface)
 spi_sensor_chip_id = 0
 
-### amount of time, in seconds, to wait between reads of the thermocouple
+### duty cycle of the entire system in seconds. Every N seconds a decision
+### is made about switching the relay[s] on & off and for how long.
+### The thermocouple is read five times during this period and the highest
+### value is used.
 sensor_time_wait = 2
 
 
@@ -55,7 +58,7 @@ sensor_time_wait = 2
 
 pid_kp = 25  # Proportional
 pid_ki = 1088  # Integration
-pid_kd = 217  # Derivative
+pid_kd = 217  # Derivative was 217
 
 
 ########################################################################
