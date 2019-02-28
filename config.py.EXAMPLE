@@ -97,7 +97,6 @@ warning_temp_low = 5
 # if measured value is N degrees above set point
 warning_temp_high = 5
 
-# not used yet
 # thermocouple offset
 # If you put your thermocouple in ice water and it reads 36F, you can
 # set set this offset to -4 to compensate.  This probably means you have a
