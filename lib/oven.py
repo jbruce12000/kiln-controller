@@ -115,7 +115,7 @@ class Oven (threading.Thread):
                         self.runtime = runtime_delta.total_seconds()
 
                 self.target = self.profile.get_target_temperature(self.runtime)
-                pid = self.pid.compute(self.target, self.temp_sensor.temperature)
+                pid = self.pid.compute(self.target, self.temp_sensor.temperature + config.thermocouple_offset)
 
                 heat_on = float(0)
                 heat_off = float(self.time_step)
@@ -125,7 +125,7 @@ class Oven (threading.Thread):
                 time_left = self.totaltime - self.runtime
 
                 log.info("temp=%.1f, target=%.1f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" % 
-                    (self.temp_sensor.temperature,
+                    (self.temp_sensor.temperature + config.thermocouple_offset,
                      self.target,
                      pid,
                      heat_on,
@@ -140,12 +140,12 @@ class Oven (threading.Thread):
                 # warn in the interface. DO NOT RESET.
 
                 # if we are WAY TOO HOT, shut down
-                if(self.temp_sensor.temperature >= config.emergency_shutoff_temp):
+                if(self.temp_sensor.temperature + config.thermocouple_offset >= config.emergency_shutoff_temp):
                     log.info("emergency!!! temperature too high, shutting down")
                     self.reset()
                     
                 #Capture the last temperature value.  This must be done before set_heat, since there is a sleep in there now.
-                last_temp = self.temp_sensor.temperature
+                last_temp = self.temp_sensor.temperature + config.thermocouple_offset
                 
                 self.set_heat(pid)
 
@@ -187,7 +187,7 @@ class Oven (threading.Thread):
     def get_state(self):
         state = {
             'runtime': self.runtime,
-            'temperature': self.temp_sensor.temperature,
+            'temperature': self.temp_sensor.temperature + config.thermocouple_offset,
             'target': self.target,
             'state': self.state,
             'heat': self.heat,
