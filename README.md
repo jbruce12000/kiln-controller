@@ -73,7 +73,7 @@ If you want to deploy the code on a PI for production:
 
 If you also want to use the in-kernel SPI drivers with a MAX31855 sensor:
    
-    $ pip install python-dev
+    $ sudo apt-get install python-dev
     $ pip install Adafruit-MAX31855
 
 ## Configuration
