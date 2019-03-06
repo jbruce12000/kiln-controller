@@ -72,7 +72,8 @@ If you want to deploy the code on a PI for production:
     $ pip install RPi.GPIO
 
 If you also want to use the in-kernel SPI drivers with a MAX31855 sensor:
-
+   
+    $ sudo apt-get install python-dev
     $ pip install Adafruit-MAX31855
 
 ## Configuration
