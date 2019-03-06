@@ -1,12 +1,12 @@
 Logs for a Kiln Run
 ===================
 
-Logs from the app on the pi go to /var/log/daemon.log and look like this...
+Logs from the app on the pi go to **/var/log/daemon.log** and look like this...
 
     Jan 21 06:25:40 raspberrypi python[286]: 2019-01-21 06:25:40,390 INFO oven: temp =1092.4, target=1093.2, pid=1.000, heat_on=2.00, heat_off=0.00, run_time=15993, total_time=48780, time_left=32786
 
-| log entry | meaning |
-| --------- | ------- |
+| log variable | meaning |
+| ------------ | ------- |
 |temp | temperature read by thermocouple |
 |target | target temperature |
 |pid | pid value for that 2s |
@@ -18,7 +18,7 @@ Logs from the app on the pi go to /var/log/daemon.log and look like this...
 
 It's trivial to convert the data to csv...
 
-    grep "INFO oven" daemon.log|sed 's/temp=//'|sed 's/target=//'|sed 's/heat_on=//'|sed 's/heat_off=//'|sed 's/run_time=//'|sed 's/total_time=//'|sed 's/time_left=//'|sed 's/pid=//'|sed 's/.*: //' >out2.csv
+    $ grep "INFO oven" daemon.log|sed 's/temp=//'|sed 's/target=//'|sed 's/heat_on=//'|sed 's/heat_off=//'|sed 's/run_time=//'|sed 's/total_time=//'|sed 's/time_left=//'|sed 's/pid=//'|sed 's/.*: //' >out.csv
 
 Here is a slow glaze firing imported into google docs. Make sure to check out the report tab.
 
