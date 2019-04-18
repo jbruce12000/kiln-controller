@@ -67,7 +67,7 @@ Download [NOOBs](https://www.raspberrypi.org/downloads/noobs/). Copy files to an
 If you want to deploy the code on a PI for production:
 
     $ cd kiln-controller
-    $ virtualenv venv
+    $ virtualenv -p python3 venv
     $ source venv/bin/activate
     $ pip install RPi.GPIO
 
