@@ -56,7 +56,7 @@ Download [NOOBs](https://www.raspberrypi.org/downloads/noobs/). Copy files to an
     $ sudo apt-get install python-pip python-dev libevent-dev python-virtualenv
     $ git clone https://github.com/jbruce12000/kiln-controller.git
     $ cd kiln-controller
-    $ virtualenv venv
+    $ virtualenv -p python3 venv
     $ source venv/bin/activate
     $ pip install greenlet bottle gevent gevent-websocket
 
