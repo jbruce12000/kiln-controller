@@ -39,7 +39,7 @@ class OvenWatcher(threading.Thread):
         totalpts = len(self.last_log)
         if (totalpts <= maxpts):
             return self.last_log
-        every_nth = totalpts / (maxpts - 1)
+        every_nth = int(totalpts / (maxpts - 1))
         return self.last_log[::every_nth]
 
     def record(self, profile):
