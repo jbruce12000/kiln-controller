@@ -58,6 +58,7 @@ Download [NOOBs](https://www.raspberrypi.org/downloads/noobs/). Copy files to an
     $ cd kiln-controller
     $ virtualenv venv
     $ source venv/bin/activate
+    $ pip install --upgrade setuptools
     $ pip install greenlet bottle gevent gevent-websocket
 
 *Note: The above steps work on ubuntu if you prefer*
