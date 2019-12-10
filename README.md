@@ -53,10 +53,10 @@ My controller plugs into the wall, and the kiln plugs into the controller.
 
 Download [NOOBs](https://www.raspberrypi.org/downloads/noobs/). Copy files to an SD card. Install raspbian on RPi using NOOBs.
 
-    $ sudo apt-get install python-pip python-dev libevent-dev python-virtualenv
+    $ sudo apt-get install python3-pip python3-dev python3-virtualenv libevent-dev
     $ git clone https://github.com/jbruce12000/kiln-controller.git
     $ cd kiln-controller
-    $ virtualenv venv
+    $ virtualenv -p python3 venv
     $ source venv/bin/activate
     $ pip install --upgrade setuptools
     $ pip install greenlet bottle gevent gevent-websocket
@@ -68,7 +68,7 @@ Download [NOOBs](https://www.raspberrypi.org/downloads/noobs/). Copy files to an
 If you want to deploy the code on a PI for production:
 
     $ cd kiln-controller
-    $ virtualenv venv
+    $ virtualenv -p python3 venv
     $ source venv/bin/activate
     $ pip install RPi.GPIO
 
