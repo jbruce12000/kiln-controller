@@ -1,0 +1,10 @@
+[Unit]
+Description=kiln-controller
+
+[Service]
+ExecStart=/home/pi/kiln-controller/venv/bin/python /home/pi/kiln-controller/kiln-controller.py
+ExecStartPost=/bin/sleep 5
+ExecStartPost=curl -d '{"cmd":"run", "profile":"pork-butt","startat":10}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
+
+[Install]
+WantedBy=multi-user.target
