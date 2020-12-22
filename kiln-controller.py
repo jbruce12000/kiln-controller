@@ -11,6 +11,7 @@ import geventwebsocket
 #from bottle import post, get
 from gevent.pywsgi import WSGIServer
 from geventwebsocket.handler import WebSocketHandler
+from geventwebsocket import WebSocketError
 
 
 try:
