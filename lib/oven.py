@@ -98,7 +98,9 @@ class Oven (threading.Thread):
         pid = 0
         while True:
 
-            if self.state == Oven.STATE_RUNNING:
+            if self.state == Oven.STATE_IDLE:
+                time.sleep(1)
+            elif self.state == Oven.STATE_RUNNING:
                 if self.simulate:
                     self.runtime += 0.5
                 else:
@@ -137,13 +139,14 @@ class Oven (threading.Thread):
                 if(self.temp_sensor.temperature + config.thermocouple_offset >= config.emergency_shutoff_temp):
                     log.info("emergency!!! temperature too high, shutting down")
                     self.reset()
-                    
-                #Capture the last temperature value.  This must be done before set_heat, since there is a sleep in there now.
+
+                # Capture the last temperature value.  This must be done before set_heat,
+                # since there is a sleep in there now.
                 last_temp = self.temp_sensor.temperature + config.thermocouple_offset
-                
+
                 self.set_heat(pid)
 
-                if self.runtime >= self.totaltime:
+                if self.runtime > self.totaltime:
                     log.info("schedule ended, shutting down")
                     self.reset()
 
