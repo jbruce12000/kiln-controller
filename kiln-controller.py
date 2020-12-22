@@ -111,31 +111,33 @@ def handle_control():
     while True:
         try:
             message = wsock.receive()
-            log.info("Received (control): %s" % message)
-            msgdict = json.loads(message)
-            if msgdict.get("cmd") == "RUN":
-                log.info("RUN command received")
-                profile_obj = msgdict.get('profile')
-                if profile_obj:
-                    profile_json = json.dumps(profile_obj)
-                    profile = Profile(profile_json)
-                oven.run_profile(profile)
-                ovenWatcher.record(profile)
-            elif msgdict.get("cmd") == "SIMULATE":
-                log.info("SIMULATE command received")
-                #profile_obj = msgdict.get('profile')
-                #if profile_obj:
-                #    profile_json = json.dumps(profile_obj)
-                #    profile = Profile(profile_json)
-                #simulated_oven = Oven(simulate=True, time_step=0.05)
-                #simulation_watcher = OvenWatcher(simulated_oven)
-                #simulation_watcher.add_observer(wsock)
-                #simulated_oven.run_profile(profile)
-                #simulation_watcher.record(profile)
-            elif msgdict.get("cmd") == "STOP":
-                log.info("Stop command received")
-                oven.abort_run()
-        except WebSocketError:
+            if message:
+                log.info("Received (control): %s" % message)
+                msgdict = json.loads(message)
+                if msgdict.get("cmd") == "RUN":
+                    log.info("RUN command received")
+                    profile_obj = msgdict.get('profile')
+                    if profile_obj:
+                        profile_json = json.dumps(profile_obj)
+                        profile = Profile(profile_json)
+                    oven.run_profile(profile)
+                    ovenWatcher.record(profile)
+                elif msgdict.get("cmd") == "SIMULATE":
+                    log.info("SIMULATE command received")
+                    #profile_obj = msgdict.get('profile')
+                    #if profile_obj:
+                    #    profile_json = json.dumps(profile_obj)
+                    #    profile = Profile(profile_json)
+                    #simulated_oven = Oven(simulate=True, time_step=0.05)
+                    #simulation_watcher = OvenWatcher(simulated_oven)
+                    #simulation_watcher.add_observer(wsock)
+                    #simulated_oven.run_profile(profile)
+                    #simulation_watcher.record(profile)
+                elif msgdict.get("cmd") == "STOP":
+                    log.info("Stop command received")
+                    oven.abort_run()
+        except WebSocketError as e:
+            log.error(e)
             break
     log.info("websocket (control) closed")
 
