@@ -118,7 +118,7 @@ class Oven (threading.Thread):
                     heat_off = float(self.time_step * (1 - pid))
                 time_left = self.totaltime - self.runtime
 
-                log.info("temp=%.1f, target=%.1f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" % 
+                log.info("temp=%.1f, target=%.1f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
                     (self.temp_sensor.temperature + config.thermocouple_offset,
                      self.target,
                      pid,
@@ -161,13 +161,13 @@ class Oven (threading.Thread):
                if config.heater_invert:
                  GPIO.output(config.gpio_heat, GPIO.LOW)
                  time.sleep(self.time_step * value)
-                 GPIO.output(config.gpio_heat, GPIO.HIGH)   
+                 GPIO.output(config.gpio_heat, GPIO.HIGH)
                else:
                  GPIO.output(config.gpio_heat, GPIO.HIGH)
                  time.sleep(self.time_step * value)
                  GPIO.output(config.gpio_heat, GPIO.LOW)
             else:
-                 #for runs that are simulations
+                 # for runs that are simulations
                  time.sleep(self.time_step * value)
         else:
             self.heat = 0.0
@@ -224,7 +224,7 @@ class TempSensorReal(TempSensor):
 
             maxtries = 5
             sleeptime = self.time_step / float(maxtries)
-            maxtemp = 0 
+            maxtemp = 0
             for x in range(0,maxtries):
                 try:
                     temp = self.thermocouple.get()
