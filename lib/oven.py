@@ -98,7 +98,9 @@ class Oven (threading.Thread):
         pid = 0
         while True:
 
-            if self.state == Oven.STATE_RUNNING:
+            if self.state == Oven.STATE_IDLE:
+                time.sleep(1)
+            elif self.state == Oven.STATE_RUNNING:
                 if self.simulate:
                     self.runtime += 0.5
                 else:
@@ -118,7 +120,7 @@ class Oven (threading.Thread):
                     heat_off = float(self.time_step * (1 - pid))
                 time_left = self.totaltime - self.runtime
 
-                log.info("temp=%.1f, target=%.1f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" % 
+                log.info("temp=%.1f, target=%.1f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
                     (self.temp_sensor.temperature + config.thermocouple_offset,
                      self.target,
                      pid,
@@ -137,13 +139,14 @@ class Oven (threading.Thread):
                 if(self.temp_sensor.temperature + config.thermocouple_offset >= config.emergency_shutoff_temp):
                     log.info("emergency!!! temperature too high, shutting down")
                     self.reset()
-                    
-                #Capture the last temperature value.  This must be done before set_heat, since there is a sleep in there now.
+
+                # Capture the last temperature value.  This must be done before set_heat,
+                # since there is a sleep in there now.
                 last_temp = self.temp_sensor.temperature + config.thermocouple_offset
-                
+
                 self.set_heat(pid)
 
-                if self.runtime >= self.totaltime:
+                if self.runtime > self.totaltime:
                     log.info("schedule ended, shutting down")
                     self.reset()
 
@@ -161,13 +164,13 @@ class Oven (threading.Thread):
                if config.heater_invert:
                  GPIO.output(config.gpio_heat, GPIO.LOW)
                  time.sleep(self.time_step * value)
-                 GPIO.output(config.gpio_heat, GPIO.HIGH)   
+                 GPIO.output(config.gpio_heat, GPIO.HIGH)
                else:
                  GPIO.output(config.gpio_heat, GPIO.HIGH)
                  time.sleep(self.time_step * value)
                  GPIO.output(config.gpio_heat, GPIO.LOW)
             else:
-                 #for runs that are simulations
+                 # for runs that are simulations
                  time.sleep(self.time_step * value)
         else:
             self.heat = 0.0
@@ -224,7 +227,7 @@ class TempSensorReal(TempSensor):
 
             maxtries = 5
             sleeptime = self.time_step / float(maxtries)
-            maxtemp = 0 
+            maxtemp = 0
             for x in range(0,maxtries):
                 try:
                     temp = self.thermocouple.get()
