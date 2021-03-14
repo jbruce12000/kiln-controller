@@ -20,19 +20,20 @@ class Output(object):
             GPIO.setwarnings(False)
             GPIO.setup(config.gpio_heat, GPIO.OUT)
             self.active = True
+            self.GPIO = GPIO
         except:
             msg = "Could not initialize GPIOs, oven operation will only be simulated!"
             log.warning(msg)
             self.active = False
 
-    def heat(self,time):
-        GPIO.output(config.gpio_heat, GPIO.HIGH)
-        time.sleep(time)
-        GPIO.output(config.gpio_heat, GPIO.LOW)
+    def heat(self,sleepfor):
+        self.GPIO.output(config.gpio_heat, self.GPIO.HIGH)
+        time.sleep(sleepfor)
+        self.GPIO.output(config.gpio_heat, self.GPIO.LOW)
 
-    def cool(self,time):
+    def cool(self,sleepfor):
         '''no active cooling, so sleep'''
-        time.sleep(time)
+        time.sleep(sleepfor)
 
 class Board(object):
     def __init__(self):
@@ -40,7 +41,6 @@ class Board(object):
         self.active = False
         self.temp_sensor = None
         self.gpio_active = False
-        self.load_gpio_libs()
         self.load_libs()
         self.create_temp_sensor()
         self.temp_sensor.start()
@@ -48,7 +48,7 @@ class Board(object):
     def load_libs(self):
         if config.max31855:
             try:
-                from max31855 import MAX31855, MAX31855Error
+                #from max31855 import MAX31855, MAX31855Error
                 self.name='MAX31855'
                 self.active = True
                 log.info("import %s " % (self.name))
@@ -58,7 +58,7 @@ class Board(object):
 
         if config.max31856:
             try:
-                from max31856 import MAX31856, MAX31856Error
+                #from max31856 import MAX31856, MAX31856Error
                 self.name='MAX31856'
                 self.active = True
                 log.info("import %s " % (self.name))
@@ -95,6 +95,7 @@ class TempSensorReal(TempSensor):
         TempSensor.__init__(self)
         if config.max31855:
             log.info("init MAX31855")
+            from max31855 import MAX31855, MAX31855Error
             self.thermocouple = MAX31855(config.gpio_sensor_cs,
                                      config.gpio_sensor_clock,
                                      config.gpio_sensor_data,
@@ -102,6 +103,7 @@ class TempSensorReal(TempSensor):
 
         if config.max31856:
             log.info("init MAX31856")
+            from max31856 import MAX31856, MAX31856Error
             software_spi = { 'cs': config.gpio_sensor_cs,
                              'clk': config.gpio_sensor_clock,
                              'do': config.gpio_sensor_data }
@@ -303,6 +305,7 @@ class RealOven(Oven):
 
     def __init__(self):
         self.board = Board()
+        self.output = Output()
         self.reset()
 
         # call parent init
