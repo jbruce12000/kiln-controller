@@ -1,4 +1,5 @@
 import logging
+from lib.max31856 import MAX31856
 
 ########################################################################
 #
@@ -13,7 +14,7 @@ listening_ip = "0.0.0.0"
 listening_port = 8081
 
 ### Cost Estimate
-kwh_rate        = 0.18  # Rate in currency_type to calculate cost to run job
+kwh_rate        = 0.1319  # Rate in currency_type to calculate cost to run job
 currency_type   = "$"   # Currency Symbol to show when calculating cost to run job
 
 ########################################################################
@@ -27,35 +28,30 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 
 ### Outputs
 gpio_heat = 23  # Switches zero-cross solid-state-relay
-heater_invert = 0 # switches the polarity of the heater control
 
 ### Thermocouple Adapter selection:
 #   max31855 - bitbang SPI interface
-#   max31855spi - kernel SPI interface
-#   max6675 - bitbang SPI interface
+#   max31856 - bitbang SPI interface. must specify thermocouple_type.
 max31855 = 1
-max6675 = 0
-max31855spi = 0 # if you use this one, you MUST reassign the default GPIO pins
+max31856 = 0
+# see lib/max31856.py for other thermocouple_type, only applies to max31856
+thermocouple_type = MAX31856.MAX31856_S_TYPE
 
 ### Thermocouple Connection (using bitbang interfaces)
 gpio_sensor_cs = 27
 gpio_sensor_clock = 22
 gpio_sensor_data = 17
 
-### Thermocouple SPI Connection (using adafrut drivers + kernel SPI interface)
-spi_sensor_chip_id = 0
-
 ### duty cycle of the entire system in seconds. Every N seconds a decision
 ### is made about switching the relay[s] on & off and for how long.
 ### The thermocouple is read five times during this period and the highest
 ### value is used.
-sensor_time_wait = 2
+sensor_time_wait = 1
 
 
 ########################################################################
 #
 #   PID parameters
-
 pid_kp = 25  # Proportional
 pid_ki = 1088  # Integration
 pid_kd = 217  # Derivative was 217
@@ -64,7 +60,7 @@ pid_kd = 217  # Derivative was 217
 ########################################################################
 #
 #   Simulation parameters
-
+simulate = True
 sim_t_env      = 25.0   # deg C
 sim_c_heat     = 100.0  # J/K  heat capacity of heat element
 sim_c_oven     = 5000.0 # J/K  heat capacity of oven
@@ -87,15 +83,14 @@ time_scale_profile  = "m" # s = Seconds | m = Minutes | h = Hours - Enter and vi
 # when solid state relays fail, they usually fail closed.  this means your
 # kiln receives full power until your house burns down.
 # this should not replace you watching your kiln or use of a kiln-sitter
-emergency_shutoff_temp = 2250
+emergency_shutoff_temp = 2264 #cone 7
 
-# not used yet
-# if measured value is N degrees below set point
-warning_temp_low = 5
-
-# not used yet
-# if measured value is N degrees above set point
-warning_temp_high = 5
+# If the kiln cannot heat fast enough and is off by more than 
+# kiln_must_catch_up_max_error  the entire schedule is shifted until
+# the desired temperature is reached. If your kiln cannot attain the 
+# wanted temperature, the schedule will run forever.
+kiln_must_catch_up = True
+kiln_must_catch_up_max_error = 10 #degrees
 
 # thermocouple offset
 # If you put your thermocouple in ice water and it reads 36F, you can

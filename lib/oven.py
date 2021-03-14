@@ -4,213 +4,95 @@ import random
 import datetime
 import logging
 import json
-
 import config
 
 log = logging.getLogger(__name__)
 
-try:
-    if config.max31855 + config.max6675 + config.max31855spi > 1:
-        log.error("choose (only) one converter IC")
-        exit()
-    if config.max31855:
-        from max31855 import MAX31855, MAX31855Error
-        log.info("import MAX31855")
-    if config.max31855spi:
-        import Adafruit_GPIO.SPI as SPI
-        from max31855spi import MAX31855SPI, MAX31855SPIError
-        log.info("import MAX31855SPI")
-        spi_reserved_gpio = [7, 8, 9, 10, 11]
-        if config.gpio_heat in spi_reserved_gpio:
-            raise Exception("gpio_heat pin %s collides with SPI pins %s" % (config.gpio_heat, spi_reserved_gpio))
-    if config.max6675:
-        from max6675 import MAX6675, MAX6675Error
-        log.info("import MAX6675")
-    sensor_available = True
-except ImportError:
-    log.exception("Could not initialize temperature sensor, using dummy values!")
-    sensor_available = False
+class Output(object):
+    def __init__(self):
+        self.active = False
+        self.load_libs()
 
-try:
-    import RPi.GPIO as GPIO
-    GPIO.setmode(GPIO.BCM)
-    GPIO.setwarnings(False)
-    GPIO.setup(config.gpio_heat, GPIO.OUT)
-#    GPIO.setup(config.gpio_cool, GPIO.OUT)
-#    GPIO.setup(config.gpio_air, GPIO.OUT)
-#    GPIO.setup(config.gpio_door, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+    def load_libs(self):
+        try:
+            import RPi.GPIO as GPIO
+            GPIO.setmode(GPIO.BCM)
+            GPIO.setwarnings(False)
+            GPIO.setup(config.gpio_heat, GPIO.OUT)
+            self.active = True
+        except:
+            msg = "Could not initialize GPIOs, oven operation will only be simulated!"
+            log.warning(msg)
+            self.active = False
 
-    gpio_available = True
-except ImportError:
-    msg = "Could not initialize GPIOs, oven operation will only be simulated!"
-    log.warning(msg)
-    gpio_available = False
+    def heat(self,time):
+        GPIO.output(config.gpio_heat, GPIO.HIGH)
+        time.sleep(time)
+        GPIO.output(config.gpio_heat, GPIO.LOW)
 
+    def cool(self,time):
+        '''no active cooling, so sleep'''
+        time.sleep(time)
 
-class Oven (threading.Thread):
-    STATE_IDLE = "IDLE"
-    STATE_RUNNING = "RUNNING"
-
-    def __init__(self, simulate=False, time_step=config.sensor_time_wait):
-        threading.Thread.__init__(self)
-        self.daemon = True
-        self.simulate = simulate
-        self.time_step = time_step
-        self.reset()
-        if simulate:
-            self.temp_sensor = TempSensorSimulate(self,
-                                                  self.time_step,
-                                                  self.time_step)
-        if sensor_available:
-            self.temp_sensor = TempSensorReal(self.time_step)
-        else:
-            self.temp_sensor = TempSensorSimulate(self,
-                                                  self.time_step,
-                                                  self.time_step)
+class Board(object):
+    def __init__(self):
+        self.name = None
+        self.active = False
+        self.temp_sensor = None
+        self.gpio_active = False
+        self.load_gpio_libs()
+        self.load_libs()
+        self.create_temp_sensor()
         self.temp_sensor.start()
-        self.start()
 
-    def reset(self):
-        self.profile = None
-        self.start_time = 0
-        self.runtime = 0
-        self.totaltime = 0
-        self.target = 0
-        self.state = Oven.STATE_IDLE
-        self.set_heat(False)
-        self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
+    def load_libs(self):
+        if config.max31855:
+            try:
+                from max31855 import MAX31855, MAX31855Error
+                self.name='MAX31855'
+                self.active = True
+                log.info("import %s " % (self.name))
+            except ImportError:
+                msg = "max31855 config set, but import failed" 
+                log.warning(msg)
 
-    def run_profile(self, profile, startat=0):
-        log.info("Running schedule %s" % profile.name)
-        self.profile = profile
-        self.totaltime = profile.get_duration()
-        self.state = Oven.STATE_RUNNING
-        self.start_time = datetime.datetime.now()
-        self.startat = startat * 60
-        log.info("Starting")
+        if config.max31856:
+            try:
+                from max31856 import MAX31856, MAX31856Error
+                self.name='MAX31856'
+                self.active = True
+                log.info("import %s " % (self.name))
+            except ImportError:
+                msg = "max31856 config set, but import failed" 
+                log.warning(msg)
 
-    def abort_run(self):
-        self.reset()
-
-    def run(self):
-        temperature_count = 0
-        last_temp = 0
-        pid = 0
-        while True:
-
-            if self.state == Oven.STATE_IDLE:
-                time.sleep(1)
-            elif self.state == Oven.STATE_RUNNING:
-                if self.simulate:
-                    self.runtime += 0.5
-                else:
-                    runtime_delta = datetime.datetime.now() - self.start_time
-                    if self.startat > 0:
-                        self.runtime = self.startat + runtime_delta.total_seconds();
-                    else:
-                        self.runtime = runtime_delta.total_seconds()
-
-                self.target = self.profile.get_target_temperature(self.runtime)
-                pid = self.pid.compute(self.target, self.temp_sensor.temperature + config.thermocouple_offset)
-
-                heat_on = float(0)
-                heat_off = float(self.time_step)
-                if pid > 0:
-                    heat_on = float(self.time_step * pid)
-                    heat_off = float(self.time_step * (1 - pid))
-                time_left = self.totaltime - self.runtime
-
-                log.info("temp=%.1f, target=%.1f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
-                    (self.temp_sensor.temperature + config.thermocouple_offset,
-                     self.target,
-                     pid,
-                     heat_on,
-                     heat_off,
-                     self.runtime,
-                     self.totaltime,
-                     time_left))
-
-                # FIX - this whole thing should be replaced with
-                # a warning low and warning high below and above
-                # set value.  If either of these are exceeded,
-                # warn in the interface. DO NOT RESET.
-
-                # if we are WAY TOO HOT, shut down
-                if(self.temp_sensor.temperature + config.thermocouple_offset >= config.emergency_shutoff_temp):
-                    log.info("emergency!!! temperature too high, shutting down")
-                    self.reset()
-
-                # Capture the last temperature value.  This must be done before set_heat,
-                # since there is a sleep in there now.
-                last_temp = self.temp_sensor.temperature + config.thermocouple_offset
-
-                self.set_heat(pid)
-
-                if self.runtime > self.totaltime:
-                    log.info("schedule ended, shutting down")
-                    self.reset()
-
-            # amount of time to sleep with the heater off
-            # for example if pid = .6 and time step is 1, sleep for .4s
-            if pid > 0:
-                time.sleep(self.time_step * (1 - pid))
-            else:
-                time.sleep(self.time_step)
-
-    def set_heat(self, value):
-        if value > 0:
-            self.heat = 1.0
-            if gpio_available:
-               if config.heater_invert:
-                 GPIO.output(config.gpio_heat, GPIO.LOW)
-                 time.sleep(self.time_step * value)
-                 GPIO.output(config.gpio_heat, GPIO.HIGH)
-               else:
-                 GPIO.output(config.gpio_heat, GPIO.HIGH)
-                 time.sleep(self.time_step * value)
-                 GPIO.output(config.gpio_heat, GPIO.LOW)
-            else:
-                 # for runs that are simulations
-                 time.sleep(self.time_step * value)
+    def create_temp_sensor(self):
+        if config.simulate == True:
+            self.temp_sensor = TempSensorSimulate()
         else:
-            self.heat = 0.0
-            if gpio_available:
-               if config.heater_invert:
-                 GPIO.output(config.gpio_heat, GPIO.HIGH)
-               else:
-                 GPIO.output(config.gpio_heat, GPIO.LOW)
+            self.temp_sensor = TempSensorReal()
 
-
-    def get_state(self):
-        state = {
-            'runtime': self.runtime,
-            'temperature': self.temp_sensor.temperature + config.thermocouple_offset,
-            'target': self.target,
-            'state': self.state,
-            'heat': self.heat,
-            'totaltime': self.totaltime,
-        }
-        return state
-
-
+class BoardSimulated(object):
+    def __init__(self):
+        self.temp_sensor = TempSensorSimulated()
+ 
 class TempSensor(threading.Thread):
-    def __init__(self, time_step):
+    def __init__(self):
         threading.Thread.__init__(self)
         self.daemon = True
         self.temperature = 0
-        self.time_step = time_step
+        self.time_step = config.sensor_time_wait
 
+class TempSensorSimulated(TempSensor):
+    '''not much here, just need to be able to set the temperature'''
+    def __init__(self):
+        TempSensor.__init__(self)
 
 class TempSensorReal(TempSensor):
-    def __init__(self, time_step):
-        TempSensor.__init__(self, time_step)
-        if config.max6675:
-            log.info("init MAX6675")
-            self.thermocouple = MAX6675(config.gpio_sensor_cs,
-                                     config.gpio_sensor_clock,
-                                     config.gpio_sensor_data,
-                                     config.temp_scale)
-
+    '''real temperature sensor thread that takes N measurements
+       during the time_step'''
+    def __init__(self):
+        TempSensor.__init__(self)
         if config.max31855:
             log.info("init MAX31855")
             self.thermocouple = MAX31855(config.gpio_sensor_cs,
@@ -218,14 +100,19 @@ class TempSensorReal(TempSensor):
                                      config.gpio_sensor_data,
                                      config.temp_scale)
 
-        if config.max31855spi:
-            log.info("init MAX31855-spi")
-            self.thermocouple = MAX31855SPI(spi_dev=SPI.SpiDev(port=0, device=config.spi_sensor_chip_id))
+        if config.max31856:
+            log.info("init MAX31856")
+            software_spi = { 'cs': config.gpio_sensor_cs,
+                             'clk': config.gpio_sensor_clock,
+                             'do': config.gpio_sensor_data }
+            self.thermocouple = MAX31856(tc_type=config.thermocouple_type,
+                                         software_spi = sofware_spi,
+                                         units = config.temp_scale
+                                         )
 
     def run(self):
         while True:
-
-            maxtries = 5
+            maxtries = 5 
             sleeptime = self.time_step / float(maxtries)
             maxtemp = 0
             for x in range(0,maxtries):
@@ -237,48 +124,217 @@ class TempSensorReal(TempSensor):
                     maxtemp = temp
                 time.sleep(sleeptime)
             self.temperature = maxtemp
-            #time.sleep(self.time_step)
 
+class Oven(threading.Thread):
+    '''parent oven class. this has all the common code
+       for either a real or simulated oven'''
+    def __init__(self):
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.temperature = 0
+        self.time_step = config.sensor_time_wait
+        self.reset()
 
-class TempSensorSimulate(TempSensor):
-    def __init__(self, oven, time_step, sleep_time):
-        TempSensor.__init__(self, time_step)
-        self.oven = oven
-        self.sleep_time = sleep_time
+    def reset(self):
+        self.state = "IDLE"
+        self.profile = None
+        self.start_time = 0
+        self.runtime = 0
+        self.totaltime = 0
+        self.target = 0
+        self.heat = 0
+        self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
+
+    def run_profile(self, profile, startat=0):
+        log.info("Running schedule %s" % profile.name)
+        self.profile = profile
+        self.totaltime = profile.get_duration()
+        self.state = "RUNNING"
+        self.start_time = datetime.datetime.now()
+        self.startat = startat * 60
+        log.info("Starting")
+
+    def abort_run(self):
+        self.reset()
+
+    def kiln_must_catch_up(self):
+        '''shift the whole schedule forward in time by one time_step
+        to wait for the kiln to catch up'''
+        if config.kiln_must_catch_up == True:
+            temp = self.board.temp_sensor.temperature + \
+                config.thermocouple_offset
+            if self.target - temp > config.kiln_must_catch_up_max_error:
+                log.info("kiln must catch up, shifting schedule")
+                self.start_time = self.start_time + \
+                    datetime.timedelta(seconds=self.time_step)
+
+    def update_runtime(self):
+        runtime_delta = datetime.datetime.now() - self.start_time
+        if self.startat > 0:
+            self.runtime = self.startat + runtime_delta.total_seconds()
+        else:
+            self.runtime = runtime_delta.total_seconds()
+
+    def update_target_temp(self):
+        self.target = self.profile.get_target_temperature(self.runtime)
+
+    def reset_if_emergency(self):
+        '''reset if the temperature is way TOO HOT'''
+        if (self.board.temp_sensor.temperature + config.thermocouple_offset >=
+            config.emergency_shutoff_temp):
+            log.info("emergency!!! temperature too high, shutting down")
+            self.reset()
+
+    def reset_if_schedule_ended(self):
+        if self.runtime > self.totaltime:
+            log.info("schedule ended, shutting down")
+            self.reset()
+
+    def get_state(self):
+        state = {
+            'runtime': self.runtime,
+            'temperature': self.board.temp_sensor.temperature + config.thermocouple_offset,
+            'target': self.target,
+            'state': self.state,
+            'heat': self.heat,
+            'totaltime': self.totaltime,
+        }
+        return state
 
     def run(self):
-        t_env      = config.sim_t_env
-        c_heat     = config.sim_c_heat
-        c_oven     = config.sim_c_oven
-        p_heat     = config.sim_p_heat
-        R_o_nocool = config.sim_R_o_nocool
-        R_ho_noair = config.sim_R_ho_noair
-        R_ho = R_ho_noair
-
-        t = t_env  # deg C  temp in oven
-        t_h = t    # deg C temp of heat element
         while True:
-            #heating energy
-            Q_h = p_heat * self.time_step * self.oven.heat
+            if self.state == "IDLE":
+                time.sleep(1)
+                continue
+            if self.state == "RUNNING":
+                self.kiln_must_catch_up()
+                self.update_runtime()
+                self.update_target_temp()
+                self.heat_then_cool()
+                self.reset_if_emergency()
+                self.reset_if_schedule_ended()
 
-            #temperature change of heat element by heating
-            t_h += Q_h / c_heat
 
-            #energy flux heat_el -> oven
-            p_ho = (t_h - t) / R_ho
+class SimulatedOven(Oven):
 
-            #temperature change of oven and heat el
-            t   += p_ho * self.time_step / c_oven
-            t_h -= p_ho * self.time_step / c_heat
+    def __init__(self):
+        self.reset()
+        self.board = BoardSimulated()
 
-            #temperature change of oven by cooling to env
-            p_env = (t - t_env) / R_o_nocool
-            t -= p_env * self.time_step / c_oven
-            log.debug("energy sim: -> %dW heater: %.0f -> %dW oven: %.0f -> %dW env" % (int(p_heat * self.oven.heat), t_h, int(p_ho), t, int(p_env)))
-            self.temperature = t
+        self.t_env = config.sim_t_env
+        self.c_heat = config.sim_c_heat
+        self.c_oven = config.sim_c_oven
+        self.p_heat = config.sim_p_heat
+        self.R_o_nocool = config.sim_R_o_nocool
+        self.R_ho_noair = config.sim_R_ho_noair
+        self.R_ho = self.R_ho_noair
 
-            time.sleep(self.sleep_time)
+        # set temps to the temp of the surrounding environment
+        self.t = self.t_env # deg C temp of oven
+        self.t_h = self.t_env #deg C temp of heating element
+        
+        # call parent init
+        Oven.__init__(self)
+        
+        # start thread
+        self.start()
+        log.info("SimulatedOven started")
 
+    def heating_energy(self,pid):
+        # using pid here simulates the element being on for
+        # only part of the time_step
+        self.Q_h = self.p_heat * self.time_step * pid
+
+    def temp_changes(self):
+        #temperature change of heat element by heating
+        self.t_h += self.Q_h / self.c_heat
+
+        #energy flux heat_el -> oven
+        self.p_ho = (self.t_h - self.t) / self.R_ho
+
+        #temperature change of oven and heating element
+        self.t += self.p_ho * self.time_step / self.c_oven
+        self.t_h -= self.p_ho * self.time_step / self.c_heat
+
+        #temperature change of oven by cooling to environment
+        self.p_env = (self.t - self.t_env) / self.R_o_nocool
+        self.t -= self.p_env * self.time_step / self.c_oven
+        self.temperature = self.t
+        self.board.temp_sensor.temperature = self.t
+
+    def heat_then_cool(self):
+        pid = self.pid.compute(self.target,
+                               self.board.temp_sensor.temperature +
+                               config.thermocouple_offset)
+        heat_on = float(self.time_step * pid)
+        heat_off = float(self.time_step * (1 - pid))
+
+        self.heating_energy(pid)
+        self.temp_changes()
+
+        # self.heat is for the front end to display if the heat is on
+        self.heat = 0.0
+        if heat_on > 0:
+            self.heat = 1.0
+
+        log.info("simulation: -> %dW heater: %.0f -> %dW oven: %.0f -> %dW env"            % (int(self.p_heat * pid),
+            self.t_h,
+            int(self.p_ho),
+            self.t,
+            int(self.p_env)))
+
+        time_left = self.totaltime - self.runtime
+        log.info("temp=%.1f, target=%.1f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
+            (self.board.temp_sensor.temperature + config.thermocouple_offset,
+             self.target,
+             pid,
+             heat_on,
+             heat_off,
+             self.runtime,
+             self.totaltime,
+             time_left))
+        
+        # we don't actually spend time heating & cooling during
+        # a simulation, so sleep. 
+        time.sleep(self.time_step)
+
+
+class RealOven(Oven):
+
+    def __init__(self):
+        self.board = Board()
+        self.reset()
+
+        # call parent init
+        Oven.__init__(self)
+
+        # start thread
+        self.start()
+
+    def heat_then_cool(self):
+        pid = self.pid.compute(self.target,
+                               self.board.temp_sensor.temperature +
+                               config.thermocouple_offset)
+        heat_on = float(self.time_step * pid)
+        heat_off = float(self.time_step * (1 - pid))
+
+        # self.heat is for the front end to display if the heat is on
+        self.heat = 0.0
+        if heat_on > 0:
+            self.heat = 1.0
+
+        self.output.heat(heat_on)
+        self.output.cool(heat_off)
+        time_left = self.totaltime - self.runtime
+        log.info("temp=%.1f, target=%.1f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
+            (self.board.temp_sensor.temperature + config.thermocouple_offset,
+             self.target,
+             pid,
+             heat_on,
+             heat_off,
+             self.runtime,
+             self.totaltime,
+             time_left))
 
 class Profile():
     def __init__(self, json_data):
@@ -304,13 +360,6 @@ class Profile():
 
         return (prev_point, next_point)
 
-    def is_rising(self, time):
-        (prev_point, next_point) = self.get_surrounding_points(time)
-        if prev_point and next_point:
-            return prev_point[1] < next_point[1]
-        else:
-            return False
-
     def get_target_temperature(self, time):
         if time > self.get_duration():
             return 0
@@ -323,6 +372,7 @@ class Profile():
 
 
 class PID():
+
     def __init__(self, ki=1, kp=1, kd=1):
         self.ki = ki
         self.kp = kp
@@ -344,5 +394,9 @@ class PID():
         output = sorted([-1, output, 1])[1]
         self.lastErr = error
         self.lastNow = now
+
+        # not actively cooling, so
+        if output < 0:
+            output = 0
 
         return output

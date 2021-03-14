@@ -25,17 +25,23 @@ except:
 
 logging.basicConfig(level=config.log_level, format=config.log_format)
 log = logging.getLogger("kiln-controller")
-log.info("Starting kill controller")
+log.info("Starting kiln controller")
 
 script_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, script_dir + '/lib/')
 profile_path = os.path.join(script_dir, "storage", "profiles")
 
-from oven import Oven, Profile
+from oven import SimulatedOven, RealOven, Profile
 from ovenWatcher import OvenWatcher
 
 app = bottle.Bottle()
-oven = Oven()
+
+if config.simulate == True:
+    log.info("this is a simulation")
+    oven = SimulatedOven()
+else:
+    log.info("this is a real kiln")
+    oven = RealOven()
 ovenWatcher = OvenWatcher(oven)
 
 @app.route('/')

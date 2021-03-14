@@ -27,7 +27,7 @@ class OvenWatcher(threading.Thread):
             oven_state = self.oven.get_state()
            
             # record state for any new clients that join
-            if oven_state.get("state") == Oven.STATE_RUNNING:
+            if oven_state.get("state") == "RUNNING":
                 self.last_log.append(oven_state)
             else:
                 self.recording = False
