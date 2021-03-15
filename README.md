@@ -73,12 +73,8 @@ If you want to deploy the code on a PI for production:
     $ cd kiln-controller
     $ virtualenv -p python3 venv
     $ source venv/bin/activate
-    $ pip install RPi.GPIO
+    $ pip install -r requirements.txt
 
-If you also want to use the in-kernel SPI drivers with a MAX31855 sensor:
-   
-    $ sudo apt-get install python-dev
-    $ pip install Adafruit-MAX31855
 
 ## Configuration
 
