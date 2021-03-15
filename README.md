@@ -13,6 +13,9 @@ Turns a Raspberry Pi into an inexpensive, web-enabled kiln controller.
   * supports PID parameters you tune to your kiln
   * monitors temperature in kiln after schedule has ended
   * api for starting and stopping at any point in a schedule
+  * support of MAX31856
+  * accurate simulation
+  * support for shifting schedule when kiln cannot heat quickly enough  
 
 **Run Kiln Schedule**
 
