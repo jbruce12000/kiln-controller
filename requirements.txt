@@ -4,5 +4,5 @@ bottle
 gevent
 gevent-websocket
 #RPi.GPIO
-#Adafruit-MAX31855
-#Adafruit-GPIO
+Adafruit-MAX31855
+Adafruit-GPIO
