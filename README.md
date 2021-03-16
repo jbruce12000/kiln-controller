@@ -104,9 +104,7 @@ of your PI and the port defined in config.py (default 8081).
 
 ### Simulation
 
-Select a profile and click Start. If you do not have a raspberry pi connected
-and configured, then your run will be simulated.  Simulations run at near real
-time and kiln characteristics are defined in config.py.
+In config.py, set **simulate=True**. Start the server and select a profile and click Start. Simulations run at near real time.
 
 ## License
 
