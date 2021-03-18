@@ -168,6 +168,7 @@ class Oven(threading.Thread):
         if config.kiln_must_catch_up == True:
             temp = self.board.temp_sensor.temperature + \
                 config.thermocouple_offset
+            # FIX do this for cooling too
             if self.target - temp > config.kiln_must_catch_up_max_error:
                 log.info("kiln must catch up, shifting schedule")
                 self.start_time = self.start_time + \
