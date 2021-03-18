@@ -35,6 +35,7 @@ class Output(object):
         '''no active cooling, so sleep'''
         time.sleep(sleepfor)
 
+# FIX - Board class needs to be completely removed
 class Board(object):
     def __init__(self):
         self.name = None
@@ -113,6 +114,8 @@ class TempSensorReal(TempSensor):
                                          )
 
     def run(self):
+        '''take 5 measurements over each time period and return the
+        highest'''
         while True:
             maxtries = 5 
             sleeptime = self.time_step / float(maxtries)
