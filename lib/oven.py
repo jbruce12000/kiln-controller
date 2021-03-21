@@ -115,20 +115,19 @@ class TempSensorReal(TempSensor):
 
     def run(self):
         '''take 5 measurements over each time period and return the
-        highest'''
+        average'''
         while True:
             maxtries = 5 
             sleeptime = self.time_step / float(maxtries)
-            maxtemp = 0
+            temps = []
             for x in range(0,maxtries):
                 try:
                     temp = self.thermocouple.get()
+                    temps.append(temp)
                 except Exception:
                     log.exception("problem reading temp")
-                if temp > maxtemp:
-                    maxtemp = temp
                 time.sleep(sleeptime)
-            self.temperature = maxtemp
+            self.temperature = sum(temps)/len(temps)
 
 class Oven(threading.Thread):
     '''parent oven class. this has all the common code
@@ -168,9 +167,14 @@ class Oven(threading.Thread):
         if config.kiln_must_catch_up == True:
             temp = self.board.temp_sensor.temperature + \
                 config.thermocouple_offset
-            # FIX do this for cooling too
+            # kiln too cold, wait for it to heat up
             if self.target - temp > config.kiln_must_catch_up_max_error:
-                log.info("kiln must catch up, shifting schedule")
+                log.info("kiln must catch up, too cold, shifting schedule")
+                self.start_time = self.start_time + \
+                    datetime.timedelta(seconds=self.time_step)
+            # kiln too hot, wait for it to cool down
+            if temp - self.target > config.kiln_must_catch_up_max_error:
+                log.info("kiln must catch up, too hot, shifting schedule")
                 self.start_time = self.start_time + \
                     datetime.timedelta(seconds=self.time_step)
 
@@ -388,9 +392,16 @@ class PID():
         self.iterm = 0
         self.lastErr = 0
 
+    # FIX - this was using a really small window where the PID control
+    # takes effect from -1 to 1. I changed this to various numbers and 
+    # settled on -50 to 50 and then divide by 50 at the end. This results
+    # in a larger PID control window and much more accurate control...
+    # instead of what used to be binary on/off control.
     def compute(self, setpoint, ispoint):
         now = datetime.datetime.now()
         timeDelta = (now - self.lastNow).total_seconds()
+
+        window_size = 50
 
         error = float(setpoint - ispoint)
         self.iterm += (error * timeDelta * self.ki)
@@ -398,12 +409,15 @@ class PID():
         dErr = (error - self.lastErr) / timeDelta
 
         output = self.kp * error + self.iterm + self.kd * dErr
-        output = sorted([-1, output, 1])[1]
+        log.info("pid raw = %f" % (output)) 
+        output = sorted([-1 * window_size, output, window_size])[1]
         self.lastErr = error
         self.lastNow = now
 
         # not actively cooling, so
         if output < 0:
             output = 0
+
+        output = float(output / window_size)
 
         return output
