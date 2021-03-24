@@ -52,20 +52,20 @@ sensor_time_wait = 2
 ########################################################################
 #
 #   PID parameters
-pid_kp = 25  # Proportional
-pid_ki = 1088  # Integration
-pid_kd = 217  # Derivative was 217
+pid_kp = 25  # Proportional 25
+pid_ki = 100  # Integration 100
+pid_kd = 100  # Derivative was 25
 
 
 ########################################################################
 #
 #   Simulation parameters
 simulate = True
-sim_t_env      = 25.0   # deg C
+sim_t_env      = 60.0   # deg C
 sim_c_heat     = 100.0  # J/K  heat capacity of heat element
 sim_c_oven     = 5000.0 # J/K  heat capacity of oven
 sim_p_heat     = 5450.0 # W    heating power of oven
-sim_R_o_nocool = 1.0    # K/W  thermal resistance oven -> environment
+sim_R_o_nocool = 0.1    # K/W  thermal resistance oven -> environment
 sim_R_o_cool   = 0.05   # K/W  " with cooling
 sim_R_ho_noair = 0.1    # K/W  thermal resistance heat element -> oven
 sim_R_ho_air   = 0.05   # K/W  " with internal air circulation
@@ -74,6 +74,9 @@ sim_R_ho_air   = 0.05   # K/W  " with internal air circulation
 ########################################################################
 #
 #   Time and Temperature parameters
+#
+# If you change the temp_scale, all settings in this file are assumed to
+# be in that scale.
 
 temp_scale          = "f" # c = Celsius | f = Fahrenheit - Unit to display 
 time_scale_slope    = "h" # s = Seconds | m = Minutes | h = Hours - Slope displayed in temp_scale per time_scale_slope
@@ -83,9 +86,9 @@ time_scale_profile  = "m" # s = Seconds | m = Minutes | h = Hours - Enter and vi
 # when solid state relays fail, they usually fail closed.  this means your
 # kiln receives full power until your house burns down.
 # this should not replace you watching your kiln or use of a kiln-sitter
-emergency_shutoff_temp = 2264 #cone 7
+emergency_shutoff_temp = 2264 #cone 7 
 
-# If the kiln cannot heat fast enough and is off by more than 
+# If the kiln cannot heat or cool fast enough and is off by more than 
 # kiln_must_catch_up_max_error  the entire schedule is shifted until
 # the desired temperature is reached. If your kiln cannot attain the 
 # wanted temperature, the schedule will run forever.

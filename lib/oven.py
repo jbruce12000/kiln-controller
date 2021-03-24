@@ -401,15 +401,19 @@ class PID():
         now = datetime.datetime.now()
         timeDelta = (now - self.lastNow).total_seconds()
 
-        window_size = 50
+        window_size = 100
 
         error = float(setpoint - ispoint)
-        self.iterm += (error * timeDelta * self.ki)
-        self.iterm = sorted([-1, self.iterm, 1])[1]
-        dErr = (error - self.lastErr) / timeDelta
 
+        if self.ki > 0:
+            self.iterm += (error * timeDelta * (1/self.ki))
+
+        #self.iterm = sorted([-1, self.iterm, 1])[1]
+        #self.iterm = sorted([-1 * window_size, self.iterm, window_size])[1]
+        #self.iterm = float(self.iterm / window_size) 
+        
+        dErr = (error - self.lastErr) / timeDelta
         output = self.kp * error + self.iterm + self.kd * dErr
-        log.info("pid raw = %f" % (output)) 
         output = sorted([-1 * window_size, output, window_size])[1]
         self.lastErr = error
         self.lastNow = now
@@ -418,6 +422,10 @@ class PID():
         if output < 0:
             output = 0
 
+        #if output > 1:
+        #    output = 1
+
         output = float(output / window_size)
+        log.info("pid=%f p=%f i=%f d=%f" % (output,self.kp * error, self.iterm,self.kd * dErr)) 
 
         return output
