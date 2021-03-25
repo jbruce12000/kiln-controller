@@ -52,9 +52,13 @@ sensor_time_wait = 2
 ########################################################################
 #
 #   PID parameters
-pid_kp = 25  # Proportional 25
-pid_ki = 100  # Integration 100
-pid_kd = 100  # Derivative was 25
+#
+# These parameters work well with the simulated oven. You must tune them
+# to work well with your specific kiln. Note that the integral pid_ki is
+# inverted so that a smaller number means more integral action.
+pid_kp = 25   # Proportional 
+pid_ki = 200  # Integral
+pid_kd = 200  # Derivative
 
 
 ########################################################################
@@ -65,7 +69,7 @@ sim_t_env      = 60.0   # deg C
 sim_c_heat     = 100.0  # J/K  heat capacity of heat element
 sim_c_oven     = 5000.0 # J/K  heat capacity of oven
 sim_p_heat     = 5450.0 # W    heating power of oven
-sim_R_o_nocool = 0.1    # K/W  thermal resistance oven -> environment
+sim_R_o_nocool = 1.0    # K/W  thermal resistance oven -> environment
 sim_R_o_cool   = 0.05   # K/W  " with cooling
 sim_R_ho_noair = 0.1    # K/W  thermal resistance heat element -> oven
 sim_R_ho_air   = 0.05   # K/W  " with internal air circulation
