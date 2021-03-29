@@ -555,8 +555,17 @@ $(document).ready(function()
                 }
 
                 $('#act_temp').html(parseInt(x.temperature));
+               
                 
-                if (x.heat > 0.5) { $('#heat').addClass("ds-led-heat-active"); } else { $('#heat').removeClass("ds-led-heat-active"); }
+		//if (x.heat > 0.5) { $('#heat').addClass("ds-led-heat-active"); } else { $('#heat').removeClass("ds-led-heat-active"); }
+		if (x.heat > 0.0) { 
+		    $('#heat').addClass("ds-led-heat-active") 
+	            setTimeout(function() { $('#heat').removeClass("ds-led-heat-active") }, (x.heat*1000.0)-50)
+                    }
+                else {
+                    $('#heat').removeClass("ds-led-heat-active")
+                    }
+		
                 if (x.cool > 0.5) { $('#cool').addClass("ds-led-cool-active"); } else { $('#cool').removeClass("ds-led-cool-active"); }
                 if (x.air > 0.5) { $('#air').addClass("ds-led-air-active"); } else { $('#air').removeClass("ds-led-air-active"); }
                 if (x.temperature > hazardTemp()) { $('#hazard').addClass("ds-led-hazard-active"); } else { $('#hazard').removeClass("ds-led-hazard-active"); }

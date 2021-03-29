@@ -151,6 +151,7 @@ class Oven(threading.Thread):
 
     def run_profile(self, profile, startat=0):
         log.info("Running schedule %s" % profile.name)
+        self.reset()
         self.profile = profile
         self.totaltime = profile.get_duration()
         self.state = "RUNNING"
@@ -285,7 +286,7 @@ class SimulatedOven(Oven):
         # self.heat is for the front end to display if the heat is on
         self.heat = 0.0
         if heat_on > 0:
-            self.heat = 1.0
+            self.heat = heat_on
 
         log.info("simulation: -> %dW heater: %.0f -> %dW oven: %.0f -> %dW env"            % (int(self.p_heat * pid),
             self.t_h,
@@ -407,13 +408,10 @@ class PID():
 
         if self.ki > 0:
             self.iterm += (error * timeDelta * (1/self.ki))
-
-        #self.iterm = sorted([-1, self.iterm, 1])[1]
-        #self.iterm = sorted([-1 * window_size, self.iterm, window_size])[1]
-        #self.iterm = float(self.iterm / window_size) 
         
         dErr = (error - self.lastErr) / timeDelta
         output = self.kp * error + self.iterm + self.kd * dErr
+        out4logs = output
         output = sorted([-1 * window_size, output, window_size])[1]
         self.lastErr = error
         self.lastNow = now
@@ -426,6 +424,11 @@ class PID():
         #    output = 1
 
         output = float(output / window_size)
-        log.info("pid=%f p=%f i=%f d=%f" % (output,self.kp * error, self.iterm,self.kd * dErr)) 
+
+        if out4logs > 0:        
+            log.info("pid percents pid=%0.2f p=%0.2f i=%0.2f d=%0.2f" % (out4logs,
+                ((self.kp * error)/out4logs)*100, 
+                (self.iterm/out4logs)*100,
+                ((self.kd * dErr)/out4logs)*100)) 
 
         return output
