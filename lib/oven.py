@@ -209,6 +209,7 @@ class Oven(threading.Thread):
             'state': self.state,
             'heat': self.heat,
             'totaltime': self.totaltime,
+            'profile': self.profile.name if self.profile else None,
         }
         return state
 
