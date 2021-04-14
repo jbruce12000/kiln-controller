@@ -295,7 +295,7 @@ class SimulatedOven(Oven):
             int(self.p_env)))
 
         time_left = self.totaltime - self.runtime
-        log.info("temp=%.1f, target=%.1f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
+        log.info("temp=%.2f, target=%.2f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
             (self.board.temp_sensor.temperature + config.thermocouple_offset,
              self.target,
              pid,
@@ -338,7 +338,7 @@ class RealOven(Oven):
         self.output.heat(heat_on)
         self.output.cool(heat_off)
         time_left = self.totaltime - self.runtime
-        log.info("temp=%.1f, target=%.1f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
+        log.info("temp=%.2f, target=%.2f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
             (self.board.temp_sensor.temperature + config.thermocouple_offset,
              self.target,
              pid,
