@@ -104,7 +104,7 @@ class TempSensorReal(TempSensor):
 
         if config.max31856:
             log.info("init MAX31856")
-            from max31856 import MAX31856, MAX31856Error
+            from max31856 import MAX31856
             software_spi = { 'cs': config.gpio_sensor_cs,
                              'clk': config.gpio_sensor_clock,
                              'do': config.gpio_sensor_data }
