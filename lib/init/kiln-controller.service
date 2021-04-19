@@ -2,6 +2,7 @@
 Description=kiln-controller
 
 [Service]
+Nice=-20
 ExecStart=/home/pi/kiln-controller/venv/bin/python /home/pi/kiln-controller/kiln-controller.py
 
 [Install]
