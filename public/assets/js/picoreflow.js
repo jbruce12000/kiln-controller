@@ -14,11 +14,11 @@ var temp_scale_display = "C";
 var kwh_rate = 0.26;
 var currency_type = "EUR";
 
-var protocol = 'ws://';
+var protocol = 'ws:';
 if (window.location.protocol == 'https:') {
-    protocol = 'wss://';
+    protocol = 'wss:';
 }
-var host = "" + protocol + window.location.hostname + ":" + window.location.port;
+var host = "" + protocol + "//" + window.location.hostname + ":" + window.location.port;
 var ws_status = new WebSocket(host+"/status");
 var ws_control = new WebSocket(host+"/control");
 var ws_config = new WebSocket(host+"/config");
