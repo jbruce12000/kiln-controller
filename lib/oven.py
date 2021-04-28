@@ -112,7 +112,8 @@ class TempSensorReal(TempSensor):
             from max31856 import MAX31856
             software_spi = { 'cs': config.gpio_sensor_cs,
                              'clk': config.gpio_sensor_clock,
-                             'do': config.gpio_sensor_data }
+                             'do': config.gpio_sensor_data,
+                             'di': config.gpio_sensor_di }
             self.thermocouple = MAX31856(tc_type=config.thermocouple_type,
                                          software_spi = sofware_spi,
                                          units = config.temp_scale
