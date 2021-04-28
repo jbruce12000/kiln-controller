@@ -8,6 +8,8 @@ import config
 
 log = logging.getLogger(__name__)
 
+TEMPERATURE_MOVING_AVERAGE_SAMPLES = 40
+
 class Output(object):
     def __init__(self):
         self.active = False
@@ -54,7 +56,7 @@ class Board(object):
                 self.active = True
                 log.info("import %s " % (self.name))
             except ImportError:
-                msg = "max31855 config set, but import failed" 
+                msg = "max31855 config set, but import failed"
                 log.warning(msg)
 
         if config.max31856:
@@ -64,7 +66,7 @@ class Board(object):
                 self.active = True
                 log.info("import %s " % (self.name))
             except ImportError:
-                msg = "max31856 config set, but import failed" 
+                msg = "max31856 config set, but import failed"
                 log.warning(msg)
 
     def create_temp_sensor(self):
@@ -76,13 +78,14 @@ class Board(object):
 class BoardSimulated(object):
     def __init__(self):
         self.temp_sensor = TempSensorSimulated()
- 
+
 class TempSensor(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.daemon = True
         self.temperature = 0
         self.time_step = config.sensor_time_wait
+        self.noConnection = self.shortToGround = self.shortToVCC = False
 
 class TempSensorSimulated(TempSensor):
     '''not much here, just need to be able to set the temperature'''
@@ -94,6 +97,8 @@ class TempSensorReal(TempSensor):
        during the time_step'''
     def __init__(self):
         TempSensor.__init__(self)
+        self.sleeptime = self.time_step / float(TEMPERATURE_MOVING_AVERAGE_SAMPLES)
+
         if config.max31855:
             log.info("init MAX31855")
             from max31855 import MAX31855, MAX31855Error
@@ -114,20 +119,20 @@ class TempSensorReal(TempSensor):
                                          )
 
     def run(self):
-        '''take 5 measurements over each time period and return the
-        average'''
+        '''use a moving average of TEMPERATURE_AVERAGE_WINDOW across the time_step'''
+        temps = []
         while True:
-            maxtries = 5 
-            sleeptime = self.time_step / float(maxtries)
-            temps = []
-            for x in range(0,maxtries):
-                try:
-                    temp = self.thermocouple.get()
-                    temps.append(temp)
-                except Exception:
-                    log.exception("problem reading temp")
-                time.sleep(sleeptime)
-            self.temperature = sum(temps)/len(temps)
+            temp = self.thermocouple.get()
+            temps.append(temp)
+            if len(temps) > TEMPERATURE_MOVING_AVERAGE_SAMPLES:
+                del temps[0]
+
+            if len(temps):
+                self.temperature = sum(temps) / len(temps)
+            self.noConnection = self.thermocouple.noConnection
+            self.shortToGround = self.thermocouple.shortToGround
+            self.shortToVCC = self.thermocouple.shortToVCC
+            time.sleep(self.sleeptime)
 
 class Oven(threading.Thread):
     '''parent oven class. this has all the common code
@@ -150,8 +155,19 @@ class Oven(threading.Thread):
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
 
     def run_profile(self, profile, startat=0):
-        log.info("Running schedule %s" % profile.name)
         self.reset()
+
+        if self.board.temp_sensor.noConnection:
+            log.info("Refusing to start profile - thermocouple not connected")
+            return
+        if self.board.temp_sensor.shortToGround:
+            log.info("Refusing to start profile - thermocouple short to ground")
+            return
+        if self.board.temp_sensor.shortToVCC:
+            log.info("Refusing to start profile - thermocouple short to VCC")
+            return
+
+        log.info("Running schedule %s" % profile.name)
         self.profile = profile
         self.totaltime = profile.get_duration()
         self.state = "RUNNING"
@@ -194,6 +210,10 @@ class Oven(threading.Thread):
         if (self.board.temp_sensor.temperature + config.thermocouple_offset >=
             config.emergency_shutoff_temp):
             log.info("emergency!!! temperature too high, shutting down")
+            self.reset()
+
+        if self.board.temp_sensor.noConnection:
+            log.info("emergency!!! lost connection to thermocouple, shutting down")
             self.reset()
 
     def reset_if_schedule_ended(self):
@@ -244,10 +264,10 @@ class SimulatedOven(Oven):
         # set temps to the temp of the surrounding environment
         self.t = self.t_env # deg C temp of oven
         self.t_h = self.t_env #deg C temp of heating element
-        
+
         # call parent init
         Oven.__init__(self)
-        
+
         # start thread
         self.start()
         log.info("SimulatedOven started")
@@ -305,9 +325,9 @@ class SimulatedOven(Oven):
              self.runtime,
              self.totaltime,
              time_left))
-        
+
         # we don't actually spend time heating & cooling during
-        # a simulation, so sleep. 
+        # a simulation, so sleep.
         time.sleep(self.time_step)
 
 
@@ -395,7 +415,7 @@ class PID():
         self.lastErr = 0
 
     # FIX - this was using a really small window where the PID control
-    # takes effect from -1 to 1. I changed this to various numbers and 
+    # takes effect from -1 to 1. I changed this to various numbers and
     # settled on -50 to 50 and then divide by 50 at the end. This results
     # in a larger PID control window and much more accurate control...
     # instead of what used to be binary on/off control.
@@ -409,7 +429,7 @@ class PID():
 
         if self.ki > 0:
             self.iterm += (error * timeDelta * (1/self.ki))
-        
+
         dErr = (error - self.lastErr) / timeDelta
         output = self.kp * error + self.iterm + self.kd * dErr
         out4logs = output
@@ -426,10 +446,6 @@ class PID():
 
         output = float(output / window_size)
 
-        if out4logs > 0:        
-            log.info("pid percents pid=%0.2f p=%0.2f i=%0.2f d=%0.2f" % (out4logs,
-                ((self.kp * error)/out4logs)*100, 
-                (self.iterm/out4logs)*100,
-                ((self.kd * dErr)/out4logs)*100)) 
+        log.info("pid temp==%0.2f set=%0.2f err=%0.2f p=%0.2f i=%0.2f d=%0.2f pid=%0.2f out=%0.2f" % (ispoint, setpoint, error, self.kp * error, self.iterm, self.kd * dErr, out4logs, output))
 
         return output
