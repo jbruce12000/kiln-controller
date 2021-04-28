@@ -41,6 +41,7 @@ thermocouple_type = MAX31856.MAX31856_S_TYPE
 gpio_sensor_cs = 27
 gpio_sensor_clock = 22
 gpio_sensor_data = 17
+gpio_sensor_di = 10 # only used with max31856
 
 ### duty cycle of the entire system in seconds. Every N seconds a decision
 ### is made about switching the relay[s] on & off and for how long.
