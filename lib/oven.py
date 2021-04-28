@@ -120,7 +120,7 @@ class TempSensorReal(TempSensor):
                                          )
 
     def run(self):
-        '''use a moving average of TEMPERATURE_AVERAGE_WINDOW across the time_step'''
+        '''use a moving average of TEMPERATURE_MOVING_AVERAGE_SAMPLES across the time_step'''
         temps = []
         while True:
             temp = self.thermocouple.get()
