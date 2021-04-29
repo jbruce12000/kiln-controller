@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from os import supports_dir_fd
 import websocket
 import json
 import time
@@ -95,11 +96,14 @@ def display(hostname, minupdatesecs, font_ttf):
             temp = int(msg['temperature'])
             text = f"{temp}°"
             (tw, th) = screenfont.getsize(text)
-            screend.text((0, display.height - th), text, font=screenfont, fill='yellow')
+            screend.text((0, display.height - th), text, font=screenfont, fill='blue')
 
         # inform if we're actively heating
         if msg.get('heat'):
-            screend.ellipse((display.width - 25, display.height - 25, display.width - 5, display.height - 5), fill='red')
+            spot_radius = 20
+            spot_x = (display.width - spot_radius) / 2
+            spot_y = display.height - spot_radius - 5
+            screend.ellipse((spot_x, spot_y, spot_x + spot_radius, spot_y + spot_radius), fill='red')
 
         # if we have a profile, show details of that!
         if cur_profile:
@@ -132,7 +136,7 @@ def display(hostname, minupdatesecs, font_ttf):
             target = int(msg['target'])
             text = f"{target}°"
             (tw, th) = screenfont.getsize(text)
-            screend.text((display.width - tw, display.height - th), text, font=screenfont, fill='blue')
+            screend.text((display.width - tw, display.height - th), text, font=screenfont, fill='yellow')
 
             # show where we are
             time_done = msg['runtime'] if msg['runtime'] > 0 else 0
@@ -156,7 +160,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Log kiln data for analysis.')
     parser.add_argument('--hostname', type=str, default="localhost:8081", help="The kiln-controller hostname:port")
     parser.add_argument('--minupdatesecs', type=int, default="10", help="Number of seconds between screen updates")
-    parser.add_argument('--font_ttf', type=int, default='/home/pi/DroidSans.ttf', help="Font to use for text display")
+    parser.add_argument('--font_ttf', type=str, default='/home/pi/DroidSans.ttf', help="Font to use for text display")
     args = parser.parse_args()
 
     display(args.hostname, args.minupdatesecs, args.font_ttf)
