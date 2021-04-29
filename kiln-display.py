@@ -10,11 +10,18 @@ import board
 import adafruit_rgb_display.st7789 as st7789
 from PIL import Image, ImageDraw, ImageFont
 
+# This is designed to drive an Adafruit Mini PiTFT 1.3" (https://www.adafruit.com/product/4484)
+#
+# You will require a copy of DroidSans.ttf in /home/pi
+#
+# As this occupies the GPIOs currently used as defaults in config.py, you'll have to rewrire your Pi.
+# Remember to update config.py with the new ones!
+#
+# Technically you do not need to install numpy, but it is very much recommended as the
+# non-numpy fallback code will consume much CPU.
 
-UPDATE_MIN_SECS = 10
 
-
-def display(hostname):
+def display(hostname, minupdatesecs, font_ttf):
     status_ws = websocket.WebSocket()
     storage_ws = websocket.WebSocket()
 
@@ -42,7 +49,7 @@ def display(hostname):
     # create screen and font
     screen = Image.new("RGB", (display.width, display.height), (0, 0, 0))
     screend = ImageDraw.Draw(screen)
-    screenfont = ImageFont.truetype("/home/adq/DroidSans.ttf", 46)
+    screenfont = ImageFont.truetype(font_ttf, 46)
     chartminx = 0
     chartw = display.width
     chartminy = int(display.height / 2)
@@ -75,7 +82,7 @@ def display(hostname):
             continue
 
         # we don't need to update ALL the time
-        if (datetime.datetime.now() - last_update).total_seconds() < UPDATE_MIN_SECS:
+        if (datetime.datetime.now() - last_update).total_seconds() < minupdatesecs:
             continue
         last_update = datetime.datetime.now()
 
@@ -121,7 +128,13 @@ def display(hostname):
             cur_temp_y = ((cur_temp - mintemp) * charth) / temprange
             screend.line([chartminx + cur_time_x, chartminy, chartminx + cur_time_x, chartminy - charth], fill='blue')
 
-            # show the where we are
+            # draw target temperature
+            target = int(msg['target'])
+            text = f"{target}°"
+            (tw, th) = screenfont.getsize(text)
+            screend.text((display.width - tw, display.height - th), text, font=screenfont, fill='blue')
+
+            # show where we are
             time_done = msg['runtime'] if msg['runtime'] > 0 else 0
             time_done_mins = int((time_done / 60) % 60)
             time_done_hours = int(time_done / 60 / 60)
@@ -142,6 +155,8 @@ def display(hostname):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Log kiln data for analysis.')
     parser.add_argument('--hostname', type=str, default="localhost:8081", help="The kiln-controller hostname:port")
+    parser.add_argument('--minupdatesecs', type=int, default="10", help="Number of seconds between screen updates")
+    parser.add_argument('--font_ttf', type=int, default='/home/pi/DroidSans.ttf', help="Font to use for text display")
     args = parser.parse_args()
 
-    display(args.hostname)
+    display(args.hostname, args.minupdatesecs, args.font_ttf)
