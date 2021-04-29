@@ -128,7 +128,8 @@ class TempSensorReal(TempSensor):
                 except Exception:
                     log.exception("problem reading temp")
                 time.sleep(sleeptime)
-            self.temperature = sum(temps)/len(temps)
+            if len(temps) > 0:
+                self.temperature = sum(temps)/len(temps)
 
 class Oven(threading.Thread):
     '''parent oven class. this has all the common code
