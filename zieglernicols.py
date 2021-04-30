@@ -83,6 +83,8 @@ def calculate(filename, tangentdivisor, showplot):
     # compute parameters
     L = lower_crossing_x - min(xdata)
     T = upper_crossing_x - lower_crossing_x
+
+    # Magic Ziegler-Nicols constants ahead!
     Kp = 1.2 * (T / L)
     Ti = 2 * L
     Td = 0.5 * L
