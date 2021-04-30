@@ -90,7 +90,7 @@ def calculate(filename, tangentdivisor, showplot):
     Kd = Kp * Td
 
     # outut to the user
-    print(Kp, 1 / Ki, Kd)
+    print(f"Kp: {Kp} 1/Ki: {1/ Ki}, Kd: {Kd}")
 
     if showplot:
         plot(xdata, ydata,
