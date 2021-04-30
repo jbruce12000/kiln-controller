@@ -2,7 +2,8 @@ import csv
 import argparse
 
 
-# Using the method from https://www.ias.ac.in/article/fulltext/reso/025/10/1385-1397 or https://www.youtube.com/watch?v=nvAQHSe-Ax4
+# Using the method described in "Ziegler–Nichols Tuning Method∗" by Vishakha Vijay Patel
+# (https://www.ias.ac.in/article/fulltext/reso/025/10/1385-1397)
 
 
 def line(a, b, x):
