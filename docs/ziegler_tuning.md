@@ -4,17 +4,18 @@ This uses the Ziegler Nicols method to estimate values for the Kp/Ki/Kd PID cont
 
 The method implemented here is taken from ["Ziegler–Nichols Tuning Method"](https://www.ias.ac.in/article/fulltext/reso/025/10/1385-1397) by Vishakha Vijay Patel
 
-One issue with Ziegler Nicols is that is a **heuristic**: it generally works quite well, but it might not be the optimal values. Further fiddling may be necessary.
+One issue with Ziegler Nicols is that is a **heuristic**: it generally works quite well, but it might not be the optimal values. Further manual adjustment may be necessary.
 
 ## Process Overview
 
 1. First of all, you will record a temperature profile for your kiln.
-2. Next, we use those figures to estimate the parameters.
+2. Next, we use those figures to estimate Kp/Ki/Kd.
 
 ## Step 1: Record Temperature Profie
 
-This must be done without any interference from the real PID control loop. To do so, run:
+Ensure `kiln-controller` is **stopped** during profile recording: The profile must be recorded without any interference from the actual PID control loop (you also don't want two things changing the same GPIOs at the same time!)
 
+To record the profile, run:
 ```
 python kiln-tuner.py ziegler.csv
 ```
@@ -42,7 +43,7 @@ The values will be output to stdout, for example:
 ```
 Kp: 3.853985144980333 1/Ki: 87.78173053095107 Kd: 325.9599328488931
 ```
-(Note that the Ki value is already inverted ready for use in config.py)
+(Note that the Ki value is already inverted ready for use in config)
 
 ------
 
@@ -53,12 +54,13 @@ If you run
 python zieglernicols.py zn.csv --showplot
 ```
 
-It will display a plot of the parameters. It should look simular to this ![kiln-tuner-example.png](kiln-tuner-example.png)
-(Note: you will need python's `pyplot` installed for this to work.)
+It will display a plot of the parameters. It should look simular to this ![kiln-tuner-example.png](kiln-tuner-example.png).
+
+Note: you will need python's `pyplot` installed for this to work.
 
 The smooth linear part of the chart is very important. If it is too short, try increasing the target temperature (see later).
 
-Note the red diagonal line: this **must** follow the smooth part of your chart closely.
+The red diagonal line: this **must** follow the smooth part of your chart closely.
 
 ## My diagonal line isn't right
 
