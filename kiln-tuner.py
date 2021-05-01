@@ -60,9 +60,9 @@ def tune(csvfile, targettemp):
                 if temp > targettemp:
                     if not config.simulate:
                         oven.output.heat(0)
-                    stage = 'decaying'
+                    stage = 'cooling'
 
-            elif stage == 'decaying':
+            elif stage == 'cooling':
                 if temp < targettemp:
                     break
 
