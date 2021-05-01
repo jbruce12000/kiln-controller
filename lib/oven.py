@@ -83,8 +83,9 @@ class TempSensor(threading.Thread):
         threading.Thread.__init__(self)
         self.daemon = True
         self.temperature = 0
+        self.bad_percent = 0
         self.time_step = config.sensor_time_wait
-        self.noConnection = self.shortToGround = self.shortToVCC = False
+        self.noConnection = self.shortToGround = self.shortToVCC = self.unknownError = False
 
 class TempSensorSimulated(TempSensor):
     '''not much here, just need to be able to set the temperature'''
@@ -100,7 +101,6 @@ class TempSensorReal(TempSensor):
         self.bad_count = 0
         self.ok_count = 0
         self.bad_stamp = 0
-        self.bad_percent = 0
 
         if config.max31855:
             log.info("init MAX31855")
