@@ -128,7 +128,10 @@ class TempSensorReal(TempSensor):
         while True:
             # reset error counter if time is up
             if (time.time() - self.bad_stamp) > (self.time_step * 2):
-                self.bad_percent = (self.bad_count / (self.bad_count + self.ok_count)) * 100
+                if self.bad_count + self.ok_count:
+                    self.bad_percent = (self.bad_count / (self.bad_count + self.ok_count)) * 100
+                else:
+                    self.bad_percent = 0
                 self.bad_count = 0
                 self.ok_count = 0
                 self.bad_stamp = time.time()
