@@ -14,14 +14,13 @@ def recordprofile(csvfile, targettemp):
         import config
         sys.dont_write_bytecode = False
 
-    except:
+    except ImportError:
         print("Could not import config file.")
         print("Copy config.py.EXAMPLE to config.py and adapt it for your setup.")
         exit(1)
 
     script_dir = os.path.dirname(os.path.realpath(__file__))
     sys.path.insert(0, script_dir + '/lib/')
-    profile_path = os.path.join(script_dir, "storage", "profiles")
 
     from oven import RealOven, SimulatedOven
 
