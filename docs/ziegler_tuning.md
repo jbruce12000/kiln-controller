@@ -71,7 +71,7 @@ The red diagonal line: this **must** follow the smooth part of your chart closel
 You might need to adjust the line parameters to make it fit your data properly. You can do this as follows:
 
 ```
-python kiln-tuner.py zn zn.csv --tangentdivisor 8
+python kiln-tuner.py zn zn.csv --tangentdivisor 4
 ```
 
 `tangentdivisor` modifies which parts of the profile is used to calculate the line.
