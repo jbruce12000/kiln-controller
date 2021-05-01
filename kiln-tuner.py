@@ -43,7 +43,7 @@ def recordprofile(csvfile, targettemp):
     # * wait for it to decay back to the target again.
     # * quit
     #
-    # We record the temperature every config.sensor_time_wait
+    # We record the temperature every second
     try:
         stage = 'heating'
         if not config.simulate:
@@ -68,7 +68,7 @@ def recordprofile(csvfile, targettemp):
 
             sys.stdout.write(f"\r{stage} {temp:.2f}/{targettemp}           ")
             sys.stdout.flush()
-            time.sleep(config.sensor_time_wait)
+            time.sleep(1)
 
         f.close()
 
