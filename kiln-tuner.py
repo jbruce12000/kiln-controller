@@ -173,7 +173,7 @@ def calculate(filename, tangentdivisor, showplot):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description='Record data for kiln tuning')
+    parser = argparse.ArgumentParser(description='Kiln tuner')
     subparsers = parser.add_subparsers()
 
     parser_profile = subparsers.add_parser('recordprofile', help='Record kiln temperature profile')
