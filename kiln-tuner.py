@@ -182,7 +182,7 @@ if __name__ == "__main__":
     parser_profile.set_defaults(mode='recordprofile')
 
     parser_zn = subparsers.add_parser('zn', help='Calculate Ziegler-Nicols parameters')
-    parser_zn.add_argument('csvfile', type=str, help="The CSV file to read from. Must contain two columns called pid_time (time in seconds) and pid_ispoint (observed temperature)")
+    parser_zn.add_argument('csvfile', type=str, help="The CSV file to read from. Must contain two columns called time (time in seconds) and temperature (observed temperature)")
     parser_zn.add_argument('--showplot', action='store_true', help="If set, also plot results (requires pyplot to be pip installed)")
     parser_zn.add_argument('--tangentdivisor', type=float, default=4, help="Adjust the tangent calculation to fit better. Must be >= 2.")
     parser_zn.set_defaults(mode='zn')
