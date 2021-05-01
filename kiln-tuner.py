@@ -57,7 +57,7 @@ def tune(csvfile, targettemp):
             f.flush()
 
             if stage == 'heating':
-                if temp > targettemp:
+                if temp >= targettemp:
                     if not config.simulate:
                         oven.output.heat(0)
                     stage = 'cooling'
