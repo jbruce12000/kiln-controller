@@ -64,6 +64,8 @@ def tune(csvfile, targettemp):
                 if temp < targettemp:
                     break
 
+            sys.stdout.write(f"\n{stage} {temp}/{targettemp}           ")
+            sys.stdout.flush()
             time.sleep(config.sensor_time_wait)
 
         f.close()

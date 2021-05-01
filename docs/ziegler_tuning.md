@@ -17,7 +17,7 @@ Ensure `kiln-controller` is **stopped** during profile recording: The profile mu
 
 To record the profile, run:
 ```
-python kiln-tuner.py ziegler.csv
+python kiln-tuner.py zn.csv
 ```
 
 The above will drive your kiln to 400 and record the temperature profile to the file `zn.csv`. The file will look something like this:
