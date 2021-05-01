@@ -130,7 +130,8 @@ class TempSensorReal(TempSensor):
                 except Exception:
                     log.exception("problem reading temp")
                 time.sleep(sleeptime)
-            self.temperature = sum(temps)/len(temps)
+            if len(temps) > 0:
+                self.temperature = sum(temps)/len(temps)
 
 class Oven(threading.Thread):
     '''parent oven class. this has all the common code
@@ -411,7 +412,12 @@ class PID():
         error = float(setpoint - ispoint)
 
         if self.ki > 0:
-            self.iterm += (error * timeDelta * (1/self.ki))
+            if config.stop_integral_windup == True:
+                margin = setpoint * config.stop_integral_windup_margin/100
+                if (abs(error) <= abs(margin)):
+                    self.iterm += (error * timeDelta * (1/self.ki))
+            else:
+                self.iterm += (error * timeDelta * (1/self.ki))
 
         dErr = (error - self.lastErr) / timeDelta
         output = self.kp * error + self.iterm + self.kd * dErr
@@ -424,15 +430,16 @@ class PID():
         if output < 0:
             output = 0
 
-        #if output > 1:
-        #    output = 1
-
         output = float(output / window_size)
 
         if out4logs > 0:
-            log.info("pid percents pid=%0.2f p=%0.2f i=%0.2f d=%0.2f" % (out4logs,
-                ((self.kp * error)/out4logs)*100,
-                (self.iterm/out4logs)*100,
-                ((self.kd * dErr)/out4logs)*100))
+#            log.info("pid percents pid=%0.2f p=%0.2f i=%0.2f d=%0.2f" % (out4logs,
+#                ((self.kp * error)/out4logs)*100,
+#                (self.iterm/out4logs)*100,
+#                ((self.kd * dErr)/out4logs)*100))
+            log.info("pid actuals pid=%0.2f p=%0.2f i=%0.2f d=%0.2f" % (out4logs,
+                self.kp * error,
+                self.iterm,
+                self.kd * dErr))
 
         return output

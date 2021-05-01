@@ -64,6 +64,19 @@ pid_kd = 200  # Derivative
 
 ########################################################################
 #
+# Initial heating and Integral Windup
+#
+# During initial heating, if the temperature is constantly under the 
+# setpoint,large amounts of Integral can accumulate. This accumulation
+# causes the kiln to run above the setpoint for potentially a long
+# period of time. These settings allow integral accumulation only when
+# the temperature is within stop_integral_windup_margin percent below 
+# or above the setpoint. This applies only to the integral.
+stop_integral_windup = True
+stop_integral_windup_margin = 10
+
+########################################################################
+#
 #   Simulation parameters
 simulate = True
 sim_t_env      = 60.0   # deg C
