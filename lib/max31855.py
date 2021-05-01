@@ -26,7 +26,7 @@ class MAX31855(object):
         self.units = units
         self.data = None
         self.board = board
-        self.noConnection = self.shortToGround = self.shortToVCC = False
+        self.noConnection = self.shortToGround = self.shortToVCC = self.unknownError = False
 
         # Initialize needed GPIO
         GPIO.setmode(self.board)
@@ -74,9 +74,10 @@ class MAX31855(object):
         if anyErrors:
             self.noConnection = (data_32 & 0x00000001) != 0       # OC bit, D0
             self.shortToGround = (data_32 & 0x00000002) != 0      # SCG bit, D1
-            self.shortToVCC = (data_32 & 0x00000004) != 0
+            self.shortToVCC = (data_32 & 0x00000004) != 0         # SCV bit, D2
+            self.unknownError = not (self.noConnection | self.shortToGround | self.shortToVCC)    # Errk!
         else:
-            self.noConnection = self.shortToGround = self.shortToVCC = False
+            self.noConnection = self.shortToGround = self.shortToVCC = self.unknownError = False
 
     def data_to_tc_temperature(self, data_32 = None):
         '''Takes an integer and returns a thermocouple temperature in celsius.'''

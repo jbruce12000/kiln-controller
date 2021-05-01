@@ -8,7 +8,6 @@ import config
 
 log = logging.getLogger(__name__)
 
-TEMPERATURE_MOVING_AVERAGE_SAMPLES = 40
 
 class Output(object):
     def __init__(self):
@@ -124,15 +123,24 @@ class TempSensorReal(TempSensor):
         temps = []
         while True:
             temp = self.thermocouple.get()
-            temps.append(temp)
-            if len(temps) > TEMPERATURE_MOVING_AVERAGE_SAMPLES:
-                del temps[0]
-
-            if len(temps):
-                self.temperature = sum(temps) / len(temps)
             self.noConnection = self.thermocouple.noConnection
             self.shortToGround = self.thermocouple.shortToGround
             self.shortToVCC = self.thermocouple.shortToVCC
+            self.unknownError = self.thermocouple.unknownError
+
+            is_bad_value = self.noConnection | self.unknownError
+            if config.honour_theromocouple_short_errors:
+                is_bad_value |= self.shortToGround | self.shortToVCC
+
+            if not is_bad_value:
+                temps.append(temp)
+                if len(temps) > config.temperature_average_samples:
+                    del temps[0]
+            else:
+                log.error(f"Problem reading temp N/C:{self.noConnection} GND:{self.shortToGround} VCC:{self.shortToVCC} ???:{self.unknownError}")
+
+            if len(temps):
+                self.temperature = sum(temps) / len(temps)
             time.sleep(self.sleeptime)
 
 class Oven(threading.Thread):
@@ -166,6 +174,9 @@ class Oven(threading.Thread):
             return
         if self.board.temp_sensor.shortToVCC:
             log.info("Refusing to start profile - thermocouple short to VCC")
+            return
+        if self.board.temp_sensor.unknownError:
+            log.info("Refusing to start profile - thermocouple unknown error")
             return
 
         log.info("Running schedule %s" % profile.name)
@@ -215,6 +226,10 @@ class Oven(threading.Thread):
 
         if self.board.temp_sensor.noConnection:
             log.info("emergency!!! lost connection to thermocouple, shutting down")
+            self.reset()
+
+        if self.board.temp_sensor.unknownError:
+            log.info("emergency!!! unknown thermocouple error, shutting down")
             self.reset()
 
     def reset_if_schedule_ended(self):
