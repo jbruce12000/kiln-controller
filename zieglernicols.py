@@ -49,8 +49,8 @@ def calculate(filename, tangentdivisor, showplot):
     with open(filename) as f:
         for row in csv.DictReader(f):
             try:
-                time = float(row['pid_time'])
-                temp = float(row['pid_ispoint'])
+                time = float(row['time'])
+                temp = float(row['temperature'])
                 if filemintime is None:
                     filemintime = time
 
