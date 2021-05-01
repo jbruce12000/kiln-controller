@@ -79,7 +79,7 @@ def tune(csvfile, targettemp):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Record data for kiln tuning')
     parser.add_argument('csvfile', type=str, help="The CSV file to write to.")
-    parser.add_argument('--targettemp', type='int', default=400, help="The target temperature to drive the kiln to.")
+    parser.add_argument('--targettemp', type=int, default=400, help="The target temperature to drive the kiln to.")
     args = parser.parse_args()
 
     tune(args.csvfile, args.targettemp)
