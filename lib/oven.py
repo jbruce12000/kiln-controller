@@ -100,6 +100,7 @@ class TempSensorReal(TempSensor):
         self.bad_count = 0
         self.ok_count = 0
         self.bad_stamp = 0
+        self.bad_percent = 0
 
         if config.max31855:
             log.info("init MAX31855")
@@ -126,7 +127,8 @@ class TempSensorReal(TempSensor):
         temps = []
         while True:
             # reset error counter if time is up
-            if (time.time() - self.bad_stamp) > (self.time_step * 4):
+            if (time.time() - self.bad_stamp) > (self.time_step * 2):
+                self.bad_percent = (self.bad_count / (self.bad_count + self.ok_count)) * 100
                 self.bad_count = 0
                 self.ok_count = 0
                 self.bad_stamp = time.time()
@@ -244,7 +246,7 @@ class Oven(threading.Thread):
             log.info("emergency!!! unknown thermocouple error, shutting down")
             self.reset()
 
-        if self.board.temp_sensor.bad_count / (self.board.temp_sensor.bad_count + self.board.temp_sensor.ok_count) > 0.3:
+        if self.board.temp_sensor.bad_percent > 30:
             log.info("emergency!!! too many errors in a short period, shutting down")
             self.reset()
 
