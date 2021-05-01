@@ -97,6 +97,9 @@ class TempSensorReal(TempSensor):
     def __init__(self):
         TempSensor.__init__(self)
         self.sleeptime = self.time_step / float(config.temperature_average_samples)
+        self.bad_count = 0
+        self.ok_count = 0
+        self.bad_stamp = 0
 
         if config.max31855:
             log.info("init MAX31855")
@@ -122,6 +125,12 @@ class TempSensorReal(TempSensor):
         '''use a moving average of config.temperature_average_samples across the time_step'''
         temps = []
         while True:
+            # reset error counter if time is up
+            if (time.time() - self.bad_stamp) > (self.time_step * 4):
+                self.bad_count = 0
+                self.ok_count = 0
+                self.bad_stamp = time.time()
+
             temp = self.thermocouple.get()
             self.noConnection = self.thermocouple.noConnection
             self.shortToGround = self.thermocouple.shortToGround
@@ -136,8 +145,11 @@ class TempSensorReal(TempSensor):
                 temps.append(temp)
                 if len(temps) > config.temperature_average_samples:
                     del temps[0]
+                self.ok_count += 1
+
             else:
                 log.error(f"Problem reading temp N/C:{self.noConnection} GND:{self.shortToGround} VCC:{self.shortToVCC} ???:{self.unknownError}")
+                self.bad_count += 1
 
             if len(temps):
                 self.temperature = sum(temps) / len(temps)
@@ -218,7 +230,7 @@ class Oven(threading.Thread):
         self.target = self.profile.get_target_temperature(self.runtime)
 
     def reset_if_emergency(self):
-        '''reset if the temperature is way TOO HOT'''
+        '''reset if the temperature is way TOO HOT, or other critical errors detected'''
         if (self.board.temp_sensor.temperature + config.thermocouple_offset >=
             config.emergency_shutoff_temp):
             log.info("emergency!!! temperature too high, shutting down")
@@ -230,6 +242,10 @@ class Oven(threading.Thread):
 
         if self.board.temp_sensor.unknownError:
             log.info("emergency!!! unknown thermocouple error, shutting down")
+            self.reset()
+
+        if self.board.temp_sensor.bad_count / (self.board.temp_sensor.bad_count + self.board.temp_sensor.ok_count) > 0.3:
+            log.info("emergency!!! too many errors in a short period, shutting down")
             self.reset()
 
     def reset_if_schedule_ended(self):
