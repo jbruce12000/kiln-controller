@@ -17,7 +17,7 @@ Ensure `kiln-controller` is **stopped** during profile recording: The profile mu
 
 Make sure your kiln is completely cool - we need to record the data starting from room temperature to correctly measure the effect of kiln/heating.
 
-There needs to be no other source of temperature change to the kiln: eg if you normally run with a kiln plug in place - makae sure its in place for the test!
+There needs to be no abnormal source of temperature change to the kiln: eg if you normally run with a kiln plug in place - makae sure its in place for the test!
 
 To record the profile, run:
 ```
