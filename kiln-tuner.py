@@ -174,6 +174,7 @@ def calculate(filename, tangentdivisor, showplot):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Kiln tuner')
     subparsers = parser.add_subparsers()
+    parser.set_defaults(mode='')
 
     parser_profile = subparsers.add_parser('recordprofile', help='Record kiln temperature profile')
     parser_profile.add_argument('csvfile', type=str, help="The CSV file to write to.")
@@ -196,6 +197,10 @@ if __name__ == "__main__":
             raise ValueError("tangentdivisor must be >= 2")
 
         calculate(args.csvfile, args.tangentdivisor, args.showplot)
+
+    elif args.mode == '':
+        parser.print_help()
+        exit(1)
 
     else:
         raise NotImplementedError(f"Unknown mode {args.mode}")
