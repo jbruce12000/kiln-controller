@@ -21,7 +21,7 @@ There needs to be no abnormal source of temperature change to the kiln: eg if yo
 
 To record the profile, run:
 ```
-python kiln-tuner.py zn.csv
+python kiln-tuner.py recordprofile zn.csv
 ```
 
 The above will drive your kiln to 400 and record the temperature profile to the file `zn.csv`. The file will look something like this:
@@ -40,7 +40,7 @@ time,temperature
 Once you have your zn.csv profile, run the following:
 
 ```
-python zieglernicols.py zn.csv
+python kiln-tuner.py zn zn.csv
 ```
 
 The values will be output to stdout, for example:
@@ -55,7 +55,7 @@ Kp: 3.853985144980333 1/Ki: 87.78173053095107 Kd: 325.9599328488931
 
 If you run
 ```
-python zieglernicols.py zn.csv --showplot
+python kiln-tuner.py zn zn.csv --showplot
 ```
 
 It will display a plot of the parameters. It should look simular to this ![kiln-tuner-example.png](kiln-tuner-example.png).
@@ -71,7 +71,7 @@ The red diagonal line: this **must** follow the smooth part of your chart closel
 You might need to adjust the line parameters to make it fit your data properly. You can do this as follows:
 
 ```
-python zieglernicols.py zn.csv --tangentdivisor 8
+python kiln-tuner.py zn zn.csv --tangentdivisor 8
 ```
 
 `tangentdivisor` modifies which parts of the profile is used to calculate the line.
@@ -83,7 +83,7 @@ It is a floating point number >= 2; If necessary, try varying it till you get a 
 By default it is 400. You can change this as follows:
 
 ```
-python kiln-tuner.py zn.csv --targettemp 500
+python kiln-tuner.py recordprofile zn.csv --targettemp 500
 ```
 
-(where the target temperature has been changed to 500)
+(where the target temperature has been changed to 500 in the example above)
