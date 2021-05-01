@@ -96,7 +96,7 @@ class TempSensorReal(TempSensor):
        during the time_step'''
     def __init__(self):
         TempSensor.__init__(self)
-        self.sleeptime = self.time_step / float(TEMPERATURE_MOVING_AVERAGE_SAMPLES)
+        self.sleeptime = self.time_step / float(config.temperature_average_samples)
 
         if config.max31855:
             log.info("init MAX31855")
@@ -119,7 +119,7 @@ class TempSensorReal(TempSensor):
                                          )
 
     def run(self):
-        '''use a moving average of TEMPERATURE_MOVING_AVERAGE_SAMPLES across the time_step'''
+        '''use a moving average of config.temperature_average_samples across the time_step'''
         temps = []
         while True:
             temp = self.thermocouple.get()
