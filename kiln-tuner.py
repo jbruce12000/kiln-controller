@@ -28,7 +28,7 @@ def tune(csvfile, targettemp):
     # open the file to log data to
     f = open(csvfile, 'w')
     csvout = csv.writer(f)
-    csvout.write(['time', 'temperature'])
+    csvout.writerow(['time', 'temperature'])
 
     # construct the oven
     if config.simulate:
@@ -66,7 +66,7 @@ def tune(csvfile, targettemp):
                 if temp < targettemp:
                     break
 
-            sys.stdout.write(f"\r{stage} {temp}/{targettemp}           ")
+            sys.stdout.write(f"\r{stage} {temp:.2f}/{targettemp}           ")
             sys.stdout.flush()
             time.sleep(config.sensor_time_wait)
 
