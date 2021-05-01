@@ -52,7 +52,7 @@ def tune(csvfile, targettemp):
                 config.thermocouple_offset
 
             csvout.writerow([time.time(), temp])
-            csvout.flush()
+            f.flush()
 
             if stage == 'heating':
                 if temp > targettemp:
@@ -64,7 +64,7 @@ def tune(csvfile, targettemp):
                 if temp < targettemp:
                     break
 
-            sys.stdout.write(f"\n{stage} {temp}/{targettemp}           ")
+            sys.stdout.write(f"\r{stage} {temp}/{targettemp}           ")
             sys.stdout.flush()
             time.sleep(config.sensor_time_wait)
 
@@ -79,7 +79,7 @@ def tune(csvfile, targettemp):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Record data for kiln tuning')
     parser.add_argument('csvfile', type=str, help="The CSV file to write to.")
-    parser.add_argument('--targettemp', type=int, default=400, help="The target temperature to drive the kiln to.")
+    parser.add_argument('--targettemp', type=int, default=400, help="The target temperature to drive the kiln to (default 400).")
     args = parser.parse_args()
 
     tune(args.csvfile, args.targettemp)
