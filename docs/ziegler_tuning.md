@@ -15,6 +15,10 @@ One issue with Ziegler Nicols is that is a **heuristic**: it generally works qui
 
 Ensure `kiln-controller` is **stopped** during profile recording: The profile must be recorded without any interference from the actual PID control loop (you also don't want two things changing the same GPIOs at the same time!)
 
+Make sure your kiln is completely cool - we need to record the data starting from room temperature to correctly measure the effect of kiln/heating.
+
+There needs to be no other source of temperature change to the kiln: eg if you normally run with a kiln plug in place - makae sure its in place for the test!
+
 To record the profile, run:
 ```
 python kiln-tuner.py zn.csv
