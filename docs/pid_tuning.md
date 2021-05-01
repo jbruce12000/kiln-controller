@@ -50,5 +50,5 @@ Now, run the test schedule again and see how well it works.  Expect some oversho
 
 * only change one value at a time, then test it.
 * If there is too much overshoot, decrease pid_kp.
-* If the temp is always below the set point, increase pid_ki.
+* If the temp is always below the set point, decrease pid_ki (which increases the integral action).
 * if the above does not work, try the Ziegler / Nichols method https://blog.opticontrols.com/archives/477
