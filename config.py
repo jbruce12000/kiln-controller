@@ -126,6 +126,6 @@ thermocouple_offset=0
 honour_theromocouple_short_errors = True
 
 # number of samples of temperature to average.
-# If you suffer from ghe high temperature kiln issue and have set honour_theromocouple_short_errors to False,
+# If you suffer from the high temperature kiln issue and have set honour_theromocouple_short_errors to False,
 # you will likely need to increase this (eg I use 40)
 temperature_average_samples = 5
