@@ -14,7 +14,11 @@ var temp_scale_display = "C";
 var kwh_rate = 0.26;
 var currency_type = "EUR";
 
-var host = "ws://" + window.location.hostname + ":" + window.location.port;
+var protocol = 'ws:';
+if (window.location.protocol == 'https:') {
+    protocol = 'wss:';
+}
+var host = "" + protocol + "//" + window.location.hostname + ":" + window.location.port;
 var ws_status = new WebSocket(host+"/status");
 var ws_control = new WebSocket(host+"/control");
 var ws_config = new WebSocket(host+"/config");
@@ -134,15 +138,15 @@ function updateProfileTable()
             var fields = id.split("-");
             var col = parseInt(fields[1]);
             var row = parseInt(fields[2]);
-            
+
             if (graph.profile.data.length > 0) {
             if (col == 0) {
-                graph.profile.data[row][col] = timeProfileFormatter(value,false);   
+                graph.profile.data[row][col] = timeProfileFormatter(value,false);
             }
             else {
                 graph.profile.data[row][col] = value;
             }
-            
+
             graph.plot = $.plot("#graph_container", [ graph.profile, graph.live ], getOptions());
             }
             updateProfileTable();
@@ -157,7 +161,7 @@ function timeProfileFormatter(val, down) {
             if (down) {rval = val / 60;} else {rval = val * 60;}
             break;
         case "h":
-            if (down) {rval = val / 3600;} else {rval = val * 3600;} 
+            if (down) {rval = val / 3600;} else {rval = val * 3600;}
             break;
     }
     return Math.round(rval);
@@ -166,7 +170,7 @@ function timeProfileFormatter(val, down) {
 function formatDPS(val) {
     var tval = val;
     if (time_scale_slope == "m") {
-        tval = val * 60;    
+        tval = val * 60;
     }
     if (time_scale_slope == "h") {
         tval = (val * 60) * 60;
@@ -175,10 +179,10 @@ function formatDPS(val) {
 }
 
 function hazardTemp(){
-   
+
     if (temp_scale == "f") {
         return (1500 * 9 / 5) + 32
-    } 
+    }
     else {
         return 1500
     }
@@ -555,8 +559,8 @@ $(document).ready(function()
                 }
 
                 $('#act_temp').html(parseInt(x.temperature));
-                
-		if (x.heat > 0.0) { 
+
+		if (x.heat > 0.0) {
 	            setTimeout(function() { $('#heat').addClass("ds-led-heat-active") }, 0 )
 	            setTimeout(function() { $('#heat').removeClass("ds-led-heat-active") }, (x.heat*1000.0)-5)
                     }
@@ -571,7 +575,7 @@ $(document).ready(function()
         };
 
         // Config Socket /////////////////////////////////
-        
+
         ws_config.onopen = function()
         {
             ws_config.send('GET');
@@ -586,9 +590,9 @@ $(document).ready(function()
             time_scale_profile = x.time_scale_profile;
             kwh_rate = x.kwh_rate;
             currency_type = x.currency_type;
-            
+
             if (temp_scale == "c") {temp_scale_display = "C";} else {temp_scale_display = "F";}
-              
+
 
             $('#act_temp_scale').html('º'+temp_scale_display);
             $('#target_temp_scale').html('º'+temp_scale_display);
@@ -604,7 +608,7 @@ $(document).ready(function()
                     time_scale_long = "Hours";
                     break;
             }
-            
+
         }
 
         // Control Socket ////////////////////////////////
@@ -665,12 +669,12 @@ $(document).ready(function()
             // if not, update with first available profile name
             var valid_profile_names = profiles.map(function(a) {return a.name;});
             if (
-              valid_profile_names.length > 0 && 
+              valid_profile_names.length > 0 &&
               $.inArray(selected_profile_name, valid_profile_names) === -1
             ) {
               selected_profile = 0;
               selected_profile_name = valid_profile_names[0];
-            }            
+            }
 
             // fill select with new options from websocket
             for (var i=0; i<profiles.length; i++)
