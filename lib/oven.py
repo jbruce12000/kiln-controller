@@ -118,8 +118,10 @@ class TempSensorReal(TempSensor):
                              'do': config.gpio_sensor_data,
                              'di': config.gpio_sensor_di }
             self.thermocouple = MAX31856(tc_type=config.thermocouple_type,
-                                         software_spi = sofware_spi,
-                                         units = config.temp_scale
+                                         software_spi = software_spi,
+                                         units = config.temp_scale,
+                                         avgsel = config.max31856_avgsel,
+                                         ac_freq_50hz = config.ac_freq_50hz,
                                          )
 
     def run(self):

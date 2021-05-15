@@ -89,7 +89,7 @@ class MAX31856(object):
     MAX31856_S_TYPE = 0x6 # Read S Type Thermocouple
     MAX31856_T_TYPE = 0x7 # Read T Type Thermocouple
 
-    def __init__(self, tc_type=MAX31856_S_TYPE, units="c", avgsel=0x0, software_spi=None, hardware_spi=None, gpio=None):
+    def __init__(self, tc_type=MAX31856_S_TYPE, units="c", avgsel=0x0, ac_freq_50hz=False, software_spi=None, hardware_spi=None, gpio=None):
         """
         Initialize MAX31856 device with software SPI on the specified CLK,
         CS, and DO pins.  Alternatively can specify hardware SPI by sending an
@@ -100,6 +100,7 @@ class MAX31856(object):
                 MAX31856.MAX31856_X_TYPE.
             avgsel (1-byte Hex): Type of Averaging.  Choose from values in CR0 table of datasheet.
                 Default is single sample.
+            ac_freq_50hz: Set to True if your AC frequency is 50Hz, Set to False for 60Hz,
             software_spi (dict): Contains the pin assignments for software SPI, as defined below:
                 clk (integer): Pin number for software SPI clk
                 cs (integer): Pin number for software SPI cs
@@ -112,6 +113,8 @@ class MAX31856(object):
         self.tc_type = tc_type
         self.avgsel = avgsel
         self.units = units
+        self.noConnection = self.shortToGround = self.shortToVCC = self.unknownError = False
+
         # Handle hardware SPI
         if hardware_spi is not None:
             self._logger.debug('Using hardware SPI')
@@ -132,10 +135,12 @@ class MAX31856(object):
         self._spi.set_mode(1)
         self._spi.set_bit_order(SPI.MSBFIRST)
 
+        self.cr0 = self.MAX31856_CR0_READ_CONT | (1 if ac_freq_50hz else 0)
         self.cr1 = ((self.avgsel << 4) + self.tc_type)
 
         # Setup for reading continuously with T-Type thermocouple
-        self._write_register(self.MAX31856_REG_WRITE_CR0, self.MAX31856_CR0_READ_CONT)
+        self._write_register(self.MAX31856_REG_WRITE_CR0, 0)
+        self._write_register(self.MAX31856_REG_WRITE_CR0, self.cr0)
         self._write_register(self.MAX31856_REG_WRITE_CR1, self.cr1)
 
     @staticmethod
@@ -300,5 +305,3 @@ class MAX31856(object):
     def get(self):
         celcius = self.read_temp_c()
         return getattr(self, "to_" + self.units)(celcius)
-      
-
