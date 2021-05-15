@@ -140,8 +140,8 @@ class MAX31856(object):
 
         # Setup for reading continuously with T-Type thermocouple
         self._write_register(self.MAX31856_REG_WRITE_CR0, 0)
-        self._write_register(self.MAX31856_REG_WRITE_CR0, self.cr0)
         self._write_register(self.MAX31856_REG_WRITE_CR1, self.cr1)
+        self._write_register(self.MAX31856_REG_WRITE_CR0, self.cr0)
 
     @staticmethod
     def _cj_temp_from_bytes(msb, lsb):
