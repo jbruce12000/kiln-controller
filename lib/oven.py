@@ -399,7 +399,7 @@ class RealOven(Oven):
         if heat_on > 0:
             self.heat = 1.0
 
-        if self.output.heat_on:
+        if heat_on:
             self.output.heat(heat_on)
         if heat_off:
             self.output.cool(heat_off)
