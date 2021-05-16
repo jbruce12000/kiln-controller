@@ -5,6 +5,7 @@ import json
 import time
 import csv
 import argparse
+import sys
 
 
 STD_HEADER = [
@@ -37,7 +38,7 @@ PID_HEADER = [
 ]
 
 
-def logger(hostname, csvfile, noprofilestats, pidstats):
+def logger(hostname, csvfile, noprofilestats, pidstats, stdout):
     status_ws = websocket.WebSocket()
 
     csv_fields = []
@@ -49,6 +50,12 @@ def logger(hostname, csvfile, noprofilestats, pidstats):
     out = open(csvfile, 'w')
     csv_out = csv.DictWriter(out, csv_fields, extrasaction='ignore')
     csv_out.writeheader()
+
+    if stdout:
+        csv_stdout = csv.DictWriter(sys.stdout, csv_fields, extrasaction='ignore', delimiter='\t')
+        csv_stdout.writeheader()
+    else:
+        csv_stdout = None
 
     while True:
         try:
@@ -74,6 +81,14 @@ def logger(hostname, csvfile, noprofilestats, pidstats):
         csv_out.writerow(msg)
         out.flush()
 
+        if stdout:
+            for k in list(msg.keys()):
+                v = msg[k]
+                if isinstance(v, float):
+                    msg[k] = round(v, 3)
+            csv_stdout.writerow(msg)
+            sys.stdout.flush()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Log kiln data for analysis.')
@@ -81,6 +96,7 @@ if __name__ == "__main__":
     parser.add_argument('--csvfile', type=str, default="/tmp/kilnstats.csv", help="Where to write the kiln stats to")
     parser.add_argument('--pidstats', action='store_true', help="Include PID stats")
     parser.add_argument('--noprofilestats', action='store_true', help="Do not store profile stats (default is to store them)")
+    parser.add_argument('--stdout', action='store_true', help="Also print to stdout")
     args = parser.parse_args()
 
-    logger(args.hostname, args.csvfile, args.noprofilestats, args.pidstats)
+    logger(args.hostname, args.csvfile, args.noprofilestats, args.pidstats, args.stdout)
