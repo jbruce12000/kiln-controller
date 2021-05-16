@@ -89,7 +89,12 @@ class MAX31856(object):
     MAX31856_S_TYPE = 0x6 # Read S Type Thermocouple
     MAX31856_T_TYPE = 0x7 # Read T Type Thermocouple
 
-    def __init__(self, tc_type=MAX31856_S_TYPE, units="c", avgsel=0x0, ac_freq_50hz=False, software_spi=None, hardware_spi=None, gpio=None):
+    MAX31856_OCDETECT_OFF = 0x00  # open circuit detection disabled
+    MAX31856_OCDETECT_1 = 0x01  # enabled every 16 conversions (Rs < 5kOhm)
+    MAX31856_OCDETECT_2 = 0x02  # enabled every 16 conversions (40kOhm < Rs > 5kOhm, time < 2ms)
+    MAX31856_OCDETECT_3 = 0x03  # enabled every 16 conversions (40kOhm < Rs > 5kOhm, time > 2ms)
+
+    def __init__(self, tc_type=MAX31856_S_TYPE, units="c", avgsel=0x0, ac_freq_50hz=False, ocdetect=0, software_spi=None, hardware_spi=None, gpio=None):
         """
         Initialize MAX31856 device with software SPI on the specified CLK,
         CS, and DO pins.  Alternatively can specify hardware SPI by sending an
@@ -135,8 +140,8 @@ class MAX31856(object):
         self._spi.set_mode(1)
         self._spi.set_bit_order(SPI.MSBFIRST)
 
-        self.cr0 = self.MAX31856_CR0_READ_CONT | (1 if ac_freq_50hz else 0)
-        self.cr1 = ((self.avgsel << 4) + self.tc_type)
+        self.cr0 = self.MAX31856_CR0_READ_CONT | ((ocdetect & 3) << 4) | (1 if ac_freq_50hz else 0)
+        self.cr1 = (((self.avgsel & 7) << 4) + (self.tc_type & 0x0f))
 
         # Setup for reading continuously with T-Type thermocouple
         self._write_register(self.MAX31856_REG_WRITE_CR0, 0)
@@ -302,6 +307,39 @@ class MAX31856(object):
         '''Convert celsius to fahrenheit.'''
         return celsius * 9.0/5.0 + 32
 
+    def checkErrors(self):
+        data = self.read_fault_register()
+        self.noConnection = (data & 0x00000001) != 0
+        self.unknownError = (data & 0xfe) != 0
+
     def get(self):
+        self.checkErrors()
         celcius = self.read_temp_c()
         return getattr(self, "to_" + self.units)(celcius)
+
+
+if __name__ == "__main__":
+
+    # Multi-chip example
+    import time
+    cs_pins = [6]
+    clock_pin = 13
+    data_pin = 5
+    di_pin = 26
+    units = "c"
+    thermocouples = []
+    for cs_pin in cs_pins:
+        thermocouples.append(MAX31856(avgsel=0, ac_freq_50hz=True, tc_type=MAX31856.MAX31856_K_TYPE, software_spi={'clk': clock_pin, 'cs': cs_pin, 'do': data_pin, 'di': di_pin}, units=units))
+
+    running = True
+    while(running):
+        try:
+            for thermocouple in thermocouples:
+                rj = thermocouple.read_internal_temp_c()
+                tc = thermocouple.get()
+                print("tc: {} and rj: {}, NC:{} ??:{}".format(tc, rj, thermocouple.noConnection, thermocouple.unknownError))
+            time.sleep(1)
+        except KeyboardInterrupt:
+            running = False
+    for thermocouple in thermocouples:
+        thermocouple.cleanup()
