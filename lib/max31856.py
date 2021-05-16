@@ -89,12 +89,7 @@ class MAX31856(object):
     MAX31856_S_TYPE = 0x6 # Read S Type Thermocouple
     MAX31856_T_TYPE = 0x7 # Read T Type Thermocouple
 
-    MAX31856_OCDETECT_OFF = 0x00  # open circuit detection disabled
-    MAX31856_OCDETECT_1 = 0x01  # enabled every 16 conversions (Rs < 5kOhm)
-    MAX31856_OCDETECT_2 = 0x02  # enabled every 16 conversions (40kOhm < Rs > 5kOhm, time < 2ms)
-    MAX31856_OCDETECT_3 = 0x03  # enabled every 16 conversions (40kOhm < Rs > 5kOhm, time > 2ms)
-
-    def __init__(self, tc_type=MAX31856_S_TYPE, units="c", avgsel=0x0, ac_freq_50hz=False, ocdetect=0, software_spi=None, hardware_spi=None, gpio=None):
+    def __init__(self, tc_type=MAX31856_S_TYPE, units="c", avgsel=0x0, ac_freq_50hz=False, ocdetect=0x1, software_spi=None, hardware_spi=None, gpio=None):
         """
         Initialize MAX31856 device with software SPI on the specified CLK,
         CS, and DO pins.  Alternatively can specify hardware SPI by sending an
@@ -106,6 +101,7 @@ class MAX31856(object):
             avgsel (1-byte Hex): Type of Averaging.  Choose from values in CR0 table of datasheet.
                 Default is single sample.
             ac_freq_50hz: Set to True if your AC frequency is 50Hz, Set to False for 60Hz,
+            ocdetect: Detect open circuit errors (ie broken thermocouple). Choose from values in CR1 table of datasheet
             software_spi (dict): Contains the pin assignments for software SPI, as defined below:
                 clk (integer): Pin number for software SPI clk
                 cs (integer): Pin number for software SPI cs

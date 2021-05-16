@@ -120,7 +120,6 @@ class TempSensorReal(TempSensor):
             self.thermocouple = MAX31856(tc_type=config.thermocouple_type,
                                          software_spi = software_spi,
                                          units = config.temp_scale,
-                                         avgsel = config.max31856_avgsel,
                                          ac_freq_50hz = config.ac_freq_50hz,
                                          )
 
