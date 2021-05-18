@@ -231,6 +231,8 @@ class Oven(threading.Thread):
             self.runtime = self.startat + runtime_delta.total_seconds()
         else:
             self.runtime = runtime_delta.total_seconds()
+        if self.runtime < 0:
+            self.runtime = 0
 
     def update_target_temp(self):
         self.target = self.profile.get_target_temperature(self.runtime)
