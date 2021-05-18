@@ -85,7 +85,7 @@ def logger(hostname, csvfile, noprofilestats, pidstats, stdout):
             for k in list(msg.keys()):
                 v = msg[k]
                 if isinstance(v, float):
-                    msg[k] = round(v, 3)
+                    msg[k] = '{:5.3f}'.format(v)
             csv_stdout.writerow(msg)
             sys.stdout.flush()
 
