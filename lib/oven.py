@@ -219,11 +219,15 @@ class Oven(threading.Thread):
                 log.info("kiln must catch up, too cold, shifting schedule")
                 self.start_time = self.start_time + \
                     datetime.timedelta(seconds=self.time_step)
+                return True
             # kiln too hot, wait for it to cool down
             if temp - self.target > config.kiln_must_catch_up_max_error:
                 log.info("kiln must catch up, too hot, shifting schedule")
                 self.start_time = self.start_time + \
                     datetime.timedelta(seconds=self.time_step)
+                return True
+
+        return False
 
     def update_runtime(self):
         runtime_delta = datetime.datetime.now() - self.start_time
@@ -279,10 +283,10 @@ class Oven(threading.Thread):
                 time.sleep(1)
                 continue
             if self.state == "RUNNING":
-                self.kiln_must_catch_up()
+                catching_up = self.kiln_must_catch_up()
                 self.update_runtime()
                 self.update_target_temp()
-                self.heat_then_cool()
+                self.heat_then_cool(catching_up)
                 self.reset_if_emergency()
                 self.reset_if_schedule_ended()
 
@@ -334,10 +338,11 @@ class SimulatedOven(Oven):
         self.temperature = self.t
         self.board.temp_sensor.temperature = self.t
 
-    def heat_then_cool(self):
+    def heat_then_cool(self, catching_up):
         pid = self.pid.compute(self.target,
                                self.board.temp_sensor.temperature +
-                               config.thermocouple_offset)
+                               config.thermocouple_offset,
+                               catching_up)
         heat_on = float(self.time_step * pid)
         heat_off = float(self.time_step * (1 - pid))
 
@@ -388,10 +393,11 @@ class RealOven(Oven):
         super().reset()
         self.output.cool(0)
 
-    def heat_then_cool(self):
+    def heat_then_cool(self, catching_up):
         pid = self.pid.compute(self.target,
                                self.board.temp_sensor.temperature +
-                               config.thermocouple_offset)
+                               config.thermocouple_offset,
+                               catching_up)
         heat_on = float(self.time_step * pid)
         heat_off = float(self.time_step * (1 - pid))
 
@@ -465,7 +471,7 @@ class PID():
     # settled on -50 to 50 and then divide by 50 at the end. This results
     # in a larger PID control window and much more accurate control...
     # instead of what used to be binary on/off control.
-    def compute(self, setpoint, ispoint):
+    def compute(self, setpoint, ispoint, catching_up):
         now = datetime.datetime.now()
         timeDelta = (now - self.lastNow).total_seconds()
 
@@ -476,7 +482,7 @@ class PID():
         if self.ki > 0:
             if config.stop_integral_windup == True:
                 margin = setpoint * config.stop_integral_windup_margin/100
-                if (abs(error) <= abs(margin)):
+                if (abs(error) <= abs(margin)) and not catching_up:
                     self.iterm += (error * timeDelta * (1/self.ki))
             else:
                 self.iterm += (error * timeDelta * (1/self.ki))
