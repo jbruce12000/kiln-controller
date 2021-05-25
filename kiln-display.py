@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 
-from os import supports_dir_fd
 import websocket
 import json
 import time
@@ -9,7 +8,9 @@ import argparse
 import digitalio
 import board
 import adafruit_rgb_display.st7789 as st7789
+import RPi.GPIO as GPIO
 from PIL import Image, ImageDraw, ImageFont
+import config
 
 # This is designed to drive an Adafruit Mini PiTFT 1.3" (https://www.adafruit.com/product/4484)
 #
@@ -22,9 +23,32 @@ from PIL import Image, ImageDraw, ImageFont
 # non-numpy fallback code will consume much CPU.
 
 
+def beep(delay):
+    GPIO.output(config.gpio_beeper, GPIO.HIGH)
+    time.sleep(delay)
+    GPIO.output(config.gpio_beeper, GPIO.LOW)
+
+
+def morse(code):
+    for c in code:
+        if c == '.':
+            beep(0.25)
+
+        elif c == '-':
+            beep(0.5)
+
+        time.sleep(0.25)
+
+
 def display(hostname, minupdatesecs, font_ttf):
     status_ws = websocket.WebSocket()
     storage_ws = websocket.WebSocket()
+
+    # setup beeper GPIO
+    GPIO.setmode(GPIO.BCM)
+    GPIO.setwarnings(False)
+    GPIO.setup(config.gpio_beeper, GPIO.OUT)
+    GPIO.output(config.gpio_beeper, GPIO.LOW)
 
     # Configuration for CS and DC pins for Raspberry Pi
     cs_pin = digitalio.DigitalInOut(board.CE0)
@@ -57,6 +81,7 @@ def display(hostname, minupdatesecs, font_ttf):
     charth = int(display.height / 2)
 
     # main loop
+    state = 'idle'
     cur_profile = None
     last_update = datetime.datetime.now()
     while True:
@@ -81,6 +106,25 @@ def display(hostname, minupdatesecs, font_ttf):
                 time.sleep(5)
 
             continue
+
+        if state == 'idle' and cur_profile:
+            state = 'profile_tempok'
+
+        elif state != 'idle' and not cur_profile:
+            state = 'idle'
+            morse('-.-.')  # (C) Profile Complete
+
+        if state == 'profile_tempok':
+            tempdelta = abs(msg.get('temperature', 0) - msg.get('target', 0))
+            if tempdelta > 5:
+                state = 'profile_catchup'
+                morse('....')  # (H) Temp bad
+
+        elif state == 'profile_catchup':
+            tempdelta = abs(msg.get('temperature', 0) - msg.get('target', 0))
+            if tempdelta < 1:
+                state = 'profile_tempok'
+                morse('-')  # (T) Temp ok
 
         # we don't need to update ALL the time
         if (datetime.datetime.now() - last_update).total_seconds() < minupdatesecs:
