@@ -411,7 +411,7 @@ class PID():
 
         if self.ki > 0:
             if config.stop_integral_windup == True:
-                if self.kp * error < window_size:
+                if abs(self.kp * error) < window_size:
                     self.iterm += (error * timeDelta * (1/self.ki))
             else:
                 self.iterm += (error * timeDelta * (1/self.ki))
