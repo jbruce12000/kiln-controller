@@ -219,15 +219,11 @@ class Oven(threading.Thread):
                 log.info("kiln must catch up, too cold, shifting schedule")
                 self.start_time = self.start_time + \
                     datetime.timedelta(seconds=self.time_step)
-                return True
             # kiln too hot, wait for it to cool down
             if temp - self.target > config.kiln_must_catch_up_max_error:
                 log.info("kiln must catch up, too hot, shifting schedule")
                 self.start_time = self.start_time + \
                     datetime.timedelta(seconds=self.time_step)
-                return True
-
-        return False
 
     def update_runtime(self):
         runtime_delta = datetime.datetime.now() - self.start_time
