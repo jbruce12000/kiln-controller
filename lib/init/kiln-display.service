@@ -1,0 +1,9 @@
+[Unit]
+Description=kiln-display
+
+[Service]
+Nice=10
+ExecStart=/home/pi/kiln-controller/venv/bin/python /home/pi/kiln-controller/kiln-display.py
+
+[Install]
+WantedBy=multi-user.target

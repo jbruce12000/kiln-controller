@@ -1,0 +1,4 @@
+websocket-client
+Pillow
+adafruit-circuitpython-rgb-display
+numpy
