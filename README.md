@@ -52,12 +52,14 @@ My controller plugs into the wall, and the kiln plugs into the controller.
 
 ## Software 
 
-### Raspbian
+### Raspberry PI OS
 
-Download [NOOBs](https://www.raspberrypi.org/downloads/noobs/). Copy files to an SD card. Install raspbian on RPi using NOOBs.
+Download [Raspberry PI OS](https://www.raspberrypi.org/software/). Use Rasberry PI Imaging tool to install the OS on an SD card. Boot the OS, open a terminal and...
 
-    $ sudo apt-get install python3-pip python3-virtualenv libevent-dev git virtualenv
-    $ git clone https://github.com/jbruce12000/kiln-controller.git
+    $ sudo apt-get update
+    $ sudo apt-get dist-upgrade
+    $ sudo apt-get install python3-virtualenv libevent-dev virtualenv
+    $ git clone https://github.com/jbruce12000/kiln-controller
     $ cd kiln-controller
     $ virtualenv -p python3 venv
     $ source venv/bin/activate
