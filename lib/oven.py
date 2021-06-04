@@ -54,7 +54,7 @@ class Board(object):
                 self.active = True
                 log.info("import %s " % (self.name))
             except ImportError:
-                msg = "max31855 config set, but import failed" 
+                msg = "max31855 config set, but import failed"
                 log.warning(msg)
 
         if config.max31856:
@@ -64,7 +64,7 @@ class Board(object):
                 self.active = True
                 log.info("import %s " % (self.name))
             except ImportError:
-                msg = "max31856 config set, but import failed" 
+                msg = "max31856 config set, but import failed"
                 log.warning(msg)
 
     def create_temp_sensor(self):
@@ -76,7 +76,7 @@ class Board(object):
 class BoardSimulated(object):
     def __init__(self):
         self.temp_sensor = TempSensorSimulated()
- 
+
 class TempSensor(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
@@ -118,7 +118,7 @@ class TempSensorReal(TempSensor):
         '''take 5 measurements over each time period and return the
         average'''
         while True:
-            maxtries = 5 
+            maxtries = 5
             sleeptime = self.time_step / float(maxtries)
             temps = []
             for x in range(0,maxtries):
@@ -246,10 +246,10 @@ class SimulatedOven(Oven):
         # set temps to the temp of the surrounding environment
         self.t = self.t_env # deg C temp of oven
         self.t_h = self.t_env #deg C temp of heating element
-        
+
         # call parent init
         Oven.__init__(self)
-        
+
         # start thread
         self.start()
         log.info("SimulatedOven started")
@@ -307,9 +307,9 @@ class SimulatedOven(Oven):
              self.runtime,
              self.totaltime,
              time_left))
-        
+
         # we don't actually spend time heating & cooling during
-        # a simulation, so sleep. 
+        # a simulation, so sleep.
         time.sleep(self.time_step)
 
 
@@ -397,7 +397,7 @@ class PID():
         self.lastErr = 0
 
     # FIX - this was using a really small window where the PID control
-    # takes effect from -1 to 1. I changed this to various numbers and 
+    # takes effect from -1 to 1. I changed this to various numbers and
     # settled on -50 to 50 and then divide by 50 at the end. This results
     # in a larger PID control window and much more accurate control...
     # instead of what used to be binary on/off control.
@@ -411,12 +411,11 @@ class PID():
 
         if self.ki > 0:
             if config.stop_integral_windup == True:
-                margin = setpoint * config.stop_integral_windup_margin/100
-                if (abs(error) <= abs(margin)):
+                if abs(self.kp * error) < window_size:
                     self.iterm += (error * timeDelta * (1/self.ki))
             else:
                 self.iterm += (error * timeDelta * (1/self.ki))
-        
+
         dErr = (error - self.lastErr) / timeDelta
         output = self.kp * error + self.iterm + self.kd * dErr
         out4logs = output
@@ -430,14 +429,14 @@ class PID():
 
         output = float(output / window_size)
 
-        if out4logs > 0:        
+        if out4logs > 0:
 #            log.info("pid percents pid=%0.2f p=%0.2f i=%0.2f d=%0.2f" % (out4logs,
-#                ((self.kp * error)/out4logs)*100, 
+#                ((self.kp * error)/out4logs)*100,
 #                (self.iterm/out4logs)*100,
-#                ((self.kd * dErr)/out4logs)*100)) 
+#                ((self.kd * dErr)/out4logs)*100))
             log.info("pid actuals pid=%0.2f p=%0.2f i=%0.2f d=%0.2f" % (out4logs,
-                self.kp * error, 
+                self.kp * error,
                 self.iterm,
-                self.kd * dErr)) 
+                self.kd * dErr))
 
         return output
