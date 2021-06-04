@@ -27,7 +27,7 @@ Run a test schedule. I used a schedule that switches between 200 and 250 F every
 Let's balance pid_ki first (the integral). The lower the pid_ki, the greater the impact it will have on the system. If a system is consistently low or high, the integral is used to help bring the system closer to the set point. The integral accumulates over time and has [potentially] a bigger and bigger impact.
 
 * If you have a steady state (no oscillations), but the temperature is always above the set point, increase pid_ki.
-* If you have a steady state (no oscillations), but the temperature is always above the set point, decrease pid_ki.
+* If you have a steady state (no oscillations), but the temperature is always below the set point, decrease pid_ki.
 * If you have an oscillation but the temperature is mostly above the setpoint, increase pid_ki.
 * If you have an oscillation but the temperature is mostly below the setpoint, decrease pid_ki.
 
@@ -40,7 +40,7 @@ Let's set pid_kp next (proportional). Think of pid_kp as a dimmable light switch
 Now set pid_kd (derivative). pid_kd makes an impact when there is a change in temperature. It's used to reduce oscillations.
 
 * If you have oscillations that take too long to settle, increase pid_kp
-* If you have crazy, unpredictable changes in temperature, reduce pid_kp
+* If you have crazy, unpredictable behavior from the controller, reduce pid_kp
 
 Expect some overshoot as the kiln reaches the set temperature the first time, but no oscillation.  Any holds or ramps after that should have a smooth transition and should remain really close to the set point [1 or 2 degrees F].
 
