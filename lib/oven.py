@@ -154,7 +154,7 @@ class TempSensorReal(TempSensor):
                 self.ok_count += 1
 
             else:
-                log.error(f"Problem reading temp N/C:{self.noConnection} GND:{self.shortToGround} VCC:{self.shortToVCC} ???:{self.unknownError}")
+                log.error("Problem reading temp N/C:%s GND:%s VCC:%s ???:%s" % (self.noConnection,self.shortToGround,self.shortToVCC,self.unknownError))
                 self.bad_count += 1
 
             if len(temps):
