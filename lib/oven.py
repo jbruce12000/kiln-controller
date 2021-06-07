@@ -8,6 +8,7 @@ import config
 
 log = logging.getLogger(__name__)
 
+
 class Output(object):
     def __init__(self):
         self.active = False
@@ -29,10 +30,10 @@ class Output(object):
     def heat(self,sleepfor):
         self.GPIO.output(config.gpio_heat, self.GPIO.HIGH)
         time.sleep(sleepfor)
-        self.GPIO.output(config.gpio_heat, self.GPIO.LOW)
 
     def cool(self,sleepfor):
         '''no active cooling, so sleep'''
+        self.GPIO.output(config.gpio_heat, self.GPIO.LOW)
         time.sleep(sleepfor)
 
 # FIX - Board class needs to be completely removed
@@ -82,7 +83,9 @@ class TempSensor(threading.Thread):
         threading.Thread.__init__(self)
         self.daemon = True
         self.temperature = 0
+        self.bad_percent = 0
         self.time_step = config.sensor_time_wait
+        self.noConnection = self.shortToGround = self.shortToVCC = self.unknownError = False
 
 class TempSensorSimulated(TempSensor):
     '''not much here, just need to be able to set the temperature'''
@@ -94,6 +97,11 @@ class TempSensorReal(TempSensor):
        during the time_step'''
     def __init__(self):
         TempSensor.__init__(self)
+        self.sleeptime = self.time_step / float(config.temperature_average_samples)
+        self.bad_count = 0
+        self.ok_count = 0
+        self.bad_stamp = 0
+
         if config.max31855:
             log.info("init MAX31855")
             from max31855 import MAX31855, MAX31855Error
@@ -110,26 +118,48 @@ class TempSensorReal(TempSensor):
                              'do': config.gpio_sensor_data,
                              'di': config.gpio_sensor_di }
             self.thermocouple = MAX31856(tc_type=config.thermocouple_type,
-                                         software_spi = sofware_spi,
-                                         units = config.temp_scale
+                                         software_spi = software_spi,
+                                         units = config.temp_scale,
+                                         ac_freq_50hz = config.ac_freq_50hz,
                                          )
 
     def run(self):
-        '''take 5 measurements over each time period and return the
-        average'''
+        '''use a moving average of config.temperature_average_samples across the time_step'''
+        temps = []
         while True:
-            maxtries = 5
-            sleeptime = self.time_step / float(maxtries)
-            temps = []
-            for x in range(0,maxtries):
-                try:
-                    temp = self.thermocouple.get()
-                    temps.append(temp)
-                except Exception:
-                    log.exception("problem reading temp")
-                time.sleep(sleeptime)
-            if len(temps) > 0:
-                self.temperature = sum(temps)/len(temps)
+            # reset error counter if time is up
+            if (time.time() - self.bad_stamp) > (self.time_step * 2):
+                if self.bad_count + self.ok_count:
+                    self.bad_percent = (self.bad_count / (self.bad_count + self.ok_count)) * 100
+                else:
+                    self.bad_percent = 0
+                self.bad_count = 0
+                self.ok_count = 0
+                self.bad_stamp = time.time()
+
+            temp = self.thermocouple.get()
+            self.noConnection = self.thermocouple.noConnection
+            self.shortToGround = self.thermocouple.shortToGround
+            self.shortToVCC = self.thermocouple.shortToVCC
+            self.unknownError = self.thermocouple.unknownError
+
+            is_bad_value = self.noConnection | self.unknownError
+            if config.honour_theromocouple_short_errors:
+                is_bad_value |= self.shortToGround | self.shortToVCC
+
+            if not is_bad_value:
+                temps.append(temp)
+                if len(temps) > config.temperature_average_samples:
+                    del temps[0]
+                self.ok_count += 1
+
+            else:
+                log.error(f"Problem reading temp N/C:{self.noConnection} GND:{self.shortToGround} VCC:{self.shortToVCC} ???:{self.unknownError}")
+                self.bad_count += 1
+
+            if len(temps):
+                self.temperature = sum(temps) / len(temps)
+            time.sleep(self.sleeptime)
 
 class Oven(threading.Thread):
     '''parent oven class. this has all the common code
@@ -152,8 +182,22 @@ class Oven(threading.Thread):
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
 
     def run_profile(self, profile, startat=0):
-        log.info("Running schedule %s" % profile.name)
         self.reset()
+
+        if self.board.temp_sensor.noConnection:
+            log.info("Refusing to start profile - thermocouple not connected")
+            return
+        if self.board.temp_sensor.shortToGround:
+            log.info("Refusing to start profile - thermocouple short to ground")
+            return
+        if self.board.temp_sensor.shortToVCC:
+            log.info("Refusing to start profile - thermocouple short to VCC")
+            return
+        if self.board.temp_sensor.unknownError:
+            log.info("Refusing to start profile - thermocouple unknown error")
+            return
+
+        log.info("Running schedule %s" % profile.name)
         self.profile = profile
         self.totaltime = profile.get_duration()
         self.state = "RUNNING"
@@ -183,6 +227,9 @@ class Oven(threading.Thread):
 
     def update_runtime(self):
         runtime_delta = datetime.datetime.now() - self.start_time
+        if runtime_delta.total_seconds() < 0:
+            runtime_delta = datetime.timedelta(0)
+
         if self.startat > 0:
             self.runtime = self.startat + runtime_delta.total_seconds()
         else:
@@ -192,10 +239,22 @@ class Oven(threading.Thread):
         self.target = self.profile.get_target_temperature(self.runtime)
 
     def reset_if_emergency(self):
-        '''reset if the temperature is way TOO HOT'''
+        '''reset if the temperature is way TOO HOT, or other critical errors detected'''
         if (self.board.temp_sensor.temperature + config.thermocouple_offset >=
             config.emergency_shutoff_temp):
             log.info("emergency!!! temperature too high, shutting down")
+            self.reset()
+
+        if self.board.temp_sensor.noConnection:
+            log.info("emergency!!! lost connection to thermocouple, shutting down")
+            self.reset()
+
+        if self.board.temp_sensor.unknownError:
+            log.info("emergency!!! unknown thermocouple error, shutting down")
+            self.reset()
+
+        if self.board.temp_sensor.bad_percent > 30:
+            log.info("emergency!!! too many errors in a short period, shutting down")
             self.reset()
 
     def reset_if_schedule_ended(self):
@@ -326,6 +385,10 @@ class RealOven(Oven):
         # start thread
         self.start()
 
+    def reset(self):
+        super().reset()
+        self.output.cool(0)
+
     def heat_then_cool(self):
         pid = self.pid.compute(self.target,
                                self.board.temp_sensor.temperature +
@@ -338,8 +401,10 @@ class RealOven(Oven):
         if heat_on > 0:
             self.heat = 1.0
 
-        self.output.heat(heat_on)
-        self.output.cool(heat_off)
+        if heat_on:
+            self.output.heat(heat_on)
+        if heat_off:
+            self.output.cool(heat_off)
         time_left = self.totaltime - self.runtime
         log.info("temp=%.2f, target=%.2f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
             (self.board.temp_sensor.temperature + config.thermocouple_offset,

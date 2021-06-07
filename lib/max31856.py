@@ -89,7 +89,7 @@ class MAX31856(object):
     MAX31856_S_TYPE = 0x6 # Read S Type Thermocouple
     MAX31856_T_TYPE = 0x7 # Read T Type Thermocouple
 
-    def __init__(self, tc_type=MAX31856_S_TYPE, units="c", avgsel=0x0, software_spi=None, hardware_spi=None, gpio=None):
+    def __init__(self, tc_type=MAX31856_S_TYPE, units="c", avgsel=0x0, ac_freq_50hz=False, ocdetect=0x1, software_spi=None, hardware_spi=None, gpio=None):
         """
         Initialize MAX31856 device with software SPI on the specified CLK,
         CS, and DO pins.  Alternatively can specify hardware SPI by sending an
@@ -100,6 +100,8 @@ class MAX31856(object):
                 MAX31856.MAX31856_X_TYPE.
             avgsel (1-byte Hex): Type of Averaging.  Choose from values in CR0 table of datasheet.
                 Default is single sample.
+            ac_freq_50hz: Set to True if your AC frequency is 50Hz, Set to False for 60Hz,
+            ocdetect: Detect open circuit errors (ie broken thermocouple). Choose from values in CR1 table of datasheet
             software_spi (dict): Contains the pin assignments for software SPI, as defined below:
                 clk (integer): Pin number for software SPI clk
                 cs (integer): Pin number for software SPI cs
@@ -112,6 +114,8 @@ class MAX31856(object):
         self.tc_type = tc_type
         self.avgsel = avgsel
         self.units = units
+        self.noConnection = self.shortToGround = self.shortToVCC = self.unknownError = False
+
         # Handle hardware SPI
         if hardware_spi is not None:
             self._logger.debug('Using hardware SPI')
@@ -132,11 +136,13 @@ class MAX31856(object):
         self._spi.set_mode(1)
         self._spi.set_bit_order(SPI.MSBFIRST)
 
-        self.cr1 = ((self.avgsel << 4) + self.tc_type)
+        self.cr0 = self.MAX31856_CR0_READ_CONT | ((ocdetect & 3) << 4) | (1 if ac_freq_50hz else 0)
+        self.cr1 = (((self.avgsel & 7) << 4) + (self.tc_type & 0x0f))
 
         # Setup for reading continuously with T-Type thermocouple
-        self._write_register(self.MAX31856_REG_WRITE_CR0, self.MAX31856_CR0_READ_CONT)
+        self._write_register(self.MAX31856_REG_WRITE_CR0, 0)
         self._write_register(self.MAX31856_REG_WRITE_CR1, self.cr1)
+        self._write_register(self.MAX31856_REG_WRITE_CR0, self.cr0)
 
     @staticmethod
     def _cj_temp_from_bytes(msb, lsb):
@@ -297,8 +303,39 @@ class MAX31856(object):
         '''Convert celsius to fahrenheit.'''
         return celsius * 9.0/5.0 + 32
 
+    def checkErrors(self):
+        data = self.read_fault_register()
+        self.noConnection = (data & 0x00000001) != 0
+        self.unknownError = (data & 0xfe) != 0
+
     def get(self):
+        self.checkErrors()
         celcius = self.read_temp_c()
         return getattr(self, "to_" + self.units)(celcius)
-      
 
+
+if __name__ == "__main__":
+
+    # Multi-chip example
+    import time
+    cs_pins = [6]
+    clock_pin = 13
+    data_pin = 5
+    di_pin = 26
+    units = "c"
+    thermocouples = []
+    for cs_pin in cs_pins:
+        thermocouples.append(MAX31856(avgsel=0, ac_freq_50hz=True, tc_type=MAX31856.MAX31856_K_TYPE, software_spi={'clk': clock_pin, 'cs': cs_pin, 'do': data_pin, 'di': di_pin}, units=units))
+
+    running = True
+    while(running):
+        try:
+            for thermocouple in thermocouples:
+                rj = thermocouple.read_internal_temp_c()
+                tc = thermocouple.get()
+                print("tc: {} and rj: {}, NC:{} ??:{}".format(tc, rj, thermocouple.noConnection, thermocouple.unknownError))
+            time.sleep(1)
+        except KeyboardInterrupt:
+            running = False
+    for thermocouple in thermocouples:
+        thermocouple.cleanup()

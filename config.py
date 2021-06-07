@@ -117,3 +117,16 @@ kiln_must_catch_up_max_error = 10 #degrees
 # set set this offset to -4 to compensate.  This probably means you have a
 # cheap thermocouple.  Invest in a better thermocouple.
 thermocouple_offset=0
+
+# some kilns/thermocouples start erroneously reporting "short" errors at higher temperatures
+# due to plasma forming in the kiln.
+# Set this to False to ignore these errors and assume the temperature reading was correct anyway
+honour_theromocouple_short_errors = True
+
+# number of samples of temperature to average.
+# If you suffer from the high temperature kiln issue and have set honour_theromocouple_short_errors to False,
+# you will likely need to increase this (eg I use 40)
+temperature_average_samples = 5
+
+# Thermocouple AC frequency filtering - set to True if in a 50Hz locale, else leave at False for 60Hz locale
+ac_freq_50hz = False
