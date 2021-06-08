@@ -43,10 +43,13 @@ gpio_sensor_clock = 22
 gpio_sensor_data = 17
 gpio_sensor_di = 10 # only used with max31856
 
-### duty cycle of the entire system in seconds. Every N seconds a decision
-### is made about switching the relay[s] on & off and for how long.
-### The thermocouple is read five times during this period and the highest
-### value is used.
+########################################################################
+#
+# duty cycle of the entire system in seconds
+# 
+# Every N seconds a decision is made about switching the relay[s] 
+# on & off and for how long. The thermocouple is read 
+# temperature_average_samples times during and the average value is used.
 sensor_time_wait = 2
 
 
@@ -54,8 +57,9 @@ sensor_time_wait = 2
 #
 #   PID parameters
 #
-# These parameters work well with the simulated oven. You must tune them
-# to work well with your specific kiln. Note that the integral pid_ki is
+# These parameters control kiln temperature change. These settings work
+# well with the simulated oven. You must tune them to work well with 
+# your specific kiln. Note that the integral pid_ki is
 # inverted so that a smaller number means more integral action.
 pid_kp = 25   # Proportional
 pid_ki = 200  # Integral
@@ -108,7 +112,8 @@ emergency_shutoff_temp = 2264 #cone 7
 # If the kiln cannot heat or cool fast enough and is off by more than
 # kiln_must_catch_up_max_error  the entire schedule is shifted until
 # the desired temperature is reached. If your kiln cannot attain the
-# wanted temperature, the schedule will run forever.
+# wanted temperature, the schedule will run forever. This is often used
+# for heating as fast as possible in a section of a kiln schedule/profile.
 kiln_must_catch_up = True
 kiln_must_catch_up_max_error = 10 #degrees
 
@@ -118,13 +123,15 @@ kiln_must_catch_up_max_error = 10 #degrees
 # cheap thermocouple.  Invest in a better thermocouple.
 thermocouple_offset=0
 
-# some kilns/thermocouples start erroneously reporting "short" errors at higher temperatures
-# due to plasma forming in the kiln.
-# Set this to False to ignore these errors and assume the temperature reading was correct anyway
+# some kilns/thermocouples start erroneously reporting "short" 
+# errors at higher temperatures due to plasma forming in the kiln.
+# Set this to False to ignore these errors and assume the temperature 
+# reading was correct anyway
 honour_theromocouple_short_errors = False
 
 # number of samples of temperature to average.
-# If you suffer from the high temperature kiln issue and have set honour_theromocouple_short_errors to False,
+# If you suffer from the high temperature kiln issue and have set 
+# honour_theromocouple_short_errors to False,
 # you will likely need to increase this (eg I use 40)
 temperature_average_samples = 40 
 
