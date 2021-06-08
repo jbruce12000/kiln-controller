@@ -14,6 +14,12 @@ My kiln is Skutt KS-1018 with a kiln vent.  Try the current settings for pid_kp,
 
 ## The Tuning Process
 
+### Automatic Tuning
+
+Contributor ADQ worked hard on creating a [Ziegler Nicols auto-tuner](ziegler_tuning.md) which is python script that heats your kiln, saves data to a csv, and then gives you PID parameters for config.py.
+
+### Manual Tuning
+
 I'm a big fan of manual tuning. Let's start with some reasonable values for PID settings in config.py...
 
     pid_kp = 20
@@ -47,4 +53,3 @@ Expect some overshoot as the kiln reaches the set temperature the first time, bu
 ## Troubleshooting
 
 * only change one value at a time, then test it.
-* if the above does not work, try the Ziegler / Nichols method https://blog.opticontrols.com/archives/477
