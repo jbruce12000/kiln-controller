@@ -162,8 +162,11 @@ def calculate(filename, tangentdivisor, showplot):
     Ki = Kp / Ti
     Kd = Kp * Td
 
-    # outut to the user
-    print(f"Kp: {Kp} 1/Ki: {1/ Ki}, Kd: {Kd}")
+    # output to the user
+    print("pid_kp = %s" % (Kp))
+    print("pid_ki = %s" % (1 / Ki))
+    print("pid_kd = %s" % (Kd))
+
 
     if showplot:
         plot(xdata, ydata,
