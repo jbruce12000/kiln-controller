@@ -16,11 +16,11 @@ My kiln is Skutt KS-1018 with a kiln vent.  Try the current settings for pid_kp,
 
 ### Automatic Tuning
 
-Contributor ADQ worked hard on creating a [Ziegler Nicols auto-tuner](ziegler_tuning.md) which is python script that heats your kiln, saves data to a csv, and then gives you PID parameters for config.py.
+Contributor [ADQ](https://github.com/adq) worked hard on creating a [Ziegler Nicols auto-tuner](ziegler_tuning.md) which is python script that heats your kiln, saves data to a csv, and then gives you PID parameters for config.py.
 
 ### Manual Tuning
 
-I'm a big fan of manual tuning. Let's start with some reasonable values for PID settings in config.py...
+Even if you used the tuner above, it's likely you'll need to do some manual tuning. Let's start with some reasonable values for PID settings in config.py...
 
     pid_kp = 20
     pid_ki = 50
