@@ -8,10 +8,6 @@ This animation is worth a thousand words...
 ## The Goal
 A controller with properly tuned PID values reacts quickly to changes in the set point, but does not overshoot much.  It settles quickly from any oscillations and hovers really close to the set point.  What do I mean by close? The average error for my kiln on a 13 hour schedule is .75 degrees F... and I have a noisy thermocouple, so it is possible to do even better.
 
-## Try the Existing Values
-
-My kiln is Skutt KS-1018 with a kiln vent.  Try the current settings for pid_kp, pid_ki, and pid_kd and if they work for you, you're done.  Otherwise, you have some experimentation ahead of you.  The following exercise took me about an hour of testing. 
-
 ## The Tuning Process
 
 ### Automatic Tuning
@@ -53,3 +49,4 @@ Expect some overshoot as the kiln reaches the set temperature the first time, bu
 ## Troubleshooting
 
 * only change one value at a time, then test it.
+* change values by doubling or halving
