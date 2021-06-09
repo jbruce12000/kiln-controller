@@ -65,8 +65,7 @@ def recordprofile(csvfile, targettemp):
                 if temp < targettemp:
                     break
 
-            sys.stdout.write(f"\r{stage} {temp:.2f}/{targettemp}           ")
-            sys.stdout.flush()
+            print("stage = %s, actual = %s, target = %s" % (stage,temp,targettemp))
             time.sleep(1)
 
         f.close()
@@ -206,4 +205,4 @@ if __name__ == "__main__":
         exit(1)
 
     else:
-        raise NotImplementedError(f"Unknown mode {args.mode}")
+        raise NotImplementedError("Unknown mode %s" % args.mode)
