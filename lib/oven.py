@@ -272,6 +272,8 @@ class Oven(threading.Thread):
             'state': self.state,
             'heat': self.heat,
             'totaltime': self.totaltime,
+            'kwh_rate': config.kwh_rate,
+            'currency_type': config.currency_type,
             'profile': self.profile.name if self.profile else None,
         }
         return state
