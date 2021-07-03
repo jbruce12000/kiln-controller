@@ -58,7 +58,7 @@ def recordprofile(csvfile, targettemp):
             if stage == 'heating':
                 if temp >= targettemp:
                     if not config.simulate:
-                        oven.output.heat(0)
+                        oven.output.cool(0)
                     stage = 'cooling'
 
             elif stage == 'cooling':
