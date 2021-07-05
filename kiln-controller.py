@@ -77,18 +77,6 @@ def handle_api():
         # get the wanted profile/kiln schedule
         profile = find_profile(wanted)
         if profile is None:
- 
-            elif msgdict.get("cmd") == "MARK_SWITCH_TO_CHEMATEX":
-                    log.info("Switching to Chematex kiln")
-                    oven.abort_run()
-                    os.system ("/home/pi/mark_scripts/chematex &")
-                    # TODO: add system call to actually switch
-                # Added by Henrik for Mark Tilles
-            elif msgdict.get("cmd") == "MARK_SWITCH_TO_RHODE":
-                    log.info("Switching to Rhode kiln")
-                    oven.abort_run()
-                    os.system ("/home/pi/mark_scripts/rhode &")
-                    # TODO: add system call to actually switch
             return { "success" : False, "error" : "profile %s not found" % wanted }
 
         # FIXME juggling of json should happen in the Profile class
@@ -164,6 +152,18 @@ def handle_control():
                 elif msgdict.get("cmd") == "STOP":
                     log.info("Stop command received")
                     oven.abort_run()
+                # Added by Henrik for Mark Tilles
+            elif msgdict.get("cmd") == "MARK_SWITCH_TO_CHEMATEX":
+                    log.info("Switching to Chematex kiln")
+                    oven.abort_run()
+                    os.system ("/home/pi/mark_scripts/chematex &")
+                    # TODO: add system call to actually switch
+                # Added by Henrik for Mark Tilles
+            elif msgdict.get("cmd") == "MARK_SWITCH_TO_RHODE":
+                    log.info("Switching to Rhode kiln")
+                    oven.abort_run()
+                    os.system ("/home/pi/mark_scripts/rhode &")
+                    # TODO: add system call to actually switch
         except WebSocketError as e:
             log.error(e)
             break
