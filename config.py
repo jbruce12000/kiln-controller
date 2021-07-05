@@ -1,3 +1,7 @@
+##### CHEMATEX *****
+##### CHEMATEX *****
+##### CHEMATEX *****
+
 import logging
 from lib.max31856 import MAX31856
 
@@ -14,8 +18,10 @@ listening_ip = "0.0.0.0"
 listening_port = 8081
 
 ### Cost Estimate
-kwh_rate        = 0.1319  # Rate in currency_type to calculate cost to run job
-currency_type   = "$"   # Currency Symbol to show when calculating cost to run job
+# Mark's cost June 2021 Vattenfall all taxes and fees SEK 42,64 => 42,64 /kWt
+kwh_rate        = 1.0380  # Rate in currency_type to calculate cost to run job
+currency_type   = "Kr"    # Currency Symbol to show when calculating cost to run job
+oven_kw         = 10000   # kW capacity of oven
 
 ########################################################################
 #
@@ -32,15 +38,15 @@ gpio_heat = 23  # Switches zero-cross solid-state-relay
 ### Thermocouple Adapter selection:
 #   max31855 - bitbang SPI interface
 #   max31856 - bitbang SPI interface. must specify thermocouple_type.
-max31855 = 1
-max31856 = 0
+max31855 = 0
+max31856 = 1
 # see lib/max31856.py for other thermocouple_type, only applies to max31856
 thermocouple_type = MAX31856.MAX31856_S_TYPE
 
-### Thermocouple Connection (using bitbang interfaces)
-gpio_sensor_cs = 27
-gpio_sensor_clock = 22
-gpio_sensor_data = 17
+### Thermocouple Connection
+gpio_sensor_cs = 5
+gpio_sensor_clock = 11
+gpio_sensor_data = 9
 gpio_sensor_di = 10 # only used with max31856
 
 ########################################################################
@@ -61,9 +67,9 @@ sensor_time_wait = 2
 # well with the simulated oven. You must tune them to work well with 
 # your specific kiln. Note that the integral pid_ki is
 # inverted so that a smaller number means more integral action.
-pid_kp = 25   # Proportional
-pid_ki = 200  # Integral
-pid_kd = 200  # Derivative
+pid_kp = 100  # Proportional
+pid_ki = 400  # Integral
+pid_kd = 800  # Derivative
 
 
 ########################################################################
@@ -80,7 +86,7 @@ stop_integral_windup = True
 ########################################################################
 #
 #   Simulation parameters
-simulate = True
+simulate = False
 sim_t_env      = 60.0   # deg C
 sim_c_heat     = 100.0  # J/K  heat capacity of heat element
 sim_c_oven     = 5000.0 # J/K  heat capacity of oven
@@ -98,7 +104,7 @@ sim_R_ho_air   = 0.05   # K/W  " with internal air circulation
 # If you change the temp_scale, all settings in this file are assumed to
 # be in that scale.
 
-temp_scale          = "f" # c = Celsius | f = Fahrenheit - Unit to display
+temp_scale          = "c" # c = Celsius | f = Fahrenheit - Unit to display
 time_scale_slope    = "h" # s = Seconds | m = Minutes | h = Hours - Slope displayed in temp_scale per time_scale_slope
 time_scale_profile  = "m" # s = Seconds | m = Minutes | h = Hours - Enter and view target time in time_scale_profile
 
@@ -107,7 +113,7 @@ time_scale_profile  = "m" # s = Seconds | m = Minutes | h = Hours - Enter and vi
 # naturally cool off. If your SSR has failed/shorted/closed circuit, this
 # means your kiln receives full power until your house burns down.
 # this should not replace you watching your kiln or use of a kiln-sitter
-emergency_shutoff_temp = 2264 #cone 7
+emergency_shutoff_temp = 1270 #cone 7
 
 # If the kiln cannot heat or cool fast enough and is off by more than
 # kiln_must_catch_up_max_error  the entire schedule is shifted until
@@ -115,7 +121,7 @@ emergency_shutoff_temp = 2264 #cone 7
 # wanted temperature, the schedule will run forever. This is often used
 # for heating as fast as possible in a section of a kiln schedule/profile.
 kiln_must_catch_up = True
-kiln_must_catch_up_max_error = 10 #degrees
+kiln_must_catch_up_max_error = 5 #degrees
 
 # thermocouple offset
 # If you put your thermocouple in ice water and it reads 36F, you can
@@ -136,4 +142,4 @@ honour_theromocouple_short_errors = False
 temperature_average_samples = 40 
 
 # Thermocouple AC frequency filtering - set to True if in a 50Hz locale, else leave at False for 60Hz locale
-ac_freq_50hz = False
+ac_freq_50hz = True

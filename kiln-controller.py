@@ -1,5 +1,15 @@
 #!/usr/bin/env python
 
+#### MARK TILLES START BLINKING GREEN LED WHEN SERVICE IS RUNNING
+from gpiozero import Button, LEDBoard
+from signal import pause
+import warnings, os, sys
+green_ledGPIO = 6
+green_led=LEDBoard(green_ledGPIO)
+green_led.blink(on_time=1, off_time=1)
+#### END - MARK TILLES START BLINKING GREEN LED WHEN SERVICE IS RUNNING
+
+
 import os
 import sys
 import logging
@@ -60,13 +70,25 @@ def handle_api():
 
         # start at a specific minute in the schedule
         # for restarting and skipping over early parts of a schedule
-        startat = 0;      
+        startat = 0;
         if 'startat' in bottle.request.json:
             startat = bottle.request.json['startat']
 
         # get the wanted profile/kiln schedule
         profile = find_profile(wanted)
         if profile is None:
+ 
+            elif msgdict.get("cmd") == "MARK_SWITCH_TO_CHEMATEX":
+                    log.info("Switching to Chematex kiln")
+                    oven.abort_run()
+                    os.system ("/home/pi/mark_scripts/chematex &")
+                    # TODO: add system call to actually switch
+                # Added by Henrik for Mark Tilles
+            elif msgdict.get("cmd") == "MARK_SWITCH_TO_RHODE":
+                    log.info("Switching to Rhode kiln")
+                    oven.abort_run()
+                    os.system ("/home/pi/mark_scripts/rhode &")
+                    # TODO: add system call to actually switch
             return { "success" : False, "error" : "profile %s not found" % wanted }
 
         # FIXME juggling of json should happen in the Profile class
@@ -260,7 +282,8 @@ def get_config():
         "time_scale_slope": config.time_scale_slope,
         "time_scale_profile": config.time_scale_profile,
         "kwh_rate": config.kwh_rate,
-        "currency_type": config.currency_type})    
+        "oven_kw": config.oven_kw,
+        "currency_type": config.currency_type})
 
 
 def main():

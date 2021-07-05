@@ -13,7 +13,7 @@ class MAX31855(object):
         '''Initialize Soft (Bitbang) SPI bus
 
         Parameters:
-        - cs_pin:    Chip Select (CS) / Slave Select (SS) pin (Any GPIO)
+        - cs_pin:    Chip Select (CS) / Slave Select (SS) pin (Any GPIO)  
         - clock_pin: Clock (SCLK / SCK) pin (Any GPIO)
         - data_pin:  Data input (SO / MOSI) pin (Any GPIO)
         - units:     (optional) unit of measurement to return. ("c" (default) | "k" | "f")
@@ -26,7 +26,6 @@ class MAX31855(object):
         self.units = units
         self.data = None
         self.board = board
-        self.noConnection = self.shortToGround = self.shortToVCC = self.unknownError = False
 
         # Initialize needed GPIO
         GPIO.setmode(self.board)
@@ -71,13 +70,20 @@ class MAX31855(object):
         if data_32 is None:
             data_32 = self.data
         anyErrors = (data_32 & 0x10000) != 0    # Fault bit, D16
+        noConnection = (data_32 & 0x00000001) != 0       # OC bit, D0
+        shortToGround = (data_32 & 0x00000002) != 0      # SCG bit, D1
+        shortToVCC = (data_32 & 0x00000004) != 0         # SCV bit, D2
         if anyErrors:
-            self.noConnection = (data_32 & 0x00000001) != 0       # OC bit, D0
-            self.shortToGround = (data_32 & 0x00000002) != 0      # SCG bit, D1
-            self.shortToVCC = (data_32 & 0x00000004) != 0         # SCV bit, D2
-            self.unknownError = not (self.noConnection | self.shortToGround | self.shortToVCC)    # Errk!
-        else:
-            self.noConnection = self.shortToGround = self.shortToVCC = self.unknownError = False
+            if noConnection:
+                raise MAX31855Error("No Connection")
+            elif shortToGround:
+                raise MAX31855Error("Thermocouple short to ground")
+            elif shortToVCC:
+                raise MAX31855Error("Thermocouple short to VCC")
+            else:
+                # Perhaps another SPI device is trying to send data?
+                # Did you remember to initialize all other SPI devices?
+                raise MAX31855Error("Unknown Error")
 
     def data_to_tc_temperature(self, data_32 = None):
         '''Takes an integer and returns a thermocouple temperature in celsius.'''
@@ -132,7 +138,7 @@ class MAX31855(object):
         GPIO.setup(self.clock_pin, GPIO.IN)
 
     def data_to_LinearizedTempC(self, data_32 = None):
-        '''Return the NIST-linearized thermocouple temperature value in degrees
+        '''Return the NIST-linearized thermocouple temperature value in degrees 
         celsius. See https://learn.adafruit.com/calibrating-sensors/maxim-31855-linearization for more infoo.
         This code came from https://github.com/nightmechanic/FuzzypicoReflow/blob/master/lib/max31855.py
 '''

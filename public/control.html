@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 
- <title>Drejstuga Fun!</title>
+ <title>Chematex Kiln Controller</title>
  <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
  <script src="assets/js/jquery-1.10.2.min.js"></script>
@@ -23,7 +23,9 @@
 
 </head>
 <body>
-<br><center><font size = "+3" color = "green">Drejstuga Fun!</font></center>
+<br><center><font size = "+3" color = "green">CHEMATEX Ugnen - Drejstuga Fun!</font></center>
+<center><font color = "blue" size = "+2">Ensure switches and power cord are in proper positions</font></center>
+<center><a href="http://192.168.0.12:8081/picoreflow/control.html" onClick="MARK_SWITCH_TO_RHODE();">Byt till Rhode</a></center>
 
  <div class="container">
   <div id="status">
@@ -51,23 +53,36 @@
   <div class="panel panel-default">
    <div class="panel-heading">
     <div id="profile_selector" class="pull-left">
+     <select id="e2" class="select2" style="margin-top: 4px"></select>
+     <button id="btn_edit" type="button" class="btn btn-default" onclick="enterEditMode()"><span class="glyphicon glyphicon-edit"></span></button>
+     <button id="btn_new" type="button" class="btn btn-default" onclick="enterNewMode(selected_profile)"><span class="glyphicon glyphicon-plus"></span></button>
     </div>
    <div id="btn_controls" class="pull-right" style="margin-top: 3px">
     <div id="nav_start" class="btn-group" style="display:none">
+     <button type="button" class="btn btn-default" style="visibility: hidden;"  onclick="runTaskSimulation();">Simulate</button>
+     <button type="button" class="btn btn-success" data-toggle="modal" data-target="#jobSummaryModal"><span class="glyphicon glyphicon-play"></span> Start</button>
     </div>
+    <button id="nav_stop" type="button" class="btn btn-danger" onclick="abortTask()" style="display:none" ><span class="glyphicon glyphicon-stop"></span> Stop</button>
    </div>
     <div id="edit" style="display:none;">
      <div class="input-group">
       <span class="input-group-addon">Schedule Name</span>
       <input id="form_profile_name" type="text" class="form-control" />
       <span class="input-group-btn">
+        <button class="btn btn-success" type="button" onclick="saveProfile();">Save</button>
+        <button id="btn_exit" type="button" class="btn btn-default" onclick="leaveEditMode()"><span class="glyphicon glyphicon-remove"></span></button>
       </span>
      </div>
      <div class="btn-group btn-group-sm" style="margin-top: 10px">
+      <button id="btn_newPoint" type="button" class="btn btn-default" onclick="newPoint()"><span class="glyphicon glyphicon-plus"></span></button>
+      <button id="btn_delPoint" type="button" class="btn btn-default" onclick="delPoint()"><span class="glyphicon glyphicon-minus"></span></button>
      </div>
      <div class="btn-group btn-group-sm" style="margin-top: 10px">
+      <button id="btn_table" type="button" class="btn btn-default" onclick="toggleTable()"><span class="glyphicon glyphicon-list"></span></button>
+      <button id="btn_live" type="button" class="btn btn-default" onclick="toggleLive()"><span class="glyphicon glyphicon-eye-open"></span></button>
      </div>
      <div class="btn-group btn-group-sm" style="margin-top: 10px">
+      <button id="btn_delProfile" type="button" class="btn btn-danger" data-toggle="modal" data-target="#delProfileModal"><span class="glyphicon glyphicon-trash"></span></button>
      </div>
     </div>
    </div>
@@ -82,6 +97,7 @@
   <div class="modal-dialog">
    <div class="modal-content">
     <div class="modal-header">
+     <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
      <h3 class="modal-title" id="jobSummaryModalLabel">Task Overview</h3>
     </div>
     <div class="modal-body">
@@ -93,6 +109,8 @@
     </div>
     <div class="modal-footer">
      <div class="btn-group" style="width: 100%">
+      <button type="button" class="btn btn-danger" style="width: 50%" data-dismiss="modal">No, take me back</button>
+      <button type="button" class="btn btn-success" style="width: 50%" data-dismiss="modal" onclick="runTask()">Yes, start the Run</button>
      </div>
     </div>
    </div>
@@ -103,6 +121,7 @@
   <div class="modal-dialog">
    <div class="modal-content">
     <div class="modal-header">
+     <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
      <h3 class="modal-title" id="delProfileModalLabel">Delete this profile?</h3>
     </div>
     <div class="modal-body">
@@ -110,6 +129,8 @@
     </div>
     <div class="modal-footer">
      <div class="btn-group" style="width: 100%">
+      <button type="button" class="btn btn-danger" style="width: 50%" data-dismiss="modal">No, take me back</button>
+      <button type="button" class="btn btn-success" style="width: 50%" data-dismiss="modal" onclick="deleteProfile()">Yes, delete the profile</button>
      </div>
     </div>
    </div>
@@ -120,6 +141,7 @@
   <div class="modal-dialog">
    <div class="modal-content">
     <div class="modal-header">
+     <button type="button" class="close" data-dismiss="modal" aria-hidden="true">&times;</button>
      <h3 class="modal-title" id="overwriteProfileModalLabel">Overwrite this profile?</h3>
     </div>
     <div class="modal-body">
@@ -127,6 +149,8 @@
     </div>
     <div class="modal-footer">
      <div class="btn-group" style="width: 100%">
+      <button type="button" class="btn btn-danger" style="width: 50%" data-dismiss="modal">No, take me back</button>
+      <button type="button" class="btn btn-success" style="width: 50%" data-dismiss="modal" onclick="deleteProfile()">Yes, delete the profile</button>
      </div>
     </div>
    </div>

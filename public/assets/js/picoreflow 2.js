@@ -1,4 +1,3 @@
-            oven_kw = x.oven_kw;
 var state = "IDLE";
 var state_last = "";
 var graph = [ 'profile', 'live'];
@@ -619,6 +618,7 @@ $(document).ready(function()
             time_scale_slope = x.time_scale_slope;
             time_scale_profile = x.time_scale_profile;
             kwh_rate = x.kwh_rate;
+            oven_kw = x.oven_kw;
             currency_type = x.currency_type;
 
             if (temp_scale == "c") {temp_scale_display = "C";} else {temp_scale_display = "F";}
