@@ -41,8 +41,8 @@ Let's set pid_kp next (proportional). Think of pid_kp as a dimmable light switch
  
 Now set pid_kd (derivative). pid_kd makes an impact when there is a change in temperature. It's used to reduce oscillations.
 
-* If you have oscillations that take too long to settle, increase pid_kp
-* If you have crazy, unpredictable behavior from the controller, reduce pid_kp
+* If you have oscillations that take too long to settle, increase pid_kd
+* If you have crazy, unpredictable behavior from the controller, reduce pid_kd
 
 Expect some overshoot as the kiln reaches the set temperature the first time, but no oscillation.  Any holds or ramps after that should have a smooth transition and should remain really close to the set point [1 or 2 degrees F].
 
