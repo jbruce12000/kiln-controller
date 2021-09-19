@@ -20,6 +20,7 @@ class Output(object):
             GPIO.setmode(GPIO.BCM)
             GPIO.setwarnings(False)
             GPIO.setup(config.gpio_heat, GPIO.OUT)
+            GPIO.setup(config.gpio_contactor, GPIO.OUT)
             self.active = True
             self.GPIO = GPIO
         except:
@@ -37,6 +38,12 @@ class Output(object):
         '''no active cooling, so sleep'''
         self.GPIO.output(config.gpio_heat, self.GPIO.LOW)
         time.sleep(sleepfor)
+
+    def contactor_on(self):
+        self.GPIO.output(config.gpio_contactor, self.GPIO.LOW) #ON
+
+    def contactor_off(self):
+        self.GPIO.output(config.gpio_contactor, self.GPIO.HIGH) #OFF
 
 # FIX - Board class needs to be completely removed
 class Board(object):
@@ -182,6 +189,7 @@ class Oven(threading.Thread):
         self.target = 0
         self.heat = 0
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
+        self.output.contactor_off()
 
     def run_profile(self, profile, startat=0):
         self.reset()
@@ -206,6 +214,7 @@ class Oven(threading.Thread):
         self.start_time = datetime.datetime.now()
         self.startat = startat * 60
         log.info("Starting")
+        self.output.contactor_on()
 
     def abort_run(self):
         self.reset()
@@ -391,6 +400,7 @@ class RealOven(Oven):
 
     def reset(self):
         super().reset()
+#        self.output.GPIO.output(config.gpio_contactor, self.GPIO.HIGH) #OFF
         self.output.cool(0)
 
     def heat_then_cool(self):

@@ -11,8 +11,8 @@ var time_scale_slope = "s";
 var time_scale_profile = "s";
 var time_scale_long = "Seconds";
 var temp_scale_display = "C";
-var kwh_rate = 0.1;
-var currency_type = "$";
+var kwh_rate = 0.26;
+var currency_type = "EUR";
 
 var protocol = 'ws:';
 if (window.location.protocol == 'https:') {
@@ -560,7 +560,10 @@ $(document).ready(function()
 
                 $('#act_temp').html(parseInt(x.temperature));
 
-                if (x.heat > 0.0) { $('#heat').addClass("ds-led-heat-active"); } else { $('#heat').removeClass("ds-led-heat-active"); }
+		if (x.heat > 0.0) {
+	            setTimeout(function() { $('#heat').addClass("ds-led-heat-active") }, 0 )
+	            setTimeout(function() { $('#heat').removeClass("ds-led-heat-active") }, (x.heat*1000.0)-5)
+                    }
                 if (x.cool > 0.5) { $('#cool').addClass("ds-led-cool-active"); } else { $('#cool').removeClass("ds-led-cool-active"); }
                 if (x.air > 0.5) { $('#air').addClass("ds-led-air-active"); } else { $('#air').removeClass("ds-led-air-active"); }
                 if (x.temperature > hazardTemp()) { $('#hazard').addClass("ds-led-hazard-active"); } else { $('#hazard').removeClass("ds-led-hazard-active"); }

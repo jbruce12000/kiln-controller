@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python
 
 import os
@@ -46,6 +47,7 @@ def recordprofile(csvfile, targettemp):
     try:
         stage = 'heating'
         if not config.simulate:
+            oven.output.GPIO.output(config.gpio_contactor, oven.output.GPIO.LOW) #ON
             oven.output.heat(1, tuning=True)
 
         while True:
@@ -58,10 +60,13 @@ def recordprofile(csvfile, targettemp):
             if stage == 'heating':
                 if temp >= targettemp:
                     if not config.simulate:
-                        oven.output.heat(0)
+                        oven.output.GPIO.output(config.gpio_contactor, self.GPIO.HIGH) #OFF
+                        oven.output.cool(0)
                     stage = 'cooling'
 
             elif stage == 'cooling':
+                oven.output.GPIO.output(config.gpio_contactor, self.GPIO.HIGH) #OFF
+                oven.output.cool(0)
                 if temp < targettemp:
                     break
 
@@ -73,7 +78,8 @@ def recordprofile(csvfile, targettemp):
     finally:
         # ensure we always shut the oven down!
         if not config.simulate:
-            oven.output.heat(0)
+            oven.output.GPIO.output(config.gpio_contactor, oven.output.GPIO.HIGH) #OFF
+            oven.output.cool(0)
 
 
 def line(a, b, x):
@@ -87,7 +93,7 @@ def invline(a, b, y):
 def plot(xdata, ydata,
          tangent_min, tangent_max, tangent_slope, tangent_offset,
          lower_crossing_x, upper_crossing_x):
-    from matplotlib import pyplot
+    from matplotlib.pyplot import pyplot
 
     minx = min(xdata)
     maxx = max(xdata)
