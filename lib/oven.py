@@ -27,10 +27,8 @@ class Output(object):
             log.warning(msg)
             self.active = False
 
-    def heat(self,sleepfor, tuning=False):
+    def heat(self,sleepfor):
         self.GPIO.output(config.gpio_heat, self.GPIO.HIGH)
-        if tuning:
-            return
         time.sleep(sleepfor)
 
     def cool(self,sleepfor):
