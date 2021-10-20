@@ -61,7 +61,7 @@ Download [Raspberry PI OS](https://www.raspberrypi.org/software/). Use Rasberry 
 
     $ sudo apt-get update
     $ sudo apt-get dist-upgrade
-    $ sudo apt-get install python3-virtualenv libevent-dev virtualenv
+    $ sudo apt-get install pytho3-dev python3-virtualenv libevent-dev virtualenv
     $ git clone https://github.com/jbruce12000/kiln-controller
     $ cd kiln-controller
     $ virtualenv -p python3 venv
