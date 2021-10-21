@@ -1,5 +1,7 @@
 import logging
-from lib.max31856 import MAX31856
+
+# uncomment this if using MAX-31856
+#from lib.max31856 import MAX31856
 
 ########################################################################
 #
@@ -35,7 +37,8 @@ gpio_heat = 23  # Switches zero-cross solid-state-relay
 max31855 = 1
 max31856 = 0
 # see lib/max31856.py for other thermocouple_type, only applies to max31856
-thermocouple_type = MAX31856.MAX31856_S_TYPE
+# uncomment this if using MAX-31856
+#thermocouple_type = MAX31856.MAX31856_S_TYPE
 
 ### Thermocouple Connection (using bitbang interfaces)
 gpio_sensor_cs = 27
