@@ -66,8 +66,8 @@ Download [Raspberry PI OS](https://www.raspberrypi.org/software/). Use Rasberry 
     $ cd kiln-controller
     $ virtualenv -p python3 venv
     $ source venv/bin/activate
-    $ pip install --upgrade setuptools
-    $ pip install greenlet bottle gevent gevent-websocket
+    $ pip3 install --upgrade setuptools
+    $ pip3 install greenlet bottle gevent gevent-websocket
 
 *Note: The above steps work on ubuntu if you prefer*
 
@@ -78,7 +78,7 @@ If you want to deploy the code on a PI for production:
     $ cd kiln-controller
     $ virtualenv -p python3 venv
     $ source venv/bin/activate
-    $ pip install -r requirements.txt
+    $ pip3 install -r requirements.txt
 
 
 ## Configuration
