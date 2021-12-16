@@ -78,6 +78,7 @@ If you want to deploy the code on a PI for production:
     $ cd kiln-controller
     $ virtualenv -p python3 venv
     $ source venv/bin/activate
+    $ export CFLAGS=-fcommon
     $ pip3 install -r requirements.txt
 
 
