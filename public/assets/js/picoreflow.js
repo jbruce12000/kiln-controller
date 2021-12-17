@@ -222,6 +222,24 @@ function runTask()
 
 }
 
+function scheduleTask()
+{
+    const startTime = document.getElementById('scheduled-run-time').value;
+    console.log(startTime);
+
+    var cmd =
+    {
+        "cmd": "SCHEDULED_RUN",
+        "profile": profiles[selected_profile],
+        "scheduledStartTime": startTime,
+    }
+
+    graph.live.data = [];
+    graph.plot = $.plot("#graph_container", [ graph.profile, graph.live ] , getOptions());
+
+    ws_control.send(JSON.stringify(cmd));
+}
+
 function runTaskSimulation()
 {
     var cmd =
@@ -440,10 +458,37 @@ function getOptions()
 
 }
 
+function formatDateInput(date)
+{
+    var dd = date.getDate();
+    var mm = date.getMonth() + 1; //January is 0!
+    var yyyy = date.getFullYear();
+    var hh = date.getHours();
+    var mins = date.getMinutes();
 
+    if (dd < 10) {
+        dd = '0' + dd;
+    }
+
+    if (mm < 10) {
+        mm = '0' + mm;
+    }
+
+    const formattedDate = yyyy + '-' + mm + '-' + dd + 'T' + hh + ':' + mins;
+    return formattedDate;
+}
+
+function initDatetimePicker() {
+    const now = new Date();
+    const inThirtyMinutes = new Date();
+    inThirtyMinutes.setMinutes(inThirtyMinutes.getMinutes() + 10);
+    $('#scheduled-run-time').attr('value', formatDateInput(inThirtyMinutes));
+    $('#scheduled-run-time').attr('min', formatDateInput(now));
+}
 
 $(document).ready(function()
 {
+    initDatetimePicker();
 
     if(!("WebSocket" in window))
     {
@@ -538,6 +583,8 @@ $(document).ready(function()
                 {
                     $("#nav_start").hide();
                     $("#nav_stop").show();
+                    $("#timer").removeClass("ds-led-timer-active");
+                    $('#schedule-status').hide()
 
                     graph.live.data.push([x.runtime, x.temperature]);
                     graph.plot = $.plot("#graph_container", [ graph.profile, graph.live ] , getOptions());
@@ -551,11 +598,21 @@ $(document).ready(function()
 
 
                 }
+                else if (state === "SCHEDULED") {
+                    $("#nav_start").hide();
+                    $("#nav_stop").show();
+                    $('#timer').addClass("ds-led-timer-active"); // Start blinking timer symbol
+                    $('#state').html('<p class="ds-text">'+state+'</p>');
+                    $('#schedule-status').html('Start at: ' + x.scheduled_start);
+                    $('#schedule-status').show()
+                }
                 else
                 {
                     $("#nav_start").show();
                     $("#nav_stop").hide();
+                    $("#timer").removeClass("ds-led-timer-active");
                     $('#state').html('<p class="ds-text">'+state+'</p>');
+                    $('#schedule-status').hide()
                 }
 
                 $('#act_temp').html(parseInt(x.temperature));

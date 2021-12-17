@@ -32,6 +32,11 @@ body {
     box-shadow: 0 0 1.1em 0 rgba(0,0,0,0.55);
 }
 
+#schedule-status {
+    width: auto;
+    padding-right: 4px;
+}
+
 .display {
     display: inline-block;
     text-align: right;
@@ -173,6 +178,23 @@ body {
     background: -o-radial-gradient(center, ellipse cover, rgba(221,221,221,1) 0%,rgba(221,221,221,0.26) 100%); /* Opera 12+ */
     background: -ms-radial-gradient(center, ellipse cover, rgba(221,221,221,1) 0%,rgba(221,221,221,0.26) 100%); /* IE10+ */
     background: radial-gradient(ellipse at center, rgba(221,221,221,1) 0%,rgba(221,221,221,0.26) 100%); /* W3C */
+}
+
+.ds-led-timer-active {
+    color: rgb(74, 159, 255);
+    animation: blinker 1s linear infinite;
+    background: -moz-radial-gradient(center, ellipse cover, rgba(124,197,239,1) 0%, rgba(48,144,209,0.26) 100%); /* FF3.6+ */
+    background: -webkit-gradient(radial, center center, 0px, center center, 100%, color-stop(0%,rgba(124,197,239,1)), color-stop(100%,rgba(48,144,209,0.26))); /* Chrome,Safari4+ */
+    background: -webkit-radial-gradient(center, ellipse cover, rgba(124,197,239,1) 0%,rgba(48,144,209,0.26) 100%); /* Chrome10+,Safari5.1+ */
+    background: -o-radial-gradient(center, ellipse cover, rgba(124,197,239,1) 0%,rgba(48,144,209,0.26) 100%); /* Opera 12+ */
+    background: -ms-radial-gradient(center, ellipse cover, rgba(124,197,239,1) 0%,rgba(48,144,209,0.26) 100%); /* IE10+ */
+    background: radial-gradient(ellipse at center, rgba(124,197,239,1) 0%,rgba(48,144,209,0.26) 100%); /* W3C */
+}
+
+@keyframes blinker {
+  50% {
+    opacity: 0;
+  }
 }
 
 .ds-trend {
@@ -350,6 +372,17 @@ body {
 
 .modal.fade.in {
     top: 10%;
+}
+
+.schedule-group {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 10px;
+}
+
+.schedule-group > input {
+    margin-right: 5px;
+    text-align: right;
 }
 
 .alert {
