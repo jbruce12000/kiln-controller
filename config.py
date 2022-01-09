@@ -32,8 +32,15 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 
 ## Mosfet outputs
 gpio_heat = 17  # pin 11 Switches zero-cross solid-state-relay
-gpio_erelay = 27 # pin 13
+gpio_e_relay = 27 # pin 13
 gpio_fan = 22 # pin 15
+
+#   Note: `gpio_e_relay` is used to and a redundant mechanical relay in series with
+#   the SSR. Because SSRs normally fail closed (i.e. energized), this provides a 
+#   way for the controller to shut off the kiln in the event that the SSR fails.
+#   It is designed to be used with the SSR input connected to the safety relay's
+#   Normally Open (NC) output; thus, the kiln can only heat when the RPi has
+#   energized the safety relay. 
 
 ## Display outputs
 gpio_disp1_clk = 20 # pin 38
