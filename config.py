@@ -30,6 +30,7 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 
 ### Outputs
 gpio_heat = 23  # Switches zero-cross solid-state-relay
+gpio_e_relay = 27 # pin 13; emergency cutoff relay
 
 ### Thermocouple Adapter selection:
 #   max31855 - bitbang SPI interface

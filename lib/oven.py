@@ -20,12 +20,21 @@ class Output(object):
             GPIO.setmode(GPIO.BCM)
             GPIO.setwarnings(False)
             GPIO.setup(config.gpio_heat, GPIO.OUT)
+            GPIO.setup(config.gpio_e_relay, GPIO.OUT)
             self.active = True
             self.GPIO = GPIO
         except:
             msg = "Could not initialize GPIOs, oven operation will only be simulated!"
             log.warning(msg)
             self.active = False
+
+    def safety_off(self):
+        '''Energizes the safety relay'''
+        self.GPIO.output(config.gpio_e_relay, self.GPIO.HIGH)
+
+    def safety_on(self):
+        '''Deenergizes the safety relay'''
+        self.GPIO.output(config.gpio_e_relay, self.GPIO.LOW)
 
     def heat(self,sleepfor):
         self.GPIO.output(config.gpio_heat, self.GPIO.HIGH)
@@ -384,12 +393,14 @@ class RealOven(Oven):
 
         # call parent init
         Oven.__init__(self)
+        self.output.safety_off()
 
         # start thread
         self.start()
 
     def reset(self):
         super().reset()
+        self.output.safety_on()
         self.output.cool(0)
 
     def heat_then_cool(self):
