@@ -12,7 +12,7 @@ class Display(object):
                  pins):
 
         if type == "TMC1637":
-            self.disp = TM1637(pins['clock']
+            self.disp = TM1637(pins['clock'],
                                pins['data'])
 
     def temp(self, t):
@@ -35,24 +35,23 @@ class OvenWatcher(threading.Thread):
         self.started = None
         self.recording = False
         self.observers = []
-        threading.Thread.__init__(self)
-        self.daemon = True
-        self.oven = oven
-        self.start()
-        self.time_disp = None
-        self.temp_disp = None
 
         try:
             self.time_disp = Display(config.time_disp['type'],
                                      config.time_disp['pins'])
         except NameError:
-            self.time_disp = None
+            self.time_disp = False
 
         try:
             self.temp_disp = Display(config.temp_disp['type'],
                                      config.temp_disp['pins'])
-        except NameErro:
-            self.temp_disp = None
+        except NameError:
+            self.temp_disp = False
+
+        threading.Thread.__init__(self)
+        self.daemon = True
+        self.oven = oven
+        self.start()
 
 
 # FIXME - need to save runs of schedules in near-real-time

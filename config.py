@@ -44,13 +44,13 @@ gpio_fan = 22 # pin 15
 
 ## Display outputs
 
-time_disp = {'type': 'TMC1637',
-             'pins': {'clock': 16, # pin 36
-                      'data': 26}} # pin 37
+temp_disp = {'type': 'TMC1637',
+             'pins': {'clock': 16,
+                      'data': 26}} # pin 36, pin 37
 
 time_disp = {'type': 'TMC1637',
-             'pins': {'clock': 20, # pin 38
-                      'data': 21}} # pin 40
+             'pins': {'clock': 20,
+                      'data': 21}}  # pin 38, pin 40
 
 gpio_dotstar_clk = 19 # pin 35
 gpio_dotstar_dat = 13 # pin 33
@@ -67,7 +67,7 @@ max31855 = 0
 max31856 = 1
 # see lib/max31856.py for other thermocouple_type, only applies to max31856
 # uncomment this if using MAX-31856
-thermocouple_type = MAX31856.MAX31856_K_TYPE
+# thermocouple_type = MAX31856.MAX31856_K_TYPE
 
 ### Thermocouple Connection (using bitbang interfaces)
 gpio_sensor_cs = 8  # pin 24
