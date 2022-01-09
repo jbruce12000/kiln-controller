@@ -45,6 +45,7 @@ class Output(object):
         self.GPIO.output(config.gpio_heat, self.GPIO.LOW)
         time.sleep(sleepfor)
 
+
 # FIX - Board class needs to be completely removed
 class Board(object):
     def __init__(self):

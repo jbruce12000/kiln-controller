@@ -43,11 +43,14 @@ gpio_fan = 22 # pin 15
 #   energized the safety relay. 
 
 ## Display outputs
-gpio_disp1_clk = 20 # pin 38
-gpio_disp1_dat = 21 # pin 40
 
-gpio_disp2_clk = 16 # pin 36
-gpio_disp2_dat = 26 # pin 37
+time_disp = {'type': 'TMC1637',
+             'pins': {'clock': 16, # pin 36
+                      'data': 26}} # pin 37
+
+time_disp = {'type': 'TMC1637',
+             'pins': {'clock': 20, # pin 38
+                      'data': 21}} # pin 40
 
 gpio_dotstar_clk = 19 # pin 35
 gpio_dotstar_dat = 13 # pin 33

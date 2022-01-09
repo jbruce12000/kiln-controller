@@ -1,6 +1,32 @@
 import threading,logging,json,time,datetime
 from oven import Oven
+from display import TM1637
+import config
+
 log = logging.getLogger(__name__)
+
+
+class Display(object):
+    def __init__(self,
+                 type,
+                 pins):
+
+        if type == "TMC1637":
+            self.disp = TM1637(pins['clock']
+                               pins['data'])
+
+    def temp(self, t):
+        self.disp.temp(t)
+
+    def time(self, h, m):
+        self.disp.time(h, m)
+
+    def off(self):
+        self.disp.off()
+
+    def text(self, text):
+        self.disp.text(text)
+
 
 class OvenWatcher(threading.Thread):
     def __init__(self,oven):
@@ -13,6 +39,21 @@ class OvenWatcher(threading.Thread):
         self.daemon = True
         self.oven = oven
         self.start()
+        self.time_disp = None
+        self.temp_disp = None
+
+        try:
+            self.time_disp = Display(config.time_disp['type'],
+                                     config.time_disp['pins'])
+        except NameError:
+            self.time_disp = None
+
+        try:
+            self.temp_disp = Display(config.temp_disp['type'],
+                                     config.temp_disp['pins'])
+        except NameErro:
+            self.temp_disp = None
+
 
 # FIXME - need to save runs of schedules in near-real-time
 # FIXME - this will enable re-start in case of power outage
@@ -32,6 +73,10 @@ class OvenWatcher(threading.Thread):
             else:
                 self.recording = False
             self.notify_all(oven_state)
+            if self.time_disp:
+                self.time_disp.time(oven_state['runtime'])
+            if self.temp_disp:
+                self.temp_disp.temp(oven_state['temperature'])
             time.sleep(self.oven.time_step)
    
     def lastlog_subset(self,maxpts=50):
