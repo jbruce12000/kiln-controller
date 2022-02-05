@@ -3,7 +3,7 @@ class TM1637(object):
                  clk_pin,
                  dat_pin):
 
-        self.clk_pin = clock_pin
+        self.clk_pin = clk_pin
         self.dat_pin = dat_pin
 
         try:

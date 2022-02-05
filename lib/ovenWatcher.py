@@ -1,6 +1,5 @@
 import threading,logging,json,time,datetime
 from oven import Oven
-from display import TM1637
 import config
 
 log = logging.getLogger(__name__)
