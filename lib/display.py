@@ -1,3 +1,9 @@
+import tm1637
+import logging
+
+log = logging.getLogger(__name__)
+
+
 class TM1637(object):
     def __init__(self,
                  clk_pin,
@@ -10,8 +16,8 @@ class TM1637(object):
             import tm1637
             self.tm = tm1637.TM1637(clk=clk_pin,
                                     dio=dat_pin)
-        except ImportError:
-            print('import failure')
+        except ImportError as e:
+            log.warning('import failure: \n%s' % e)
 
     def temp(self,
              t):
