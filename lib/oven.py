@@ -436,13 +436,15 @@ class RealOven(Oven):
         self.output = Output()
         self.reset()
 
+
+        # call parent init
+        Oven.__init__(self)
+
         if self.output.time_disp:
             self.output.time_disp.text(self.state)
         if self.output.temp_disp:
             self.output.temp_disp.temp(self.temperature)
-
-        # call parent init
-        Oven.__init__(self)
+        
         self.output.safety_off()
 
         # start thread
