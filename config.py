@@ -1,7 +1,7 @@
 import logging
 
 # uncomment this if using MAX-31856
-#from lib.max31856 import MAX31856
+from lib.max31856 import MAX31856
 
 ########################################################################
 #
@@ -10,6 +10,7 @@ import logging
 ### Logging
 log_level = logging.INFO
 log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
+log_file = '/var/log/kiln-controller.log'
 
 ### Server
 listening_ip = "0.0.0.0"
