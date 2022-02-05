@@ -29,8 +29,10 @@ class Output(object):
             try:
                 self.temp_disp = Display(config.temp_disp['type'],
                                          config.temp_disp['pins'])
-                self.time_disp.temp(1337)
-            except NameError:
+                self.temp_disp.temp(1337)
+            except NameError as e:
+                log.warning("Couldn't initialize temp display")
+                log.warning("Error: %s" % e)
                 self.temp_disp = False
 
             # if self.time_disp:
