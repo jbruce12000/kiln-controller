@@ -13,7 +13,7 @@ class Output(object):
     def __init__(self):
         self.active = False
         self.load_libs()
-
+        log.warning('Active: %s' % self.active)
         if self.active:
             log.info("Trying to initialize displays")
             try:
@@ -21,7 +21,7 @@ class Output(object):
                                          config.time_disp['pins'])
                 self.time_disp.show('TIME')
             except NameError:
-                log.info("Couldn't initialize time display")
+                log.warning("Couldn't initialize time display")
                 self.time_disp = False
 
             try:
