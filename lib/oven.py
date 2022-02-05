@@ -14,6 +14,26 @@ class Output(object):
         self.active = False
         self.load_libs()
 
+        if self.active:
+            try:
+                self.time_disp = Display(config.time_disp['type'],
+                                         config.time_disp['pins'])
+                self.time_disp.show('TIME')
+            except NameError:
+                self.time_disp = False
+
+            try:
+                self.temp_disp = Display(config.temp_disp['type'],
+                                         config.temp_disp['pins'])
+                self.time_disp.show('TEMP')
+            except NameError:
+                self.temp_disp = False
+
+            # if self.time_disp:
+            #     self.time_disp.time(oven_state['runtime'])
+            # if self.temp_disp:
+            #     self.temp_disp.temp(oven_state['temperature'])
+
     def load_libs(self):
         try:
             import RPi.GPIO as GPIO
@@ -44,8 +64,6 @@ class Output(object):
         '''no active cooling, so sleep'''
         self.GPIO.output(config.gpio_heat, self.GPIO.LOW)
         time.sleep(sleepfor)
-
-
 
 class Display(object):
     def __init__(self,
@@ -422,26 +440,6 @@ class RealOven(Oven):
 
         # start thread
         self.start()
-
-        
-        try:
-            self.time_disp = Display(config.time_disp['type'],
-                                     config.time_disp['pins'])
-            self.time_disp.show('TIME')
-        except NameError:
-            self.time_disp = False
-
-        try:
-            self.temp_disp = Display(config.temp_disp['type'],
-                                     config.temp_disp['pins'])
-            self.time_disp.show('TEMP')
-        except NameError:
-            self.temp_disp = False
-
-            # if self.time_disp:
-            #     self.time_disp.time(oven_state['runtime'])
-            # if self.temp_disp:
-            #     self.temp_disp.temp(oven_state['temperature'])
 
     def reset(self):
         super().reset()
