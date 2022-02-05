@@ -1,6 +1,6 @@
 import threading
 import time
-from math import floor
+from math import floor, ceil
 import random
 import datetime
 import logging
@@ -444,7 +444,7 @@ class RealOven(Oven):
             self.output.time_disp.text(self.state)
         if self.output.temp_disp:
             self.output.temp_disp.temp(self.temperature)
-        
+
         self.output.safety_off()
 
         # start thread
