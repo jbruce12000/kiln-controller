@@ -1,5 +1,6 @@
 import threading
 import time
+from math import floor
 import random
 import datetime
 import logging
@@ -34,11 +35,6 @@ class Output(object):
                 log.warning("Couldn't initialize temp display")
                 log.warning("Error: %s" % e)
                 self.temp_disp = False
-
-            # if self.time_disp:
-            #     self.time_disp.time(oven_state['runtime'])
-            # if self.temp_disp:
-            #     self.temp_disp.temp(oven_state['temperature'])
 
     def load_libs(self):
         try:
@@ -440,6 +436,11 @@ class RealOven(Oven):
         self.output = Output()
         self.reset()
 
+        if self.output.time_disp:
+            self.output.time_disp.text(self.state)
+        if self.output.temp_disp:
+            self.temp_disp.temp(self.temperature)
+
         # call parent init
         Oven.__init__(self)
         self.output.safety_off()
@@ -469,6 +470,16 @@ class RealOven(Oven):
         if heat_off:
             self.output.cool(heat_off)
         time_left = self.totaltime - self.runtime
+
+        time_left_h = floor(time_left / 3600)
+        time_left_m = ceil((time_left % 3600) / 60)
+        
+        if self.output.time_disp:
+            self.output.time_disp.time(time_left_h,
+                                       time_left_m)
+        if self.output.temp_disp:
+            self.temp_disp.temp(self.temperature)
+
         log.info("temp=%.2f, target=%.2f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
             (self.board.temp_sensor.temperature + config.thermocouple_offset,
              self.target,
