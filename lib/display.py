@@ -13,7 +13,6 @@ class TM1637(object):
         self.dat_pin = dat_pin
 
         try:
-            import tm1637
             self.tm = tm1637.TM1637(clk=clk_pin,
                                     dio=dat_pin)
         except ImportError as e:
