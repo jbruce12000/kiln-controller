@@ -20,7 +20,7 @@ class Output(object):
             try:
                 self.time_disp = Display(config.time_disp['type'],
                                          config.time_disp['pins'])
-                self.time_disp.show('TIME')
+                self.time_disp.time(11,11)
             except NameError as e:
                 log.warning("Couldn't initialize time display")
                 log.warning("Error: %s" % e)
@@ -29,7 +29,7 @@ class Output(object):
             try:
                 self.temp_disp = Display(config.temp_disp['type'],
                                          config.temp_disp['pins'])
-                self.time_disp.show('TEMP')
+                self.time_disp.temp(1337)
             except NameError:
                 self.temp_disp = False
 
@@ -77,18 +77,6 @@ class Display(object):
         if type == "TMC1637":
             self.disp = TM1637(pins['clock'],
                                pins['data'])
-
-    def temp(self, t):
-        self.disp.temp(t)
-
-    def time(self, h, m):
-        self.disp.time(h, m)
-
-    def off(self):
-        self.disp.off()
-
-    def text(self, text):
-        self.disp.text(text)
 
 
 
