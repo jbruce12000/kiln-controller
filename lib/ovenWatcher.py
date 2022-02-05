@@ -39,12 +39,14 @@ class OvenWatcher(threading.Thread):
         try:
             self.time_disp = Display(config.time_disp['type'],
                                      config.time_disp['pins'])
+            self.time_disp.show('TIME')
         except NameError:
             self.time_disp = False
 
         try:
             self.temp_disp = Display(config.temp_disp['type'],
                                      config.temp_disp['pins'])
+            self.time_disp.show('TEMP')
         except NameError:
             self.temp_disp = False
 
