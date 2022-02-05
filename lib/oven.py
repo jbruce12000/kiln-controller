@@ -78,6 +78,18 @@ class Display(object):
             self.disp = TM1637(pins['clock'],
                                pins['data'])
 
+    def temp(self, t):
+        self.disp.temp(t)
+
+    def time(self, h, m):
+        self.disp.time(h, m)
+
+    def off(self):
+        self.disp.off()
+
+    def text(self, text):
+        self.disp.text(text)
+
 
 
 # FIX - Board class needs to be completely removed
