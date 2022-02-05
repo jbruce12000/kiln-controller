@@ -15,11 +15,13 @@ class Output(object):
         self.load_libs()
 
         if self.active:
+            log.info("Trying to initialize displays")
             try:
                 self.time_disp = Display(config.time_disp['type'],
                                          config.time_disp['pins'])
                 self.time_disp.show('TIME')
             except NameError:
+                log.info("Couldn't initialize time display")
                 self.time_disp = False
 
             try:
