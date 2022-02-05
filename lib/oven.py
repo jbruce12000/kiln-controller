@@ -30,7 +30,7 @@ class Output(object):
             try:
                 self.temp_disp = Display(config.temp_disp['type'],
                                          config.temp_disp['pins'])
-                self.temp_disp.temp(1337)
+                self.temp_disp.text('----')
             except NameError as e:
                 log.warning("Couldn't initialize temp display")
                 log.warning("Error: %s" % e)
@@ -439,7 +439,7 @@ class RealOven(Oven):
         if self.output.time_disp:
             self.output.time_disp.text(self.state)
         if self.output.temp_disp:
-            self.temp_disp.temp(self.temperature)
+            self.output.temp_disp.temp(self.temperature)
 
         # call parent init
         Oven.__init__(self)
@@ -473,7 +473,7 @@ class RealOven(Oven):
 
         time_left_h = floor(time_left / 3600)
         time_left_m = ceil((time_left % 3600) / 60)
-        
+
         if self.output.time_disp:
             self.output.time_disp.time(time_left_h,
                                        time_left_m)
