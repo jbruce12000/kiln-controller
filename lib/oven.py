@@ -473,8 +473,8 @@ class RealOven(Oven):
             self.output.cool(heat_off)
         time_left = self.totaltime - self.runtime
 
-        time_left_h = floor(time_left / 3600)
-        time_left_m = ceil((time_left % 3600) / 60)
+        time_left_h = int(floor(time_left / 3600))
+        time_left_m = int(ceil((time_left % 3600) / 60))
 
         if self.output.time_disp:
             self.output.time_disp.time(time_left_h,
