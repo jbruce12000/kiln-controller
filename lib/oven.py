@@ -20,8 +20,9 @@ class Output(object):
                 self.time_disp = Display(config.time_disp['type'],
                                          config.time_disp['pins'])
                 self.time_disp.show('TIME')
-            except NameError:
+            except NameError as e:
                 log.warning("Couldn't initialize time display")
+                log.warning("Error: %s" % e)
                 self.time_disp = False
 
             try:
