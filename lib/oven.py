@@ -52,13 +52,19 @@ class Output(object):
 
     def safety_off(self):
         '''Energizes the safety relay'''
-        log.info("energizing safety relay")
-        self.GPIO.output(config.gpio_e_relay, self.GPIO.HIGH)
+        if self.active:
+            log.info("energizing safety relay")
+            self.GPIO.output(config.gpio_e_relay, self.GPIO.HIGH)
+        else:
+            log.info("simulating energizing safety relay")
 
     def safety_on(self):
         '''Deenergizes the safety relay'''
-        log.info("deenergizing safety relay")
-        self.GPIO.output(config.gpio_e_relay, self.GPIO.LOW)
+        if self.active:
+            log.info("deenergizing safety relay")
+            self.GPIO.output(config.gpio_e_relay, self.GPIO.LOW)
+        else:
+            log.info("simulating deenergizing safety relay")
 
     def heat(self,sleepfor):
         self.GPIO.output(config.gpio_heat, self.GPIO.HIGH)
@@ -225,6 +231,11 @@ class Oven(threading.Thread):
         self.daemon = True
         self.temperature = 0
         self.time_step = config.sensor_time_wait
+        self.output = Output()
+
+        self.safety_off = self.output.safety_off
+        self.safety_on = self.output.safety_on
+
         self.reset()
 
     def reset(self):
@@ -239,6 +250,7 @@ class Oven(threading.Thread):
 
     def run_profile(self, profile, startat=0):
         self.reset()
+        self.safety_off()
 
         if self.board.temp_sensor.noConnection:
             log.info("Refusing to start profile - thermocouple not connected")
@@ -361,6 +373,10 @@ class SimulatedOven(Oven):
         self.R_ho_noair = config.sim_R_ho_noair
         self.R_ho = self.R_ho_noair
 
+        # simulated safeties
+        self.safety_off = log.info("energizing safety relay")
+        self.safety_on = log.info("deenergizing safety relay")
+
         # set temps to the temp of the surrounding environment
         self.t = self.t_env # deg C temp of oven
         self.t_h = self.t_env #deg C temp of heating element
@@ -438,7 +454,6 @@ class RealOven(Oven):
         self.output = Output()
         self.reset()
 
-
         # call parent init
         Oven.__init__(self)
 
@@ -447,14 +462,14 @@ class RealOven(Oven):
         if self.output.temp_disp:
             self.output.temp_disp.temp(self.temperature)
 
-        self.output.safety_off()
+        self.safety_off()
 
         # start thread
         self.start()
 
     def reset(self):
         super().reset()
-        self.output.safety_on()
+        self.safety_on()
         self.output.cool(0)
 
     def heat_then_cool(self):
