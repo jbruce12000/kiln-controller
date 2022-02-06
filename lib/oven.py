@@ -330,6 +330,10 @@ class Oven(threading.Thread):
             self.reset()
 
     def get_state(self):
+
+        if self.output.temp_disp:
+            self.output.temp_disp.temp(int(self.board.temp_sensor.temperature))
+
         state = {
             'runtime': self.runtime,
             'temperature': self.board.temp_sensor.temperature + config.thermocouple_offset,
@@ -488,8 +492,6 @@ class RealOven(Oven):
         if self.output.time_disp:
             self.output.time_disp.time(time_left_h,
                                        time_left_m)
-        if self.output.temp_disp:
-            self.output.temp_disp.temp(int(self.board.temp_sensor.temperature))
 
         log.info("temp=%.2f, target=%.2f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
             (self.board.temp_sensor.temperature + config.thermocouple_offset,
