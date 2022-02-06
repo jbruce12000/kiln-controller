@@ -233,13 +233,11 @@ class Oven(threading.Thread):
         self.time_step = config.sensor_time_wait
         self.output = Output()
 
-        self.safety_off = self.output.safety_off
-        self.safety_on = self.output.safety_on
 
         self.reset()
 
     def reset(self):
-        self.safety_on()
+        self.output.safety_on()
         self.state = "IDLE"
         self.profile = None
         self.start_time = 0
@@ -251,7 +249,7 @@ class Oven(threading.Thread):
 
     def run_profile(self, profile, startat=0):
         self.reset()
-        self.safety_off()
+        self.output.safety_off()
 
         if self.board.temp_sensor.noConnection:
             log.info("Refusing to start profile - thermocouple not connected")
@@ -373,10 +371,6 @@ class SimulatedOven(Oven):
         self.R_o_nocool = config.sim_R_o_nocool
         self.R_ho_noair = config.sim_R_ho_noair
         self.R_ho = self.R_ho_noair
-
-        # simulated safeties
-        self.safety_off = log.info("energizing safety relay")
-        self.safety_on = log.info("deenergizing safety relay")
 
         # set temps to the temp of the surrounding environment
         self.t = self.t_env # deg C temp of oven
