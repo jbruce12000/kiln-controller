@@ -239,6 +239,7 @@ class Oven(threading.Thread):
         self.reset()
 
     def reset(self):
+        self.safety_on()
         self.state = "IDLE"
         self.profile = None
         self.start_time = 0
@@ -462,14 +463,11 @@ class RealOven(Oven):
         if self.output.temp_disp:
             self.output.temp_disp.temp(self.temperature)
 
-        self.safety_off()
-
         # start thread
         self.start()
 
     def reset(self):
         super().reset()
-        self.safety_on()
         self.output.cool(0)
 
     def heat_then_cool(self):
