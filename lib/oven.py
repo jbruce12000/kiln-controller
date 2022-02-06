@@ -233,12 +233,18 @@ class Oven(threading.Thread):
         self.time_step = config.sensor_time_wait
         self.output = Output()
 
+        if self.output.time_disp:
+            self.output.time_disp.text(self.state)
+        if self.output.temp_disp:
+            self.output.temp_disp.temp(self.temperature)
 
         self.reset()
 
     def reset(self):
         self.output.safety_on()
         self.state = "IDLE"
+        if self.output.time_disp:
+            self.output.time_disp.text(self.state)
         self.profile = None
         self.start_time = 0
         self.runtime = 0
@@ -455,11 +461,6 @@ class RealOven(Oven):
 
         # call parent init
         Oven.__init__(self)
-
-        if self.output.time_disp:
-            self.output.time_disp.text(self.state)
-        if self.output.temp_disp:
-            self.output.temp_disp.temp(self.temperature)
 
         # start thread
         self.start()
