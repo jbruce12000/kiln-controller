@@ -52,10 +52,12 @@ class Output(object):
 
     def safety_off(self):
         '''Energizes the safety relay'''
+        log.info("energizing safety relay")
         self.GPIO.output(config.gpio_e_relay, self.GPIO.HIGH)
 
     def safety_on(self):
         '''Deenergizes the safety relay'''
+        log.info("deenergizing safety relay")
         self.GPIO.output(config.gpio_e_relay, self.GPIO.LOW)
 
     def heat(self,sleepfor):
