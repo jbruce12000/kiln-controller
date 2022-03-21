@@ -240,20 +240,24 @@ class Oven(threading.Thread):
         '''reset if the temperature is way TOO HOT, or other critical errors detected'''
         if (self.board.temp_sensor.temperature + config.thermocouple_offset >=
             config.emergency_shutoff_temp):
-            log.info("emergency!!! temperature too high, shutting down")
-            self.reset()
+            log.info("emergency!!! temperature too high")
+            if not config.ignore_emergencies == True:
+                self.reset()
 
         if self.board.temp_sensor.noConnection:
-            log.info("emergency!!! lost connection to thermocouple, shutting down")
-            self.reset()
+            log.info("emergency!!! lost connection to thermocouple")
+            if not config.ignore_emergencies == True:
+                self.reset()
 
         if self.board.temp_sensor.unknownError:
-            log.info("emergency!!! unknown thermocouple error, shutting down")
-            self.reset()
+            log.info("emergency!!! unknown thermocouple error")
+            if not config.ignore_emergencies == True:
+                self.reset()
 
         if self.board.temp_sensor.bad_percent > 30:
-            log.info("emergency!!! too many errors in a short period, shutting down")
-            self.reset()
+            log.info("emergency!!! too many errors in a short period")
+            if not config.ignore_emergencies == True:
+                self.reset()
 
     def reset_if_schedule_ended(self):
         if self.runtime > self.totaltime:

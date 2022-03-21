@@ -88,7 +88,7 @@ sim_t_env      = 60.0   # deg C
 sim_c_heat     = 100.0  # J/K  heat capacity of heat element
 sim_c_oven     = 5000.0 # J/K  heat capacity of oven
 sim_p_heat     = 5450.0 # W    heating power of oven
-sim_R_o_nocool = 1.0    # K/W  thermal resistance oven -> environment
+sim_R_o_nocool = 0.1    # K/W  thermal resistance oven -> environment
 sim_R_o_cool   = 0.05   # K/W  " with cooling
 sim_R_ho_noair = 0.1    # K/W  thermal resistance heat element -> oven
 sim_R_ho_air   = 0.05   # K/W  " with internal air circulation
@@ -118,7 +118,7 @@ emergency_shutoff_temp = 2264 #cone 7
 # wanted temperature, the schedule will run forever. This is often used
 # for heating as fast as possible in a section of a kiln schedule/profile.
 kiln_must_catch_up = True
-kiln_must_catch_up_max_error = 10 #degrees
+kiln_must_catch_up_max_error = 5 #degrees
 
 # thermocouple offset
 # If you put your thermocouple in ice water and it reads 36F, you can
@@ -140,3 +140,11 @@ temperature_average_samples = 40
 
 # Thermocouple AC frequency filtering - set to True if in a 50Hz locale, else leave at False for 60Hz locale
 ac_freq_50hz = False
+
+# There are all kinds of emergencies that can happen including:
+# - temperature is too high (emergency_shutoff_temp exceeded)
+# - lost connection to thermocouple
+# - unknown error with thermocouple
+# - too many errors in a short period from thermocouple
+# and some people just want to ignore all of that and just log the emergencies but do not quit
+ignore_emergencies = False
