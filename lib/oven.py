@@ -218,10 +218,12 @@ class Oven(threading.Thread):
             if self.target - temp > config.kiln_must_catch_up_max_error:
                 log.info("kiln must catch up, too cold, shifting schedule")
                 self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
+                self.pid.iterm = 0
             # kiln too hot, wait for it to cool down
             if temp - self.target > config.kiln_must_catch_up_max_error:
                 log.info("kiln must catch up, too hot, shifting schedule")
                 self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
+                self.pid.iterm = 0
 
     def update_runtime(self):
         runtime_delta = datetime.datetime.now() - self.start_time
@@ -517,14 +519,14 @@ class PID():
             'out': output,
         }
 
-        if out4logs > 0:
+#        if out4logs > 0:
 #            log.info("pid percents pid=%0.2f p=%0.2f i=%0.2f d=%0.2f" % (out4logs,
 #                ((self.kp * error)/out4logs)*100,
 #                (self.iterm/out4logs)*100,
 #                ((self.kd * dErr)/out4logs)*100))
-            log.info("pid actuals pid=%0.2f p=%0.2f i=%0.2f d=%0.2f" % (out4logs,
-                self.kp * error,
-                self.iterm,
-                self.kd * dErr))
+        log.info("pid actuals pid=%0.2f p=%0.2f i=%0.2f d=%0.2f" % (out4logs,
+            self.kp * error,
+            self.iterm,
+            self.kd * dErr))
 
         return output
