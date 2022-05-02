@@ -117,6 +117,11 @@ emergency_shutoff_temp = 2264 #cone 7
 # the desired temperature is reached. If your kiln cannot attain the
 # wanted temperature, the schedule will run forever. This is often used
 # for heating as fast as possible in a section of a kiln schedule/profile.
+# NOTE: every time the kiln goes outside the window around the set point
+# [by default 5 degrees above and five degrees below] the accumulated 
+# intergral will be zeroed out. If this were not done, there could be 
+# large build-ups of integral that makes it appear the system is not
+# operating.
 kiln_must_catch_up = True
 kiln_must_catch_up_max_error = 5 #degrees
 
