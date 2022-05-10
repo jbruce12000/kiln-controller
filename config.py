@@ -13,7 +13,7 @@ log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 ### Server
 listening_ip = "0.0.0.0"
-listening_port = 8082
+listening_port = 8081
 
 ### Cost Estimate
 kwh_rate        = 0.1319  # Rate in currency_type to calculate cost to run job
@@ -64,8 +64,8 @@ sensor_time_wait = 2
 # well with the simulated oven. You must tune them to work well with 
 # your specific kiln. Note that the integral pid_ki is
 # inverted so that a smaller number means more integral action.
-pid_kp = 25   # Proportional
-pid_ki = 200  # Integral
+pid_kp = 25   # Proportional 25,200,200
+pid_ki = 1    # Integral
 pid_kd = 200  # Derivative
 
 
@@ -121,7 +121,7 @@ kiln_must_catch_up = True
 # or 100% off because the kiln is too hot. No integral builds up
 # outside the window. The bigger you make the window, the more
 # integral you will accumulate.
-pid_control_window = 10 #degrees 
+pid_control_window = 5 #degrees 
 
 # thermocouple offset
 # If you put your thermocouple in ice water and it reads 36F, you can
