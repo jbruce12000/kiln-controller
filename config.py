@@ -13,7 +13,7 @@ log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 ### Server
 listening_ip = "0.0.0.0"
-listening_port = 8081
+listening_port = 8082
 
 ### Cost Estimate
 kwh_rate        = 0.1319  # Rate in currency_type to calculate cost to run job
@@ -73,11 +73,8 @@ pid_kd = 200  # Derivative
 #
 # Initial heating and Integral Windup
 #
-# During initial heating, if the temperature is constantly under the
-# setpoint,large amounts of Integral can accumulate. This accumulation
-# causes the kiln to run above the setpoint for potentially a long
-# period of time. These settings allow integral accumulation only when
-# the temperature is close to the setpoint. This applies only to the integral.
+# this setting is deprecated and is no longer used. this happens by
+# default and is the expected behavior.
 stop_integral_windup = True
 
 ########################################################################
@@ -88,7 +85,7 @@ sim_t_env      = 60.0   # deg C
 sim_c_heat     = 100.0  # J/K  heat capacity of heat element
 sim_c_oven     = 5000.0 # J/K  heat capacity of oven
 sim_p_heat     = 5450.0 # W    heating power of oven
-sim_R_o_nocool = 0.1    # K/W  thermal resistance oven -> environment
+sim_R_o_nocool = 0.1   # K/W  thermal resistance oven -> environment
 sim_R_o_cool   = 0.05   # K/W  " with cooling
 sim_R_ho_noair = 0.1    # K/W  thermal resistance heat element -> oven
 sim_R_ho_air   = 0.05   # K/W  " with internal air circulation
@@ -112,18 +109,19 @@ time_scale_profile  = "m" # s = Seconds | m = Minutes | h = Hours - Enter and vi
 # this should not replace you watching your kiln or use of a kiln-sitter
 emergency_shutoff_temp = 2264 #cone 7
 
-# If the kiln cannot heat or cool fast enough and is off by more than
-# kiln_must_catch_up_max_error  the entire schedule is shifted until
-# the desired temperature is reached. If your kiln cannot attain the
-# wanted temperature, the schedule will run forever. This is often used
-# for heating as fast as possible in a section of a kiln schedule/profile.
-# NOTE: every time the kiln goes outside the window around the set point
-# [by default 5 degrees above and five degrees below] the accumulated 
-# intergral will be zeroed out. If this were not done, there could be 
-# large build-ups of integral that makes it appear the system is not
-# operating.
+# If the current temperature is outside the pid control window,
+# delay the schedule until it does back inside. This allows for heating
+# and cooling as fast as possible and not continuing until temp is reached.
 kiln_must_catch_up = True
-kiln_must_catch_up_max_error = 5 #degrees
+
+# This setting is required. 
+# This setting defines the window within which PID control occurs.
+# Outside this window (N degrees below or above the current target)
+# the elements are either 100% on because the kiln is too cold
+# or 100% off because the kiln is too hot. No integral builds up
+# outside the window. The bigger you make the window, the more
+# integral you will accumulate.
+pid_control_window = 10 #degrees 
 
 # thermocouple offset
 # If you put your thermocouple in ice water and it reads 36F, you can
