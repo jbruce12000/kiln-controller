@@ -84,11 +84,9 @@ If you want to deploy the code on a PI for production:
 
 ## Configuration
 
-All parameters are defined in config.py, just copy the example and review/change to your mind's content.
+All parameters are defined in config.py, review/change to your mind's content.
 
-    $ cp config.py.EXAMPLE config.py
-
-You should change, test, and verify PID parameters in config.py.  Here is a [PID Tuning Guide](https://github.com/jbruce12000/kiln-controller/blob/master/docs/pid_tuning.md).
+You should change, test, and verify PID parameters in config.py.  Here is a [PID Tuning Guide](https://github.com/jbruce12000/kiln-controller/blob/master/docs/pid_tuning.md). There is also an [autotuner](https://github.com/jbruce12000/kiln-controller/blob/master/docs/ziegler_tuning.md). Be patient with tuning. No tuning is perfect across a wide temperature range.
 
 You may want to change the configuration parameter **sensor_time_wait**. It's the duty cycle for the entire system.  It's set to two seconds by default which means that a decision is made every 2s about whether to turn on relay[s] and for how long. If you use mechanical relays, you may want to increase this. At 2s, my SSR switches 11,000 times in 13 hours.
 
