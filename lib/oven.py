@@ -480,25 +480,8 @@ class PID():
         window_size = 100
 
         error = float(setpoint - ispoint)
-        
-        # this removes the need for config.stop_integral_windup
-        # it turns the controller into a binary on/off switch
-        # any time it's outside the window defined by
-        # config.pid_control_window
-        if error < (-1 * config.pid_control_window):
-            log.info("kiln outside pid control window, max cooling")
-            self.lastErr = error
-            self.lastNow = now
-            return 0
-        if error > (1 * config.pid_control_window):
-            log.info("kiln outside pid control window, max heating")
-            self.lastErr = error
-            self.lastNow = now
-            return 1
-       
         icomp = (error * timeDelta * (1/self.ki))
         self.iterm += (error * timeDelta * (1/self.ki))
-
         dErr = (error - self.lastErr) / timeDelta
         output = self.kp * error + self.iterm + self.kd * dErr
         out4logs = output
@@ -511,6 +494,17 @@ class PID():
             output = 0
 
         output = float(output / window_size)
+
+        # this removes the need for config.stop_integral_windup
+        # it turns the controller into a binary on/off switch
+        # any time it's outside the window defined by
+        # config.pid_control_window
+        if error < (-1 * config.pid_control_window):
+            log.info("kiln outside pid control window, max cooling")
+            output = 0
+        if error > (1 * config.pid_control_window):
+            log.info("kiln outside pid control window, max heating")
+            output = 1
 
         self.pidstats = {
             'time': time.mktime(now.timetuple()),
