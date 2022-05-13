@@ -65,7 +65,7 @@ sensor_time_wait = 2
 # your specific kiln. Note that the integral pid_ki is
 # inverted so that a smaller number means more integral action.
 pid_kp = 25   # Proportional 25,200,200
-pid_ki = 1    # Integral
+pid_ki = 20   # Integral
 pid_kd = 200  # Derivative
 
 

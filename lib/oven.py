@@ -219,12 +219,10 @@ class Oven(threading.Thread):
             if self.target - temp > config.pid_control_window:
                 log.info("kiln must catch up, too cold, shifting schedule")
                 self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
-                self.pid.iterm = 0
             # kiln too hot, wait for it to cool down
             if temp - self.target > config.pid_control_window:
                 log.info("kiln must catch up, too hot, shifting schedule")
                 self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
-                self.pid.iterm = 0
 
     def update_runtime(self):
 
@@ -363,15 +361,20 @@ class SimulatedOven(Oven):
             int(self.p_env)))
 
         time_left = self.totaltime - self.runtime
-        log.info("temp=%.2f, target=%.2f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
-            (self.board.temp_sensor.temperature + config.thermocouple_offset,
-             self.target,
-             pid,
-             heat_on,
-             heat_off,
-             self.runtime,
-             self.totaltime,
-             time_left))
+
+        log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
+            (self.pid.pidstats['ispoint'],
+            self.pid.pidstats['setpoint'],
+            self.pid.pidstats['err'],
+            self.pid.pidstats['pid'],
+            self.pid.pidstats['p'],
+            self.pid.pidstats['i'],
+            self.pid.pidstats['d'],
+            heat_on,
+            heat_off,
+            self.runtime,
+            self.totaltime,
+            time_left))
 
         # we don't actually spend time heating & cooling during
         # a simulation, so sleep.
@@ -412,15 +415,20 @@ class RealOven(Oven):
         if heat_off:
             self.output.cool(heat_off)
         time_left = self.totaltime - self.runtime
-        log.info("temp=%.2f, target=%.2f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
-            (self.board.temp_sensor.temperature + config.thermocouple_offset,
-             self.target,
-             pid,
-             heat_on,
-             heat_off,
-             self.runtime,
-             self.totaltime,
-             time_left))
+
+        log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
+            (self.pid.pidstats['ispoint'],
+            self.pid.pidstats['setpoint'],
+            self.pid.pidstats['err'],
+            self.pid.pidstats['pid'],
+            self.pid.pidstats['p'],
+            self.pid.pidstats['i'],
+            self.pid.pidstats['d'],
+            heat_on,
+            heat_off,
+            self.runtime,
+            self.totaltime,
+            time_left))
 
 class Profile():
     def __init__(self, json_data):
@@ -489,10 +497,11 @@ class PID():
         output = 0
         out4logs = 0
         dErr = 0
-
         if error < (-1 * config.pid_control_window):
             log.info("kiln outside pid control window, max cooling")
             output = 0
+            # it is possible to set self.iterm=0 here and also below
+            # but I dont think its needed
         elif error > (1 * config.pid_control_window):
             log.info("kiln outside pid control window, max heating")
             output = 1
@@ -507,6 +516,10 @@ class PID():
             
         self.lastErr = error
         self.lastNow = now
+
+        # no active cooling
+        if output < 0:
+            output = 0
 
         self.pidstats = {
             'time': time.mktime(now.timetuple()),
@@ -524,17 +537,5 @@ class PID():
             'pid': out4logs,
             'out': output,
         }
-
-#        if out4logs > 0:
-#            log.info("pid percents pid=%0.2f p=%0.2f i=%0.2f d=%0.2f" % (out4logs,
-#                ((self.kp * error)/out4logs)*100,
-#                (self.iterm/out4logs)*100,
-#                ((self.kd * dErr)/out4logs)*100))
-        log.info("pid actuals pid=%0.2f p=%0.2f i=%0.2f d=%0.2f icomp=%0.2f error=%0.2f" % (out4logs,
-            self.kp * error,
-            self.iterm,
-            self.kd * dErr,
-            icomp,
-            error))
 
         return output
