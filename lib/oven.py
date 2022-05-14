@@ -158,8 +158,20 @@ class TempSensorReal(TempSensor):
                 self.bad_count += 1
 
             if len(temps):
-                self.temperature = sum(temps) / len(temps)
+                self.temperature = self.get_avg_temp(temps)
             time.sleep(self.sleeptime)
+
+    def get_avg_temp(self, temps, chop=25):
+        '''
+        strip off chop percent from the beginning and end of the sorted temps
+        then return the average of what is left
+        '''
+        chop = chop / 100
+        temps = sorted(temps)
+        total = len(temps)
+        items = int(total*chop)
+        temps = temps[items:total-items]
+        return sum(temps) / len(temps)
 
 class Oven(threading.Thread):
     '''parent oven class. this has all the common code
