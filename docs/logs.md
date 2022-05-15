@@ -3,23 +3,23 @@ Logs for a Kiln Run
 
 Logs from the app on the pi go to **/var/log/daemon.log** and look like this...
 
-    Jan 21 06:25:40 raspberrypi python[286]: 2019-01-21 06:25:40,390 INFO oven: temp =1092.4, target=1093.2, pid=1.000, heat_on=2.00, heat_off=0.00, run_time=15993, total_time=48780, time_left=32786
+    May 14 22:36:09 kiln python[350]: 2022-05-14 22:36:09,824 INFO oven: temp=1888.40, target=1888.00, error=-0.40, pid=54.33, p=-3.99, i=69.11, d=-10.79, heat_on=1.09, heat_off=0.91, run_time=27250, total_time=27335, time_left=84
 
 | log variable | meaning |
 | ------------ | ------- |
 |temp | temperature read by thermocouple |
 |target | target temperature |
+|error | difference between target and temp |
 |pid | pid value for that 2s |
+|p | proportional value for that 2s |
+|i | integral value for that 2s |
+|d | derivative value for that 2s |
 |heat_on | number of seconds the elements were on |
 |heat_off | number of seconds the elements were off |
 |run_time | seconds since start of schedule|
 |total_time | total seconds for schedule |
 |time_left | seconds left till the end of schedule|
 
-It's trivial to convert the data to csv...
+Here is a project I use to read logs to help troubleshoot logs you post...
 
-    $ grep "INFO oven" daemon.log|sed 's/temp=//'|sed 's/target=//'|sed 's/heat_on=//'|sed 's/heat_off=//'|sed 's/run_time=//'|sed 's/total_time=//'|sed 's/time_left=//'|sed 's/pid=//'|sed 's/.*: //' >out.csv
-
-Here is a slow glaze firing imported into google docs. Make sure to check out the report tab.
-
-https://docs.google.com/spreadsheets/d/1Lcp88P1cNNzYWgKDfnd5UaPVqLuBdAT3lkpfcZMKEBM/edit#gid=2116406322
+https://github.com/jbruce12000/kiln-stats
