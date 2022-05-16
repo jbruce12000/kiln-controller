@@ -374,19 +374,22 @@ class SimulatedOven(Oven):
 
         time_left = self.totaltime - self.runtime
 
-        log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
-            (self.pid.pidstats['ispoint'],
-            self.pid.pidstats['setpoint'],
-            self.pid.pidstats['err'],
-            self.pid.pidstats['pid'],
-            self.pid.pidstats['p'],
-            self.pid.pidstats['i'],
-            self.pid.pidstats['d'],
-            heat_on,
-            heat_off,
-            self.runtime,
-            self.totaltime,
-            time_left))
+        try:
+            log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
+                (self.pid.pidstats['ispoint'],
+                self.pid.pidstats['setpoint'],
+                self.pid.pidstats['err'],
+                self.pid.pidstats['pid'],
+                self.pid.pidstats['p'],
+                self.pid.pidstats['i'],
+                self.pid.pidstats['d'],
+                heat_on,
+                heat_off,
+                self.runtime,
+                self.totaltime,
+                time_left))
+        except KeyError:
+            pass
 
         # we don't actually spend time heating & cooling during
         # a simulation, so sleep.
@@ -427,20 +430,22 @@ class RealOven(Oven):
         if heat_off:
             self.output.cool(heat_off)
         time_left = self.totaltime - self.runtime
-
-        log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
-            (self.pid.pidstats['ispoint'],
-            self.pid.pidstats['setpoint'],
-            self.pid.pidstats['err'],
-            self.pid.pidstats['pid'],
-            self.pid.pidstats['p'],
-            self.pid.pidstats['i'],
-            self.pid.pidstats['d'],
-            heat_on,
-            heat_off,
-            self.runtime,
-            self.totaltime,
-            time_left))
+        try:
+            log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
+                (self.pid.pidstats['ispoint'],
+                self.pid.pidstats['setpoint'],
+                self.pid.pidstats['err'],
+                self.pid.pidstats['pid'],
+                self.pid.pidstats['p'],
+                self.pid.pidstats['i'],
+                self.pid.pidstats['d'],
+                heat_on,
+                heat_off,
+                self.runtime,
+                self.totaltime,
+                time_left))
+        except KeyError:
+            pass
 
 class Profile():
     def __init__(self, json_data):
