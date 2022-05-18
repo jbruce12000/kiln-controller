@@ -1,0 +1,7 @@
+#!/usr/bin/env sh
+
+echo "----------------------------------------------"
+echo "| Writing all kiln logs to ./kiln.logs.gz... |"
+echo "----------------------------------------------"
+zgrep --no-filename INFO /var/log/* 2>/dev/null|strings|sort|uniq|gzip >kiln.logs.gz
+ls -la kiln.logs.gz
