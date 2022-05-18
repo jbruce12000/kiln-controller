@@ -20,6 +20,17 @@ Logs from the app on the pi go to **/var/log/daemon.log** and look like this...
 |total_time | total seconds for schedule |
 |time_left | seconds left till the end of schedule|
 
+
+If you need to send kiln logs to someone for troubleshooting:
+
+```
+cd kiln-controller
+./ziplogs
+```
+
+that creates a file named kiln.logs.gz in the current directory suitable for
+posting.
+
 Here is a project I use to read logs to help troubleshoot logs you post...
 
 https://github.com/jbruce12000/kiln-stats
