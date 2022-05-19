@@ -74,14 +74,13 @@ Download [Raspberry PI OS](https://www.raspberrypi.org/software/). Use Rasberry 
 
 ### Raspberry PI deployment
 
-If you want to deploy the code on a PI for production:
+If you're done playing around with simulations and want to deploy the code on a Raspberry PI to control a kiln, you'll need to do this in addition to the stuff listed above:
 
     $ cd kiln-controller
     $ virtualenv -p python3 venv
     $ source venv/bin/activate
     $ export CFLAGS=-fcommon
     $ pip3 install -r requirements.txt
-
 
 ## Configuration
 
