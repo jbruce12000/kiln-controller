@@ -3,5 +3,6 @@
 echo "----------------------------------------------"
 echo "| Writing all kiln logs to ./kiln.logs.gz... |"
 echo "----------------------------------------------"
-zgrep --no-filename INFO /var/log/* 2>/dev/null|strings|sort|uniq|gzip >kiln.logs.gz
+zgrep --no-filename "INFO.*oven: temp=" /var/log/* 2>/dev/null|strings|sed 's/^.*\(....-..-.. ..:..:..,... INFO oven: temp=\)/\1/'|sort|uniq|gzip > kiln.logs.gz
+
 ls -la kiln.logs.gz
