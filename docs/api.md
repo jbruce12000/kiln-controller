@@ -13,5 +13,4 @@ stop a schedule
 
 stats for currently running schedule
 
-    curl -d '{"cmd":"stats"}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
-
+    curl -X GET http://0.0.0.0:8081/api/stats
