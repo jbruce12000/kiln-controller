@@ -10,3 +10,8 @@ restart the kiln on a specific profile and start at minute 60
 stop a schedule
 
     curl -d '{"cmd":"stop"}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
+
+stats for currently running schedule
+
+    curl -d '{"cmd":"stats"}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
+
