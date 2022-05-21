@@ -13,7 +13,6 @@ from gevent.pywsgi import WSGIServer
 from geventwebsocket.handler import WebSocketHandler
 from geventwebsocket import WebSocketError
 
-
 try:
     sys.dont_write_bytecode = True
     import config
@@ -78,6 +77,13 @@ def handle_api():
     if bottle.request.json['cmd'] == 'stop':
         log.info("api stop command received")
         oven.abort_run()
+
+    # get stats during a run
+    if bottle.request.json['cmd'] == 'stats':
+        log.info("api stats command received")
+        if hasattr(oven,'pid'):
+            if hasattr(oven.pid,'pidstats'):
+                return json.dumps(oven.pid.pidstats)
 
     return { "success" : True }
 
