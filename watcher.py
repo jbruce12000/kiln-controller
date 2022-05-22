@@ -44,7 +44,7 @@ if __name__ == "__main__":
                 print ("temp out of whack")
         if bad_checks >= bad_check_limit:
             print("ERR sending alert")
-            msg = "error kiln needs help. %s" % stats
+            msg = "error kiln needs help. %s" % json.dumps(stats,indent=2, sort_keys=True)
             send_alert(msg)
             bad_checks = 0
         else:
