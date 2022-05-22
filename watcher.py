@@ -11,7 +11,7 @@ import datetime
 
 def get_stats():
     try:
-        r = requests.get(kiln_url)
+        r = requests.get(kiln_url,timeout=1)
         return r.json()
     except:
         return {}
