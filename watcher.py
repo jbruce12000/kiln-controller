@@ -6,10 +6,11 @@ import datetime
 import logging
 
 # this monitors your kiln stats every N seconds
-# if there are bad_check_limit failures, an alert is sent to a slack channel
+# if X checks fail, an alert is sent to a slack channel
 # configure an incoming web hook on the slack channel
 # set slack_hook_url to that
 
+logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 class Watcher(object):
@@ -31,7 +32,7 @@ class Watcher(object):
             return {}
 
     def send_alert(self,msg):
-        log.error("ERR sending alert: %s" % msg)
+        log.error("sending alert: %s" % msg)
         try: 
             r = requests.post(self.slack_hook_url, json={'text': msg })
         except:
@@ -39,22 +40,22 @@ class Watcher(object):
 
     def has_errors(self):
         if 'time' not in self.stats:
-            log.error("ERR no data")
+            log.error("no data")
             return True
         if 'err' in self.stats:
             if abs(self.stats['err']) > self.temp_error_limit:
-                log.error("ERR temp out of whack %0.2f" % self.stats['err'])
+                log.error("temp out of whack %0.2f" % self.stats['err'])
                 return True
         return False 
 
     def run(self):
-        log.info("OK started watching %s" % self.kiln_url)
+        log.info("started watching %s" % self.kiln_url)
         while(True):
             self.stats = self.get_stats()
             if self.has_errors():
                 self.bad_checks = self.bad_checks + 1
             else:
-                log.info("OK %s" % datetime.datetime.now())
+                log.info("%s" % datetime.datetime.now())
 
             if self.bad_checks >= self.bad_check_limit:
                 msg = "error kiln needs help. %s" % json.dumps(self.stats,indent=2, sort_keys=True)
