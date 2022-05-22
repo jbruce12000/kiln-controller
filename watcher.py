@@ -55,7 +55,7 @@ class Watcher(object):
             if self.has_errors():
                 self.bad_checks = self.bad_checks + 1
             else:
-                log.info("%s" % datetime.datetime.now())
+                log.info("OK %s" % datetime.datetime.now())
 
             if self.bad_checks >= self.bad_check_limit:
                 msg = "error kiln needs help. %s" % json.dumps(self.stats,indent=2, sort_keys=True)
