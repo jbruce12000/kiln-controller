@@ -3,52 +3,73 @@ import requests
 import json
 import time
 import datetime
+import logging
 
 # this monitors your kiln stats every N seconds
-# if X checks fail, an alert is sent to a slack channel
+# if there are bad_check_limit failures, an alert is sent to a slack channel
 # configure an incoming web hook on the slack channel
 # set slack_hook_url to that
 
-def get_stats():
-    try:
-        r = requests.get(kiln_url,timeout=1)
-        return r.json()
-    except:
-        return {}
+log = logging.getLogger(__name__)
 
-def send_alert(msg):
-    try: 
-        r = requests.post(slack_hook_url, json={'text': msg })
-    except:
-        pass
+class Watcher(object):
+
+    def __init__(self,kiln_url,slack_hook_url,bad_check_limit=6,temp_error_limit=10,sleepfor=10):
+        self.kiln_url = kiln_url
+        self.slack_hook_url = slack_hook_url
+        self.bad_check_limit = bad_check_limit
+        self.temp_error_limit = temp_error_limit
+        self.sleepfor = sleepfor
+        self.bad_checks = 0
+        self.stats = {}
+
+    def get_stats(self):
+        try:
+            r = requests.get(self.kiln_url,timeout=1)
+            return r.json()
+        except:
+            return {}
+
+    def send_alert(self,msg):
+        log.error("ERR sending alert: %s" % msg)
+        try: 
+            r = requests.post(self.slack_hook_url, json={'text': msg })
+        except:
+            pass
+
+    def has_errors(self):
+        if 'time' not in self.stats:
+            log.error("ERR no data")
+            return True
+        if 'err' in self.stats:
+            if abs(self.stats['err']) > self.temp_error_limit:
+                log.error("ERR temp out of whack %0.2f" % self.stats['err'])
+                return True
+        return False 
+
+    def run(self):
+        log.info("OK started watching %s" % self.kiln_url)
+        while(True):
+            self.stats = self.get_stats()
+            if self.has_errors():
+                self.bad_checks = self.bad_checks + 1
+            else:
+                log.info("OK %s" % datetime.datetime.now())
+
+            if self.bad_checks >= self.bad_check_limit:
+                msg = "error kiln needs help. %s" % json.dumps(self.stats,indent=2, sort_keys=True)
+                self.send_alert(msg)
+                self.bad_checks = 0
+            
+            time.sleep(self.sleepfor)
 
 if __name__ == "__main__":
 
-    kiln_url = "http://0.0.0.0:8081/api/stats"
-    slack_hook_url = "you must set this"
+    watcher = Watcher(
+        kiln_url = "http://0.0.0.0:8082/api/stats",
+        slack_hook_url = "you must set this",
+        bad_check_limit = 6,
+        temp_error_limit = 10,
+        sleepfor = 10 )
 
-    bad_check_limit = 6
-    bad_checks = 0
-    temp_error_limit = 10
-    sleepfor = 10
-
-    while(True):
-        stats = get_stats()
-
-        if 'time' not in stats:
-            bad_checks = bad_checks + 1
-            print("no data")
-        if 'err' in stats:
-            if abs(stats['err']) > temp_error_limit:
-                bad_checks = bad_checks + 1
-                print ("temp out of whack")
-        if bad_checks >= bad_check_limit:
-            print("ERR sending alert")
-            msg = "error kiln needs help. %s" % json.dumps(stats,indent=2, sort_keys=True)
-            send_alert(msg)
-            bad_checks = 0
-        else:
-            print("OK %s" % datetime.datetime.now())
-
-        time.sleep(sleepfor)
-
+    watcher.run()
