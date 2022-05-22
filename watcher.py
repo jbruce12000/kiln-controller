@@ -55,7 +55,7 @@ class Watcher(object):
             if self.has_errors():
                 self.bad_checks = self.bad_checks + 1
             else:
-                log.info("OK %s" % datetime.datetime.now())
+                log.info("OK temp=%0.2f target=%0.2f error=%0.2f" % (self.stats['ispoint'],self.stats['setpoint'],self.stats['err']))
 
             if self.bad_checks >= self.bad_check_limit:
                 msg = "error kiln needs help. %s" % json.dumps(self.stats,indent=2, sort_keys=True)
@@ -68,7 +68,7 @@ if __name__ == "__main__":
 
     watcher = Watcher(
         kiln_url = "http://0.0.0.0:8082/api/stats",
-        slack_hook_url = "you must set this",
+        slack_hook_url = "you must add this"
         bad_check_limit = 6,
         temp_error_limit = 10,
         sleepfor = 10 )
