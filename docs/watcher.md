@@ -14,7 +14,7 @@ Here are the configuration items to potentially set in that script:
 
 ### Slack
 
-[Slack](https://slack.com/) is a free messaging platform. It was is used to sendalerts when the watcher finds problems with your kiln.
+[Slack](https://slack.com/) is a free messaging platform. It is used to send alerts when the watcher finds problems with your kiln.
 
 1. Sign up for a slack account
 2. Create a workspace, doesn't matter what you call it
