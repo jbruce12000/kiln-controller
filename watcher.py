@@ -28,6 +28,12 @@ class Watcher(object):
         try:
             r = requests.get(self.kiln_url,timeout=1)
             return r.json()
+        except requests.exceptions.Timeout:
+            log.error("network timeout. check kiln_url and port.")
+            return {}
+        except requests.exceptions.ConnectionError:
+            log.error("network connection error. check kiln_url and port.")
+            return {}
         except:
             return {}
 
