@@ -11,6 +11,10 @@ stop a schedule
 
     curl -d '{"cmd":"stop"}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
 
+post a memo
+
+curl -d '{"cmd":"memo", "memo":"some significant message"}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
+
 stats for currently running schedule
 
     curl -X GET http://0.0.0.0:8081/api/stats

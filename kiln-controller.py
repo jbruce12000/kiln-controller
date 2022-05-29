@@ -86,6 +86,11 @@ def handle_api():
         log.info("api stop command received")
         oven.abort_run()
 
+    if bottle.request.json['cmd'] == 'memo':
+        log.info("api memo command received")
+        memo = bottle.request.json['memo']
+        log.info("memo=%s" % (memo))
+
     # get stats during a run
     if bottle.request.json['cmd'] == 'stats':
         log.info("api stats command received")
