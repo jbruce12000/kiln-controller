@@ -17,7 +17,8 @@ Turns a Raspberry Pi into an inexpensive, web-enabled kiln controller.
   * support for K, J, N, R, S, T, E, or B type thermocouples
   * accurate simulation
   * support for shifting schedule when kiln cannot heat quickly enough
-  * support for preventing initial integral wind-up
+  * prevents integral wind-up when temperatures not near the set point
+  * automatic restarts if there is a power outage or other event
 
 
 **Run Kiln Schedule**
