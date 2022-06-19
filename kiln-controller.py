@@ -42,6 +42,8 @@ else:
     log.info("this is a real kiln")
     oven = RealOven()
 ovenWatcher = OvenWatcher(oven)
+# this ovenwatcher is used in the oven class for restarts
+oven.set_ovenwatcher(ovenWatcher)
 
 @app.route('/')
 def index():

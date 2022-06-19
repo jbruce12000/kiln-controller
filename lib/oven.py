@@ -5,6 +5,7 @@ import datetime
 import logging
 import json
 import config
+import os
 
 log = logging.getLogger(__name__)
 
@@ -290,9 +291,72 @@ class Oven(threading.Thread):
         }
         return state
 
+    def save_state(self):
+        with open(config.automatic_restart_state_file, 'w', encoding='utf-8') as f:
+            json.dump(self.get_state(), f, ensure_ascii=False, indent=4)
+
+    def state_file_is_old(self):
+        '''returns True is state files is older than 15 mins default
+                   False if younger
+                   True if state file cannot be opened or does not exist
+        '''
+        if os.path.isfile(config.automatic_restart_state_file):
+            state_age = os.path.getmtime(config.automatic_restart_state_file)
+            now = time.time()
+            if((now - state_age)/60 <= config.automatic_restart_window):
+                return False
+        return True
+
+
+    def automatic_restart(self):
+        '''takes one of two actions
+        if RUNNING, saves state every duty cycle
+        if IDLE, checks and then starts last known good profile where it died
+        '''
+        # check if automatic_restart setting is True
+        if not config.automatic_restarts == True:
+            return
+
+        if self.state == "RUNNING":
+            # save state every duty cycle (2s by default)
+            self.save_state()
+            return
+
+        # check if within window (use file timestamp and setting)
+        if self.state_file_is_old():
+            log.info("restart not possible. outside restart window")
+            return
+
+        # restart the last known profile where it died
+        self.restart()
+
+    def restart(self):
+        if os.path.isfile(config.automatic_restart_state_file):
+            with open(config.automatic_restart_state_file) as infile: d = json.load(infile)
+        else:
+            log.info("restart not possible. no state file found.")
+            return
+        # check if last profile finished
+        if d["totaltime"] - d["runtime"] > 60:
+            startat = d["runtime"]/60
+            filename = "%s.json" % (d["profile"])
+            profile_path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'storage','profiles',filename))
+
+            log.info("restarting profile = %s at minute = %d" % (profile_path,startat))
+            with open(profile_path) as infile:
+                profile_json = json.dumps(json.load(infile))
+            profile = Profile(profile_json)
+            self.run_profile(profile,startat=startat)
+            self.ovenwatcher.record(profile)
+
+
+    def set_ovenwatcher(self,watcher):
+        self.ovenwatcher = watcher
+
     def run(self):
         while True:
             if self.state == "IDLE":
+                self.automatic_restart()
                 time.sleep(1)
                 continue
             if self.state == "RUNNING":
@@ -302,7 +366,7 @@ class Oven(threading.Thread):
                 self.heat_then_cool()
                 self.reset_if_emergency()
                 self.reset_if_schedule_ended()
-
+                self.automatic_restart()
 
 class SimulatedOven(Oven):
 

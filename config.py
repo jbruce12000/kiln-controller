@@ -13,7 +13,7 @@ log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 ### Server
 listening_ip = "0.0.0.0"
-listening_port = 8081
+listening_port = 8082
 
 ### Cost Estimate
 kwh_rate        = 0.1319  # Rate in currency_type to calculate cost to run job
@@ -65,7 +65,7 @@ sensor_time_wait = 2
 # your specific kiln. Note that the integral pid_ki is
 # inverted so that a smaller number means more integral action.
 pid_kp = 25   # Proportional 25,200,200
-pid_ki = 20   # Integral
+pid_ki = 10   # Integral
 pid_kd = 200  # Derivative
 
 
@@ -82,10 +82,10 @@ stop_integral_windup = True
 #   Simulation parameters
 simulate = True
 sim_t_env      = 60.0   # deg C
-sim_c_heat     = 100.0  # J/K  heat capacity of heat element
+sim_c_heat     = 500.0  # J/K  heat capacity of heat element
 sim_c_oven     = 5000.0 # J/K  heat capacity of oven
 sim_p_heat     = 5450.0 # W    heating power of oven
-sim_R_o_nocool = 0.1   # K/W  thermal resistance oven -> environment
+sim_R_o_nocool = 0.5   # K/W  thermal resistance oven -> environment
 sim_R_o_cool   = 0.05   # K/W  " with cooling
 sim_R_ho_noair = 0.1    # K/W  thermal resistance heat element -> oven
 sim_R_ho_air   = 0.05   # K/W  " with internal air circulation
@@ -121,7 +121,7 @@ kiln_must_catch_up = True
 # or 100% off because the kiln is too hot. No integral builds up
 # outside the window. The bigger you make the window, the more
 # integral you will accumulate.
-pid_control_window = 10 #degrees 
+pid_control_window = 5 #degrees 
 
 # thermocouple offset
 # If you put your thermocouple in ice water and it reads 36F, you can
@@ -151,3 +151,15 @@ ac_freq_50hz = False
 # - too many errors in a short period from thermocouple
 # and some people just want to ignore all of that and just log the emergencies but do not quit
 ignore_emergencies = False
+
+########################################################################
+# automatic restarts - if you have a power brown-out and the raspberry pi
+# reboots, this restarts your kiln where it left off in the firing profile.
+# This only happens if power comes back before automatic_restart_window
+# is exceeded (in minutes). The kiln-controller.py process must start
+# automatically on boot-up for this to work.
+automatic_restarts = True
+automatic_restart_window = 15 # max minutes since power outage
+automatic_restart_state_file = "/tmp/kiln_controller_state.json"
+
+
