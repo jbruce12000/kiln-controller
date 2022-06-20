@@ -193,6 +193,9 @@ class Oven(threading.Thread):
         self.target = 0
         self.heat = 0
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
+        # for restarts, save the IDLE state to the state file
+        if config.automatic_restarts == True:
+            self.save_state()
 
     def run_profile(self, profile, startat=0):
         self.reset()
@@ -277,9 +280,17 @@ class Oven(threading.Thread):
             self.reset()
 
     def get_state(self):
+        temp = 0
+        try:
+            temp = self.board.temp_sensor.temperature + config.thermocouple_offset
+        except AttributeError as error:
+            # this happens at start-up with a simulated oven
+            temp = 0
+            pass
+
         state = {
             'runtime': self.runtime,
-            'temperature': self.board.temp_sensor.temperature + config.thermocouple_offset,
+            'temperature': temp,
             'target': self.target,
             'state': self.state,
             'heat': self.heat,
@@ -337,7 +348,8 @@ class Oven(threading.Thread):
             log.info("restart not possible. no state file found.")
             return
         # check if last profile finished
-        if d["totaltime"] - d["runtime"] > 60:
+        #if d["totaltime"] - d["runtime"] > 60:
+        if d["state"] == "RUNNING":
             startat = d["runtime"]/60
             filename = "%s.json" % (d["profile"])
             profile_path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'storage','profiles',filename))

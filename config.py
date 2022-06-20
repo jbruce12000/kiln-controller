@@ -158,8 +158,10 @@ ignore_emergencies = False
 # This only happens if power comes back before automatic_restart_window
 # is exceeded (in minutes). The kiln-controller.py process must start
 # automatically on boot-up for this to work.
+# DO NOT put automatic_restart_state_file anywhere in /tmp. It could be
+# cleaned up (deleted) by the OS on boot.
 automatic_restarts = True
 automatic_restart_window = 15 # max minutes since power outage
-automatic_restart_state_file = "/tmp/kiln_controller_state.json"
+automatic_restart_state_file = "/home/jason/repos/kiln-controller/state/kiln_controller_state.json"
 
 
