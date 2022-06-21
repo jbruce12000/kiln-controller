@@ -1,4 +1,5 @@
 import logging
+import os
 
 # uncomment this if using MAX-31856
 #from lib.max31856 import MAX31856
@@ -160,6 +161,9 @@ ignore_emergencies = False
 # automatically on boot-up for this to work.
 # DO NOT put automatic_restart_state_file anywhere in /tmp. It could be
 # cleaned up (deleted) by the OS on boot.
+# The state file is written to disk every sensor_time_wait seconds (2s by default)
+# and is written in the same directory as config.py.
 automatic_restarts = True
 automatic_restart_window = 15 # max minutes since power outage
-automatic_restart_state_file = "/home/jason/repos/kiln-controller/state/kiln_controller_state.json"
+automatic_restart_state_file = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'state.json'))
+

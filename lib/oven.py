@@ -328,7 +328,8 @@ class Oven(threading.Thread):
         if not config.automatic_restarts == True:
             return False
         if self.state_file_is_old():
-            log.info("restart not possible. state file too old.")
+            # this log statement is too noisy.
+            #log.info("restart not possible. state file too old.")
             return False
         if os.path.isfile(config.automatic_restart_state_file):
             with open(config.automatic_restart_state_file) as infile: d = json.load(infile)
@@ -352,6 +353,7 @@ class Oven(threading.Thread):
             profile_json = json.dumps(json.load(infile))
         profile = Profile(profile_json)
         self.run_profile(profile,startat=startat)
+        time.sleep(1)
         self.ovenwatcher.record(profile)
 
     def set_ovenwatcher(self,watcher):
