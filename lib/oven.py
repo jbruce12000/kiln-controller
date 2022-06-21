@@ -193,9 +193,6 @@ class Oven(threading.Thread):
         self.target = 0
         self.heat = 0
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
-        # for restarts, save the IDLE state to the state file
-        if config.automatic_restarts == True:
-            self.save_state()
 
     def run_profile(self, profile, startat=0):
         self.reset()
@@ -224,6 +221,7 @@ class Oven(threading.Thread):
 
     def abort_run(self):
         self.reset()
+        self.save_automatic_restart_state()
 
     def kiln_must_catch_up(self):
         '''shift the whole schedule forward in time by one time_step
@@ -314,78 +312,72 @@ class Oven(threading.Thread):
         if os.path.isfile(config.automatic_restart_state_file):
             state_age = os.path.getmtime(config.automatic_restart_state_file)
             now = time.time()
-            if((now - state_age)/60 <= config.automatic_restart_window):
+            minutes = (now - state_age)/60
+            if(minutes <= config.automatic_restart_window):
                 return False
         return True
 
-
-    def automatic_restart(self):
-        '''takes one of two actions
-        if RUNNING, saves state every duty cycle
-        if IDLE, checks and then starts last known good profile where it died
-        '''
-        # check if automatic_restart setting is True
+    def save_automatic_restart_state(self):
+        # only save state if the feature is enabled
         if not config.automatic_restarts == True:
-            return
+            return False
+        self.save_state()
 
-        if self.state == "RUNNING":
-            # save state every duty cycle (2s by default)
-            self.save_state()
-            return
-
-        # check if within window (use file timestamp and setting)
+    def should_i_automatic_restart(self):
+        # only automatic restart if the feature is enabled
+        if not config.automatic_restarts == True:
+            return False
         if self.state_file_is_old():
-            log.info("restart not possible. outside restart window")
-            return
-
-        # restart the last known profile where it died
-        self.restart()
-
-    def restart(self):
+            log.info("restart not possible. state file too old.")
+            return False
         if os.path.isfile(config.automatic_restart_state_file):
             with open(config.automatic_restart_state_file) as infile: d = json.load(infile)
         else:
             log.info("restart not possible. no state file found.")
-            return
-        # check if last profile finished
-        #if d["totaltime"] - d["runtime"] > 60:
-        if d["state"] == "RUNNING":
-            startat = d["runtime"]/60
-            filename = "%s.json" % (d["profile"])
-            profile_path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'storage','profiles',filename))
+            return False
+        if d["state"] != "RUNNING":
+            # this log statement is too noisy.
+            #log.info("restart not possible. state = %s" % (d["state"]))
+            return False
+        return True
 
-            log.info("restarting profile = %s at minute = %d" % (profile_path,startat))
-            with open(profile_path) as infile:
-                profile_json = json.dumps(json.load(infile))
-            profile = Profile(profile_json)
-            self.run_profile(profile,startat=startat)
-            self.ovenwatcher.record(profile)
+    def automatic_restart(self):
+        with open(config.automatic_restart_state_file) as infile: d = json.load(infile)
+        startat = d["runtime"]/60
+        filename = "%s.json" % (d["profile"])
+        profile_path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'storage','profiles',filename))
 
+        log.info("restarting profile = %s at minute = %d" % (profile_path,startat))
+        with open(profile_path) as infile:
+            profile_json = json.dumps(json.load(infile))
+        profile = Profile(profile_json)
+        self.run_profile(profile,startat=startat)
+        self.ovenwatcher.record(profile)
 
     def set_ovenwatcher(self,watcher):
+        log.info("ovenwatcher set in oven class")
         self.ovenwatcher = watcher
 
     def run(self):
         while True:
             if self.state == "IDLE":
-                self.automatic_restart()
+                if self.should_i_automatic_restart() == True:
+                    self.automatic_restart()
                 time.sleep(1)
                 continue
             if self.state == "RUNNING":
+                self.save_automatic_restart_state()
                 self.kiln_must_catch_up()
                 self.update_runtime()
                 self.update_target_temp()
                 self.heat_then_cool()
                 self.reset_if_emergency()
                 self.reset_if_schedule_ended()
-                self.automatic_restart()
 
 class SimulatedOven(Oven):
 
     def __init__(self):
-        self.reset()
         self.board = BoardSimulated()
-
         self.t_env = config.sim_t_env
         self.c_heat = config.sim_c_heat
         self.c_oven = config.sim_c_oven
@@ -398,8 +390,7 @@ class SimulatedOven(Oven):
         self.t = self.t_env # deg C temp of oven
         self.t_h = self.t_env #deg C temp of heating element
 
-        # call parent init
-        Oven.__init__(self)
+        super().__init__()
 
         # start thread
         self.start()

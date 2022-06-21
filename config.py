@@ -163,5 +163,3 @@ ignore_emergencies = False
 automatic_restarts = True
 automatic_restart_window = 15 # max minutes since power outage
 automatic_restart_state_file = "/home/jason/repos/kiln-controller/state/kiln_controller_state.json"
-
-
