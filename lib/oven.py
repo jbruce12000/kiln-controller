@@ -255,27 +255,27 @@ class Oven(threading.Thread):
             config.emergency_shutoff_temp):
             log.info("emergency!!! temperature too high")
             if not config.ignore_emergencies == True:
-                self.reset()
+                self.abort_run()
 
         if self.board.temp_sensor.noConnection:
             log.info("emergency!!! lost connection to thermocouple")
             if not config.ignore_emergencies == True:
-                self.reset()
+                self.abort_run()
 
         if self.board.temp_sensor.unknownError:
             log.info("emergency!!! unknown thermocouple error")
             if not config.ignore_emergencies == True:
-                self.reset()
+                self.abort_run()
 
         if self.board.temp_sensor.bad_percent > 30:
             log.info("emergency!!! too many errors in a short period")
             if not config.ignore_emergencies == True:
-                self.reset()
+                self.abort_run()
 
     def reset_if_schedule_ended(self):
         if self.runtime > self.totaltime:
             log.info("schedule ended, shutting down")
-            self.reset()
+            self.abort_run()
 
     def get_state(self):
         temp = 0
