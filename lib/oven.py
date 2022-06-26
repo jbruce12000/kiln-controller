@@ -9,6 +9,25 @@ import os
 
 log = logging.getLogger(__name__)
 
+class DupFilter(object):
+    def __init__(self):
+        self.msgs = set()
+
+    def filter(self, record):
+        rv = record.msg not in self.msgs
+        self.msgs.add(record.msg)
+        return rv
+
+class Duplogger():
+    def __init__(self):
+        self.log = logging.getLogger(__name__)
+        dup_filter = DupFilter()
+        self.log.addFilter(dup_filter)
+    def logref(self):
+        return self.log
+
+duplog = Duplogger().logref()
+
 
 class Output(object):
     def __init__(self):
@@ -328,17 +347,13 @@ class Oven(threading.Thread):
         if not config.automatic_restarts == True:
             return False
         if self.state_file_is_old():
-            # this log statement is too noisy.
-            #log.info("restart not possible. state file too old.")
+            duplog.info("restart not possible. state file does not exist or is too old.")
             return False
-        if os.path.isfile(config.automatic_restart_state_file):
-            with open(config.automatic_restart_state_file) as infile: d = json.load(infile)
-        else:
-            log.info("restart not possible. no state file found.")
-            return False
+
+        with open(config.automatic_restart_state_file) as infile:
+            d = json.load(infile)
         if d["state"] != "RUNNING":
-            # this log statement is too noisy.
-            #log.info("restart not possible. state = %s" % (d["state"]))
+            duplog.info("restart not possible. state = %s" % (d["state"]))
             return False
         return True
 
