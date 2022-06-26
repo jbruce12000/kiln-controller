@@ -20,7 +20,7 @@ class DupFilter(object):
 
 class Duplogger():
     def __init__(self):
-        self.log = logging.getLogger(__name__)
+        self.log = logging.getLogger("%s.dupfree" % (__name__))
         dup_filter = DupFilter()
         self.log.addFilter(dup_filter)
     def logref(self):
