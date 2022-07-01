@@ -14,7 +14,7 @@ log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 ### Server
 listening_ip = "0.0.0.0"
-listening_port = 8081
+listening_port = 8082
 
 ### Cost Estimate
 kwh_rate        = 0.1319  # Rate in currency_type to calculate cost to run job
@@ -166,4 +166,11 @@ ignore_emergencies = False
 automatic_restarts = True
 automatic_restart_window = 15 # max minutes since power outage
 automatic_restart_state_file = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'state.json'))
+
+########################################################################
+# load kiln profiles from this directory
+# created a repo where anyone can contribute profiles. The objective is
+# to load profiles from this repository by default.
+# See https://github.com/jbruce12000/kiln-profiles
+kiln_profiles_directory = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'..','kiln-profiles','pottery')) 
 
