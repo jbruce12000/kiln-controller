@@ -61,7 +61,10 @@ class Watcher(object):
             if self.has_errors():
                 self.bad_checks = self.bad_checks + 1
             else:
-                log.info("OK temp=%0.2f target=%0.2f error=%0.2f" % (self.stats['ispoint'],self.stats['setpoint'],self.stats['err']))
+                try:
+                    log.info("OK temp=%0.2f target=%0.2f error=%0.2f" % (self.stats['ispoint'],self.stats['setpoint'],self.stats['err']))
+                except:
+                    pass
 
             if self.bad_checks >= self.bad_check_limit:
                 msg = "error kiln needs help. %s" % json.dumps(self.stats,indent=2, sort_keys=True)
