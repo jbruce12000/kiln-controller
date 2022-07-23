@@ -5,6 +5,5 @@ gevent
 gevent-websocket
 RPi.GPIO
 Adafruit-MAX31855
-Adafruit-MAX31856
 Adafruit-GPIO
 websocket-client
