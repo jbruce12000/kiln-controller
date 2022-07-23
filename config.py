@@ -10,7 +10,7 @@ from lib.max31856 import MAX31856
 ### Logging
 log_level = logging.INFO
 log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
-log_file = '/var/log/kiln-controller.log'
+log_file = '$HOME/kiln-controller.log'
 
 ### Server
 listening_ip = "0.0.0.0"
@@ -113,7 +113,7 @@ stop_integral_windup = True
 ########################################################################
 #
 #   Simulation parameters
-simulate = True
+simulate = False
 sim_t_env      = 60.0   # deg C
 sim_c_heat     = 100.0  # J/K  heat capacity of heat element
 sim_c_oven     = 5000.0 # J/K  heat capacity of oven
