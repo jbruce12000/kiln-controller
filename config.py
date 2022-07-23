@@ -10,7 +10,7 @@ from lib.max31856 import MAX31856
 ### Logging
 log_level = logging.INFO
 log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
-log_file = '$HOME/kiln-controller.log'
+log_file = '/home/pi/kiln-controller.log'
 
 ### Server
 listening_ip = "0.0.0.0"
