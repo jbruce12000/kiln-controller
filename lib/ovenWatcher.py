@@ -1,6 +1,9 @@
 import threading,logging,json,time,datetime
 from oven import Oven
+import config
+
 log = logging.getLogger(__name__)
+
 
 class OvenWatcher(threading.Thread):
     def __init__(self,oven):
@@ -9,10 +12,12 @@ class OvenWatcher(threading.Thread):
         self.started = None
         self.recording = False
         self.observers = []
+
         threading.Thread.__init__(self)
         self.daemon = True
         self.oven = oven
         self.start()
+
 
 # FIXME - need to save runs of schedules in near-real-time
 # FIXME - this will enable re-start in case of power outage

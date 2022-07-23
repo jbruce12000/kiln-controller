@@ -1,10 +1,12 @@
 import threading
 import time
+from math import floor, ceil
 import random
 import datetime
 import logging
 import json
 import config
+from display import TM1637
 
 log = logging.getLogger(__name__)
 
@@ -13,6 +15,26 @@ class Output(object):
     def __init__(self):
         self.active = False
         self.load_libs()
+        log.warning('Active: %s' % self.active)
+        if self.active:
+            log.info("Trying to initialize displays")
+            try:
+                self.time_disp = Display(config.time_disp['type'],
+                                         config.time_disp['pins'])
+                self.time_disp.time(11,11)
+            except NameError as e:
+                log.warning("Couldn't initialize time display")
+                log.warning("Error: %s" % e)
+                self.time_disp = False
+
+            try:
+                self.temp_disp = Display(config.temp_disp['type'],
+                                         config.temp_disp['pins'])
+                self.temp_disp.text('----')
+            except NameError as e:
+                log.warning("Couldn't initialize temp display")
+                log.warning("Error: %s" % e)
+                self.temp_disp = False
 
     def load_libs(self):
         try:
@@ -30,11 +52,19 @@ class Output(object):
 
     def safety_off(self):
         '''Energizes the safety relay'''
-        self.GPIO.output(config.gpio_e_relay, self.GPIO.HIGH)
+        if self.active:
+            log.info("energizing safety relay")
+            self.GPIO.output(config.gpio_e_relay, self.GPIO.HIGH)
+        else:
+            log.info("simulating energizing safety relay")
 
     def safety_on(self):
         '''Deenergizes the safety relay'''
-        self.GPIO.output(config.gpio_e_relay, self.GPIO.LOW)
+        if self.active:
+            log.info("deenergizing safety relay")
+            self.GPIO.output(config.gpio_e_relay, self.GPIO.LOW)
+        else:
+            log.info("simulating deenergizing safety relay")
 
     def heat(self,sleepfor):
         self.GPIO.output(config.gpio_heat, self.GPIO.HIGH)
@@ -44,6 +74,29 @@ class Output(object):
         '''no active cooling, so sleep'''
         self.GPIO.output(config.gpio_heat, self.GPIO.LOW)
         time.sleep(sleepfor)
+
+class Display(object):
+    def __init__(self,
+                 type,
+                 pins):
+
+        if type == "TMC1637":
+            self.disp = TM1637(pins['clock'],
+                               pins['data'])
+
+    def temp(self, t):
+        self.disp.temp(t)
+
+    def time(self, h, m):
+        self.disp.time(h, m)
+
+    def off(self):
+        self.disp.off()
+
+    def text(self, text):
+        self.disp.text(text)
+
+
 
 # FIX - Board class needs to be completely removed
 class Board(object):
@@ -178,10 +231,20 @@ class Oven(threading.Thread):
         self.daemon = True
         self.temperature = 0
         self.time_step = config.sensor_time_wait
+        self.output = Output()
+
+        if self.output.time_disp:
+            self.output.time_disp.text(self.state)
+        if self.output.temp_disp:
+            self.output.temp_disp.temp(self.temperature)
+
         self.reset()
 
     def reset(self):
+        self.output.safety_on()
         self.state = "IDLE"
+        if self.output.time_disp:
+            self.output.time_disp.text(self.state)
         self.profile = None
         self.start_time = 0
         self.runtime = 0
@@ -192,6 +255,7 @@ class Oven(threading.Thread):
 
     def run_profile(self, profile, startat=0):
         self.reset()
+        self.output.safety_off()
 
         if self.board.temp_sensor.noConnection:
             log.info("Refusing to start profile - thermocouple not connected")
@@ -272,6 +336,10 @@ class Oven(threading.Thread):
             self.reset()
 
     def get_state(self):
+
+        if self.output.temp_disp:
+            self.output.temp_disp.temp(int(self.board.temp_sensor.temperature))
+
         state = {
             'runtime': self.runtime,
             'temperature': self.board.temp_sensor.temperature + config.thermocouple_offset,
@@ -393,14 +461,12 @@ class RealOven(Oven):
 
         # call parent init
         Oven.__init__(self)
-        self.output.safety_off()
 
         # start thread
         self.start()
 
     def reset(self):
         super().reset()
-        self.output.safety_on()
         self.output.cool(0)
 
     def heat_then_cool(self):
@@ -420,6 +486,14 @@ class RealOven(Oven):
         if heat_off:
             self.output.cool(heat_off)
         time_left = self.totaltime - self.runtime
+
+        time_left_h = int(floor(time_left / 3600))
+        time_left_m = int(ceil((time_left % 3600) / 60))
+
+        if self.output.time_disp:
+            self.output.time_disp.time(time_left_h,
+                                       time_left_m)
+
         log.info("temp=%.2f, target=%.2f, pid=%.3f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
             (self.board.temp_sensor.temperature + config.thermocouple_offset,
              self.target,
