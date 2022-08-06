@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
 import board
-import asyncio
 import adafruit_dotstar
 import config
 import ast
+from time import sleep
 from math import ceil
 from adafruit_led_animation.helper import PixelSubset
 from adafruit_led_animation.animation.rainbowchase import RainbowChase
@@ -51,16 +51,15 @@ class KilnStatus:
 #  'pidstats': {}}
 
 
-async def update_status(kiln_status):
+def update_status(kiln_status):
     """Monitor button that reverses rainbow direction and changes blink speed.
     Assume button is active low.
     """
-    while True:
-        kiln_status.check_status()
-        await asyncio.sleep(time_int)
+
+    kiln_status.check_status()
 
 
-async def task_strip_top(pixels, kiln_status):
+def task_strip_top(pixels, kiln_status):
     while True:
         if kiln_status.state == 'STARTUP':
             top = RainbowChase(pixels,
@@ -86,16 +85,13 @@ async def task_strip_top(pixels, kiln_status):
             top = Blink(pixels,
                         0.7,
                         (255, 0, 0))
-        top.animate()
-        await asyncio.sleep(time_int)
+    return(top)
 
-async def task_strip_right(pixels, kiln_status):
-    while True:
-        r_blink = Blink(pixels, speed=0.5, color=PURPLE)
-        r_blink.animate()
-        await asyncio.sleep(0)
+def task_strip_right(pixels, kiln_status):
+    r_blink = Blink(pixels, speed=0.5, color=PURPLE)
+    return(r_blink)
 
-async def main():
+def main():
 
     # setup
 
@@ -125,16 +121,18 @@ async def main():
                             substrip_len,
                             dotstar_num - substrip_len)
 
-    top_task = asyncio.create_task(task_strip_top(strip_top,
-                                                  kiln_status))
-    check_task = asyncio.create_task(update_status(kiln_status))
-    right_task = asyncio.create_task(task_strip_right(strip_right,
-                                                      kiln_status))
-
     l_blink = Blink(strip_left, speed=0.5, color=PURPLE)
-    l_blink.animate()
 
-    await asyncio.gather(check_task, top_task, right_task)
+    while True:
+        kiln_status.check_status()
+        animations = AnimationSequence(
+        AnimationGroup(
+            l_blink,
+            task_strip_right(strip_right, kiln_status),
+            task_strip_top(strip_top, kiln_status)
+        )
+        animations.animate()
+        sleep(time_int)
 
-
-asyncio.run(main())
+if __name__ == "__main__":
+    main()
