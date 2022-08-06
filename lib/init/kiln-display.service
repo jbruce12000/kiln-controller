@@ -1,0 +1,9 @@
+[Unit]
+Description=kiln-display
+
+[Service]
+ExecStart=/home/pi/kiln-controller/venv/bin/python /home/pi/kiln-controller/dotstar_watcher.py
+ExecStopPost=/home/pi/kiln-controller/venv/bin/python /home/pi/kiln-controller/dotstar_fail.py
+
+[Install]
+WantedBy=multi-user.target

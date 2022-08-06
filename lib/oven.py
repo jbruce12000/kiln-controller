@@ -253,6 +253,19 @@ class Oven(threading.Thread):
         self.heat = 0
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
 
+    def e_reset(self):
+        self.output.safety_on()
+        self.state = "EMERGENCY RESET"
+        if self.output.time_disp:
+            self.output.time_disp.text(self.state)
+        self.profile = None
+        self.start_time = 0
+        self.runtime = 0
+        self.totaltime = 0
+        self.target = 0
+        self.heat = 0
+        self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
+
     def run_profile(self, profile, startat=0):
         self.reset()
         self.output.safety_off()
@@ -316,19 +329,19 @@ class Oven(threading.Thread):
         if (self.board.temp_sensor.temperature + config.thermocouple_offset >=
             config.emergency_shutoff_temp):
             log.info("emergency!!! temperature too high, shutting down")
-            self.reset()
+            self.e_reset()
 
         if self.board.temp_sensor.noConnection:
             log.info("emergency!!! lost connection to thermocouple, shutting down")
-            self.reset()
+            self.e_reset()
 
         if self.board.temp_sensor.unknownError:
             log.info("emergency!!! unknown thermocouple error, shutting down")
-            self.reset()
+            self.e_reset()
 
         if self.board.temp_sensor.bad_percent > 30:
             log.info("emergency!!! too many errors in a short period, shutting down")
-            self.reset()
+            self.e_reset()
 
     def reset_if_schedule_ended(self):
         if self.runtime > self.totaltime:
