@@ -106,9 +106,9 @@ async def main():
 
     substrip_len = ceil(dotstar_num/3.0)
 
-    # strip_left = PixelSubset(pixels,
-    #                          0,
-    #                          substrip_len)
+    strip_left = PixelSubset(pixels,
+                             0,
+                             substrip_len)
 
     # strip_right = PixelSubset(pixels,
     #                           dotstar_num - substrip_len,
@@ -122,8 +122,10 @@ async def main():
                                                   kiln_status))
     check_task = asyncio.create_task(update_status(kiln_status))
 
+    l_blink = Blink(strip_left, speed=0.5, color=PURPLE)
+    l_blink.animate()
+
     await asyncio.gather(check_task, top_task)
 
 
-if __name__ == "__main__":
-    asyncio.run(main())
+asyncio.run(main())
