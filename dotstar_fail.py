@@ -11,6 +11,7 @@ This example will run on SAMD21 (M0) Express boards (such as Circuit Playground 
 Haxpress), but not on SAMD21 non-Express boards (such as QT Py or Trinket).
 """
 import config
+import board
 import adafruit_dotstar
 
 from adafruit_led_animation.animation.blink import Blink
