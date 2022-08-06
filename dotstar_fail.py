@@ -20,8 +20,8 @@ dotstar_num = config.dotstar_num = 27
 dotstar_clk = config.gpio_dotstar_clk = 19  # pin 35
 dotstar_dat = config.gpio_dotstar_dat = 13  # pin 33
 
-pixels = adafruit_dotstar.DotStar('D%s' % dotstar_clk,
-                                  'D%s' % dotstar_dat,
+pixels = adafruit_dotstar.DotStar(getattr(board, 'D%s' % dotstar_clk),
+                                  getattr(board, 'D%s' % dotstar_dat),
                                   dotstar_num)
 
 blink = Blink(pixels, speed=0.5, color=PURPLE)
