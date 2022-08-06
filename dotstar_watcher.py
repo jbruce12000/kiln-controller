@@ -11,6 +11,8 @@ from adafruit_led_animation.animation.rainbowchase import RainbowChase
 from adafruit_led_animation.animation.pulse import Pulse
 from adafruit_led_animation.animation.comet import Comet
 from adafruit_led_animation.animation.blink import Blink
+from adafruit_led_animation.color import PURPLE
+
 
 time_int = 0.5
 
