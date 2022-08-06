@@ -89,6 +89,11 @@ async def task_strip_top(pixels, kiln_status):
         top.animate()
         await asyncio.sleep(time_int)
 
+async def task_strip_right(pixels, kiln_status):
+    while True:
+        r_blink = Blink(pixels, speed=0.5, color=PURPLE)
+        r_blink.animate()
+        await asyncio.sleep(0)
 
 async def main():
 
@@ -112,9 +117,9 @@ async def main():
                              0,
                              substrip_len)
 
-    # strip_right = PixelSubset(pixels,
-    #                           dotstar_num - substrip_len,
-    #                           dotstar_num)
+    strip_right = PixelSubset(pixels,
+                              dotstar_num - substrip_len,
+                              dotstar_num)
 
     strip_top = PixelSubset(pixels,
                             substrip_len,
@@ -123,11 +128,13 @@ async def main():
     top_task = asyncio.create_task(task_strip_top(strip_top,
                                                   kiln_status))
     check_task = asyncio.create_task(update_status(kiln_status))
+    right_task = asyncio.create_task(task_strip_right(strip_right,
+                                                      kiln_status))
 
     l_blink = Blink(strip_left, speed=0.5, color=PURPLE)
     l_blink.animate()
 
-    await asyncio.gather(check_task, top_task)
+    await asyncio.gather(check_task, top_task, right_task)
 
 
 asyncio.run(main())
