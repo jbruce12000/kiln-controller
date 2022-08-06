@@ -124,16 +124,18 @@ def main():
                             dotstar_num - substrip_len)
 
     l_blink = Blink(strip_left, speed=0.5, color=PURPLE)
-    
-    animations = AnimationSequence(
-                    AnimationGroup(
-                        l_blink
-                        # task_strip_right(strip_right, kiln_status),
-                        # task_strip_top(strip_top, kiln_status)
-                    ))
+
 
     while True:
         kiln_status.check_status()
+        right = task_strip_right(strip_right, kiln_status)
+        top = task_strip_top(strip_top, kiln_status)
+        animations = AnimationSequence(
+                AnimationGroup(
+                    l_blink,
+                    right,
+                    top
+                ))
         animations.animate()
         sleep(time_int)
 
