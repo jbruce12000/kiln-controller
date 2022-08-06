@@ -12,6 +12,8 @@ from adafruit_led_animation.animation.pulse import Pulse
 from adafruit_led_animation.animation.comet import Comet
 from adafruit_led_animation.animation.blink import Blink
 from adafruit_led_animation.color import PURPLE
+from adafruit_led_animation.group import AnimationGroup
+from adafruit_led_animation.sequence import AnimationSequence
 
 
 time_int = 0.5
@@ -126,11 +128,11 @@ def main():
     while True:
         kiln_status.check_status()
         animations = AnimationSequence(
-        AnimationGroup(
-            l_blink,
-            task_strip_right(strip_right, kiln_status),
-            task_strip_top(strip_top, kiln_status)
-        )
+                        AnimationGroup(
+                            l_blink,
+                            task_strip_right(strip_right, kiln_status),
+                            task_strip_top(strip_top, kiln_status)
+                        ))
         animations.animate()
         sleep(time_int)
 
