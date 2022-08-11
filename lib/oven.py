@@ -164,7 +164,7 @@ class TempSensorReal(TempSensor):
             self.unknownError = self.thermocouple.unknownError
 
             is_bad_value = self.noConnection | self.unknownError
-            if config.honour_theromocouple_short_errors:
+            if not config.ignore_tc_short_errors:
                 is_bad_value |= self.shortToGround | self.shortToVCC
 
             if not is_bad_value:
@@ -273,22 +273,22 @@ class Oven(threading.Thread):
         if (self.board.temp_sensor.temperature + config.thermocouple_offset >=
             config.emergency_shutoff_temp):
             log.info("emergency!!! temperature too high")
-            if not config.ignore_emergencies == True:
+            if config.ignore_temp_too_high == False:
                 self.abort_run()
 
         if self.board.temp_sensor.noConnection:
             log.info("emergency!!! lost connection to thermocouple")
-            if not config.ignore_emergencies == True:
+            if config.ignore_lost_connection_tc == False:
                 self.abort_run()
 
         if self.board.temp_sensor.unknownError:
             log.info("emergency!!! unknown thermocouple error")
-            if not config.ignore_emergencies == True:
+            if config.ignore_unknown_tc_error == False:
                 self.abort_run()
 
         if self.board.temp_sensor.bad_percent > 30:
             log.info("emergency!!! too many errors in a short period")
-            if not config.ignore_emergencies == True:
+            if config.ignore_too_many_tc_errors == False:
                 self.abort_run()
 
     def reset_if_schedule_ended(self):

@@ -130,12 +130,6 @@ pid_control_window = 5 #degrees
 # cheap thermocouple.  Invest in a better thermocouple.
 thermocouple_offset=0
 
-# some kilns/thermocouples start erroneously reporting "short" 
-# errors at higher temperatures due to plasma forming in the kiln.
-# Set this to False to ignore these errors and assume the temperature 
-# reading was correct anyway
-honour_theromocouple_short_errors = False
-
 # number of samples of temperature to average.
 # If you suffer from the high temperature kiln issue and have set 
 # honour_theromocouple_short_errors to False,
@@ -145,13 +139,25 @@ temperature_average_samples = 40
 # Thermocouple AC frequency filtering - set to True if in a 50Hz locale, else leave at False for 60Hz locale
 ac_freq_50hz = False
 
+########################################################################
+# Emergencies - or maybe not
+########################################################################
 # There are all kinds of emergencies that can happen including:
 # - temperature is too high (emergency_shutoff_temp exceeded)
 # - lost connection to thermocouple
 # - unknown error with thermocouple
 # - too many errors in a short period from thermocouple
-# and some people just want to ignore all of that and just log the emergencies but do not quit
-ignore_emergencies = False
+# but in some cases, you might want to ignore a specific error, log it,
+# and continue running your profile.
+ignore_temp_too_high = False
+ignore_lost_connection_tc = False
+ignore_unknown_tc_error = False
+ignore_too_many_tc_errors = False
+# some kilns/thermocouples start erroneously reporting "short" 
+# errors at higher temperatures due to plasma forming in the kiln.
+# Set this to True to ignore these errors and assume the temperature 
+# reading was correct anyway
+ignore_tc_short_errors = False 
 
 ########################################################################
 # automatic restarts - if you have a power brown-out and the raspberry pi
