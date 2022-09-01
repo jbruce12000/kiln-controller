@@ -204,6 +204,7 @@ class Oven(threading.Thread):
         self.reset()
 
     def reset(self):
+        self.cost = 0
         self.state = "IDLE"
         self.profile = None
         self.start_time = 0
@@ -296,6 +297,13 @@ class Oven(threading.Thread):
             log.info("schedule ended, shutting down")
             self.abort_run()
 
+    def update_cost(self):
+        if self.heat:
+            cost = (config.kwh_rate * config.kw_elements) * ((self.heat)/3600)
+        else:
+            cost = 0
+        self.cost = self.cost + cost
+
     def get_state(self):
         temp = 0
         try:
@@ -306,6 +314,7 @@ class Oven(threading.Thread):
             pass
 
         state = {
+            'cost': self.cost,
             'runtime': self.runtime,
             'temperature': temp,
             'target': self.target,
@@ -368,6 +377,7 @@ class Oven(threading.Thread):
             profile_json = json.dumps(json.load(infile))
         profile = Profile(profile_json)
         self.run_profile(profile,startat=startat)
+        self.cost = d["cost"]
         time.sleep(1)
         self.ovenwatcher.record(profile)
 
@@ -383,6 +393,7 @@ class Oven(threading.Thread):
                 time.sleep(1)
                 continue
             if self.state == "RUNNING":
+                self.update_cost()
                 self.save_automatic_restart_state()
                 self.kiln_must_catch_up()
                 self.update_runtime()

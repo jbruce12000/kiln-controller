@@ -16,8 +16,15 @@ log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 listening_ip = "0.0.0.0"
 listening_port = 8082
 
-### Cost Estimate
-kwh_rate        = 0.1319  # Rate in currency_type to calculate cost to run job
+########################################################################
+# Cost Information
+#
+# This is used to calculate a cost estimate before a run. It's also used
+# to produce the actual cost at the end of a run. My kiln has three
+# elements that when my switches are set to high, consume 9460 watts.
+
+kwh_rate        = 0.1319  # cost per kilowatt hour per currency_type to calculate cost to run job
+kw_elements     = 0.9460 # if the kiln elements are on, the wattage in kilowatts
 currency_type   = "$"   # Currency Symbol to show when calculating cost to run job
 
 ########################################################################
@@ -178,6 +185,6 @@ automatic_restart_state_file = os.path.abspath(os.path.join(os.path.dirname( __f
 # created a repo where anyone can contribute profiles. The objective is
 # to load profiles from this repository by default.
 # See https://github.com/jbruce12000/kiln-profiles
-#kiln_profiles_directory = os.path.abspath(os.path.join(os.path.dirname( __file__ ),"storage", "profiles")) 
-kiln_profiles_directory = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'..','kiln-profiles','pottery')) 
+kiln_profiles_directory = os.path.abspath(os.path.join(os.path.dirname( __file__ ),"storage", "profiles")) 
+#kiln_profiles_directory = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'..','kiln-profiles','pottery')) 
 
