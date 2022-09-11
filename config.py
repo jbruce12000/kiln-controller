@@ -24,7 +24,7 @@ listening_port = 8082
 # elements that when my switches are set to high, consume 9460 watts.
 
 kwh_rate        = 0.1319  # cost per kilowatt hour per currency_type to calculate cost to run job
-kw_elements     = 0.9460 # if the kiln elements are on, the wattage in kilowatts
+kw_elements     = 9.460 # if the kiln elements are on, the wattage in kilowatts
 currency_type   = "$"   # Currency Symbol to show when calculating cost to run job
 
 ########################################################################

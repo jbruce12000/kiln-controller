@@ -295,6 +295,7 @@ class Oven(threading.Thread):
     def reset_if_schedule_ended(self):
         if self.runtime > self.totaltime:
             log.info("schedule ended, shutting down")
+            log.info("total cost = %s%.2f" % (config.currency_type,self.cost))
             self.abort_run()
 
     def update_cost(self):
