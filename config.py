@@ -20,7 +20,7 @@ listening_port = 8082
 # Cost Information
 #
 # This is used to calculate a cost estimate before a run. It's also used
-# to produce the actual cost at the end of a run. My kiln has three
+# to produce the actual cost during a run. My kiln has three
 # elements that when my switches are set to high, consume 9460 watts.
 
 kwh_rate        = 0.1319  # cost per kilowatt hour per currency_type to calculate cost to run job
