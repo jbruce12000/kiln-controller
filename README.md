@@ -8,7 +8,7 @@ Turns a Raspberry Pi into an inexpensive, web-enabled kiln controller.
   * easy to create new kiln schedules and edit / modify existing schedules
   * no limit to runtime - fire for days if you want
   * view status from multiple devices at once - computer, tablet etc
-  * firing cost estimate
+  * real-time firing cost estimate
   * NIST-linearized conversion for accurate K type thermocouple readings
   * supports PID parameters you tune to your kiln
   * monitors temperature in kiln after schedule has ended
