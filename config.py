@@ -128,7 +128,7 @@ kiln_must_catch_up = True
 # the elements are either 100% on because the kiln is too cold
 # or 100% off because the kiln is too hot. No integral builds up
 # outside the window. The bigger you make the window, the more
-# integral you will accumulate.
+# integral you will accumulate. This should be a positive integer.
 pid_control_window = 5 #degrees 
 
 # thermocouple offset
