@@ -285,7 +285,7 @@ def get_config():
 
 
 def main():
-    ip = config.listening_ip
+    ip = "0.0.0.0"
     port = config.listening_port
     log.info("listening on %s:%d" % (ip, port))
 
