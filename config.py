@@ -1,8 +1,12 @@
 import logging
 import os
+from digitalio import DigitalInOut
+import busio
 
-# uncomment this if using MAX-31856
-#from lib.max31856 import MAX31856
+try:
+    import board
+except NotImplementedError:
+    print("not running on Raspberry PI, assuming simulation")
 
 ########################################################################
 #
@@ -28,30 +32,51 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 
 ########################################################################
 #
-#   GPIO Setup (BCM SoC Numbering Schema)
+# Hardware Setup (uses BCM Pin Numbering)
 #
-#   Check the RasPi docs to see where these GPIOs are
-#   connected on the P1 header for your board type/rev.
-#   These were tested on a Pi B Rev2 but of course you
-#   can use whichever GPIO you prefer/have available.
+# kiln-controller.py uses SPI interface from the blinka library to read
+# temperature data from the adafruit-31855 or adafruit-31856.
+# Blinka supports many different boards. I've only tested raspberry pi.
+#
+# SPI uses 3 or 4 pins. On the raspberry pi, you MUST use predefined
+# pins. In the case of the adafruit-31855, only 3 pins are used:
+#
+#    SPI0_SCLK = BCM pin 11 = CLK on the adafruit-31855
+#    SPI0_MOSI = BCM pin 10 = not connected
+#    SPI0_MISO = BCM pin 9  = D0 on the adafruit-31855
+#   
+# plus a GPIO output to connect to CS. You can use any GPIO pin you want.
+# I chose gpio pin 5:
+#
+#    GPIO5    = BCM pin 5   = CS on the adafruit-31855
+#
+# To control the kiln, one gpio pin is used as an output. Pick any 
+# you like. I chose gpio pin 23. This output is used to control a
+# zero-cross solid-state-relay.
+
+spi_sclk  = board.D11 #spi clock
+spi_mosi  = board.D10 #spi Microcomputer Out Serial In (not connected) 
+spi_miso  = board.D9  #spi Microcomputer In Serial Out
+spi_cs    = board.D5  #spi Chip Select
+gpio_heat = board.D23 #output that controls relay
 
 ### Outputs
-gpio_heat = 23  # Switches zero-cross solid-state-relay
+#gpio_heat = 23  # Switches zero-cross solid-state-relay
 
 ### Thermocouple Adapter selection:
 #   max31855 - bitbang SPI interface
 #   max31856 - bitbang SPI interface. must specify thermocouple_type.
-max31855 = 1
-max31856 = 0
+#max31855 = 1
+#max31856 = 0
 # see lib/max31856.py for other thermocouple_type, only applies to max31856
 # uncomment this if using MAX-31856
 #thermocouple_type = MAX31856.MAX31856_S_TYPE
 
 ### Thermocouple Connection (using bitbang interfaces)
-gpio_sensor_cs = 27
-gpio_sensor_clock = 22
-gpio_sensor_data = 17
-gpio_sensor_di = 10 # only used with max31856
+#gpio_sensor_cs = 27
+#gpio_sensor_clock = 22
+#gpio_sensor_data = 17
+#gpio_sensor_di = 10 # only used with max31856
 
 ########################################################################
 #
