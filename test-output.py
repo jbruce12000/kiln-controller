@@ -5,9 +5,15 @@ import digitalio
 import time
 import datetime
 
+try:
+    import board
+except NotImplementedError:
+    print("not running on Raspberry PI, assuming simulation")
+
+
 ########################################################################
 #
-# To test your output...
+# To test your gpio output to control a relay...
 #
 # Edit config.py and set the following in that file to match your
 # hardware setup: GPIO_HEAT
@@ -18,12 +24,15 @@ import datetime
 #
 # This will switch the output on for five seconds and then off for five 
 # seconds. Measure the voltage between the output and any ground pin.
+# You can also run ./gpioreadall.py in another window to see the voltage
+# on your configured pin change.
 ########################################################################
 
 heater = digitalio.DigitalInOut(config.gpio_heat)
 heater.direction = digitalio.Direction.OUTPUT
 
-print("\nheater configured as config.gpio_heat = %s BCM pin\n" % (config.gpio_heat))
+print("\nboard: %s" % (board.board_id))
+print("heater configured as config.gpio_heat = %s BCM pin\n" % (config.gpio_heat))
 
 while True:
     heater.value = True

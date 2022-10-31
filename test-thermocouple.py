@@ -6,6 +6,12 @@ import time
 import datetime
 import busio
 
+try:
+    import board
+except NotImplementedError:
+    print("not running on Raspberry PI, assuming simulation")
+
+
 ########################################################################
 #
 # To test your thermocouple...
@@ -26,11 +32,12 @@ spi = busio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
 cs = DigitalInOut(config.spi_cs)
 sensor = adafruit_max31855.MAX31855(spi, cs)
 
-print("\nSPI configured as:\n")
-print("    config.spi_sclk = %s BCM pin" % (config.spi_sclk));
-print("    config.spi_mosi = %s BCM pin" % (config.spi_mosi));
-print("    config.spi_miso = %s BCM pin" % (config.spi_miso));
-print("    config.spi_cs   = %s BCM pin\n" % (config.spi_cs));
+print("\nboard: %s" % (board.board_id))
+print("SPI configured as:\n")
+print("    config.spi_sclk = %s BCM pin" % (config.spi_sclk))
+print("    config.spi_mosi = %s BCM pin" % (config.spi_mosi))
+print("    config.spi_miso = %s BCM pin" % (config.spi_miso))
+print("    config.spi_cs   = %s BCM pin\n" % (config.spi_cs))
 
 while(True):
    time.sleep(1)
