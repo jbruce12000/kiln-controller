@@ -8,6 +8,9 @@ try:
 except NotImplementedError:
     print("not running on Raspberry PI, assuming simulation")
 
+# FIX how to choose a thermocouple control board
+# FIX how to choose a microcontrol board (like rpi)
+
 ########################################################################
 #
 #   General options
@@ -59,9 +62,6 @@ spi_mosi  = board.D10 #spi Microcomputer Out Serial In (not connected)
 spi_miso  = board.D9  #spi Microcomputer In Serial Out
 spi_cs    = board.D5  #spi Chip Select
 gpio_heat = board.D23 #output that controls relay
-
-### Outputs
-#gpio_heat = 23  # Switches zero-cross solid-state-relay
 
 ### Thermocouple Adapter selection:
 #   max31855 - bitbang SPI interface
