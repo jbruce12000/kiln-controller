@@ -7,6 +7,7 @@ import json
 import config
 import os
 import digitalio
+import busio
 
 log = logging.getLogger(__name__)
 
@@ -48,23 +49,29 @@ class Output(object):
 # wrapper for blinka board
 class Board(object):
     def __init__(self):
+        log.info("board: %s" % (self.name))
         self.temp_sensor.start()
 
-class BoardReal(Board):
+class RealBoard(Board):
     def __init__(self):
         self.name = None
         self.load_libs()
-        self.temp_sensor = TempSensorReal()
+        self.temp_sensor = self.choose_tempsensor()
         Board.__init__(self) 
 
     def load_libs(self):
         import board
-        log.info("blinka board recognized: %s" % (board.board_id))
         self.name = board.board_id
 
-class BoardSimulated(Board):
+    def choose_tempsensor(self):
+        if config.max31855:
+            return Max31855()
+        if config.max31856:
+            return Max31856()
+
+class SimulatedBoard(Board):
     def __init__(self):
-        self.name = "simulated board"
+        self.name = "simulated"
         self.temp_sensor = TempSensorSimulated()
         Board.__init__(self) 
 
@@ -72,7 +79,6 @@ class TempSensor(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.daemon = True
-        self.temperature = 0
         self.bad_percent = 0
         self.time_step = config.sensor_time_wait
         self.noConnection = self.shortToGround = self.shortToVCC = self.unknownError = False
@@ -81,59 +87,73 @@ class TempSensorSimulated(TempSensor):
     '''not much here, just need to be able to set the temperature'''
     def __init__(self):
         TempSensor.__init__(self)
+        self.simulated_temperature = 0
+    def temperature(self):
+        return self.simulated_temperature
 
 class TempSensorReal(TempSensor):
     '''real temperature sensor thread that takes N measurements
        during the time_step'''
     def __init__(self):
         TempSensor.__init__(self)
+        self.temps = []
         self.sleeptime = self.time_step / float(config.temperature_average_samples)
         self.bad_count = 0
         self.ok_count = 0
         self.bad_stamp = 0
       
-        import busio 
         self.spi = busio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
-        self.cs = DigitalInOut(config.spi_cs)
+        self.cs = digitalio.DigitalInOut(config.spi_cs)
 
-        if config.max31855:
-            log.info("init MAX31855")
-            import adafruit_max31855
-            self.thermocouple = adafruit_max31855.MAX31855(spi, cs)
+    def get_temperature(self):
+        '''must be provided by subclass'''
+        temp = self.raw_temp()
+        if config.temp_scale.lower() == "f":
+            temp = (temp*9/5)+32
+        return temp
 
-        if config.max31856:
-            log.info("init MAX31856")
-            import adafruit_max31856
-            self.thermocouple = adafruit_max31856.MAX31856(spi, cs)
-            # FIX not sure what to do with config.ac_freq_50hz
+    #def get_temperature(self):
+    #    try:
+    #        temp = self.raw_temp
+    #        if config.temp_scale.lower() == "f":
+    #            temp = (temp*9/5)+32
+    #        log.info("temp = %0.2f" % temp)
+    #        return temp
+    #    except RuntimeError as rte:
+    #        if rte.args and rte.args[0] == "thermocouple not connected":
+    #            self.bad_count = self.bad_count + 1
+    #        if rte.args and rte.args[0] == "short circuit to ground":
+    #            if not config.ignore_tc_short_errors:
+    #                self.bad_count = self.bad_count + 1
+    #        if rte.args and rte.args[0] == "short circuit to power":
+    #            if not config.ignore_tc_short_errors:
+    #                self.bad_count = self.bad_count + 1
+    #        if rte.args and rte.args[0] == "faulty reading":
+    #            self.bad_count = self.bad_count + 1
+    #        if rte.args and rte.args[0] == "faulty reading":
+    #            self.bad_count = self.bad_count + 1
+    #
+    #        log.error("Problem reading temp %s" % (rte.args[0]))
+    #    # fix still need to include max-31856 errors by calling fault
+    #    # and checking a dict of possible faults. what a shitty way to handle
+    #    # errors.
+    #    return None
 
     def temperature(self):
-        try:
-            if config.max31855:
-                temp = self.thermocouple.temperature_NIST
-            else:
-                temp = self.thermocouple.temperature
-            return temp
-        except RuntimeError as rte:
-            if rte.args && rte.args[0] == "thermocouple not connected":
-                self.bad_count = self.bad_count + 1
-            if rte.args && rte.args[0] == "short circuit to ground":
-                if not config.ignore_tc_short_errors:
-                    self.bad_count = self.bad_count + 1
-            if rte.args && rte.args[0] == "short circuit to power":
-                if not config.ignore_tc_short_errors:
-                    self.bad_count = self.bad_count + 1
-            if rte.args && rte.args[0] == "faulty reading":
-                self.bad_count = self.bad_count + 1
-            if rte.args && rte.args[0] == "faulty reading":
-                self.bad_count = self.bad_count + 1
-           
-            log.error("Problem reading temp %s" % (rte.args[0]))
-        return None
+        if (self.temps):
+            return self.get_avg_temp(self.temps)
+        return 0
+
+    def add_temp(self,temp):
+        if temp:
+            self.temps.append(temp)
+            # fix this should happen someplace else
+            self.ok_count += 1
+        while(len(self.temps) > config.temperature_average_samples):
+            del self.temps[0]
 
     def run(self):
         '''use a moving average of config.temperature_average_samples across the time_step'''
-        temps = []
         while True:
             # reset error counter if time is up
             if (time.time() - self.bad_stamp) > (self.time_step * 2):
@@ -145,31 +165,9 @@ class TempSensorReal(TempSensor):
                 self.ok_count = 0
                 self.bad_stamp = time.time()
 
-            try:
-                temp = self.thermocouple.temperature
-            except:
-            
-            self.noConnection = self.thermocouple.noConnection
-            self.shortToGround = self.thermocouple.shortToGround
-            self.shortToVCC = self.thermocouple.shortToVCC
-            self.unknownError = self.thermocouple.unknownError
-
-            is_bad_value = self.noConnection | self.unknownError
-            if not config.ignore_tc_short_errors:
-                is_bad_value |= self.shortToGround | self.shortToVCC
-
-            if not is_bad_value:
-                temps.append(temp)
-                if len(temps) > config.temperature_average_samples:
-                    del temps[0]
-                self.ok_count += 1
-
-            else:
-                log.error("Problem reading temp N/C:%s GND:%s VCC:%s ???:%s" % (self.noConnection,self.shortToGround,self.shortToVCC,self.unknownError))
-                self.bad_count += 1
-
-            if len(temps):
-                self.temperature = self.get_avg_temp(temps)
+            temp = self.get_temperature()
+            #log.info("temp = %0.2f" % temp)
+            self.add_temp(temp)
             time.sleep(self.sleeptime)
 
     def get_avg_temp(self, temps, chop=25):
@@ -183,6 +181,34 @@ class TempSensorReal(TempSensor):
         items = int(total*chop)
         temps = temps[items:total-items]
         return sum(temps) / len(temps)
+
+
+class Max31855(TempSensorReal):
+    '''each subclass expected to handle errors and get temperature'''
+    def __init__(self):
+        TempSensorReal.__init__(self)
+        log.info("init MAX31855")
+        import adafruit_max31855
+        self.thermocouple = adafruit_max31855.MAX31855(self.spi, self.cs)
+
+    def raw_temp(self):
+        return self.thermocouple.temperature_NIST
+
+class Max31856(TempSensorReal):
+    '''each subclass expected to handle errors and get temperature'''
+    def __init__(self):
+        TempSensorReal.__init__(self)
+        log.info("init MAX31856")
+        import adafruit_max31856
+        adafruit_max31856.ThermocoupleType(config.thermocouple_type)
+        self.thermocouple = adafruit_max31856.MAX31856(spi, cs)
+        if (config.ac_freq_50hz == True):
+            self.thermocouple.noise_rejection(50)
+        else:
+            self.thermocouple.noise_rejection(60)
+
+    def raw_temp(self):
+        return self.thermocouple.temperature
 
 class Oven(threading.Thread):
     '''parent oven class. this has all the common code
@@ -238,7 +264,7 @@ class Oven(threading.Thread):
         '''shift the whole schedule forward in time by one time_step
         to wait for the kiln to catch up'''
         if config.kiln_must_catch_up == True:
-            temp = self.board.temp_sensor.temperature + \
+            temp = self.board.temp_sensor.temperature() + \
                 config.thermocouple_offset
             # kiln too cold, wait for it to heat up
             if self.target - temp > config.pid_control_window:
@@ -262,7 +288,7 @@ class Oven(threading.Thread):
 
     def reset_if_emergency(self):
         '''reset if the temperature is way TOO HOT, or other critical errors detected'''
-        if (self.board.temp_sensor.temperature + config.thermocouple_offset >=
+        if (self.board.temp_sensor.temperature() + config.thermocouple_offset >=
             config.emergency_shutoff_temp):
             log.info("emergency!!! temperature too high")
             if config.ignore_temp_too_high == False:
@@ -299,7 +325,7 @@ class Oven(threading.Thread):
     def get_state(self):
         temp = 0
         try:
-            temp = self.board.temp_sensor.temperature + config.thermocouple_offset
+            temp = self.board.temp_sensor.temperature() + config.thermocouple_offset
         except AttributeError as error:
             # this happens at start-up with a simulated oven
             temp = 0
@@ -397,7 +423,7 @@ class Oven(threading.Thread):
 class SimulatedOven(Oven):
 
     def __init__(self):
-        self.board = BoardSimulated()
+        self.board = SimulatedBoard()
         self.t_env = config.sim_t_env
         self.c_heat = config.sim_c_heat
         self.c_oven = config.sim_c_oven
@@ -436,11 +462,11 @@ class SimulatedOven(Oven):
         self.p_env = (self.t - self.t_env) / self.R_o_nocool
         self.t -= self.p_env * self.time_step / self.c_oven
         self.temperature = self.t
-        self.board.temp_sensor.temperature = self.t
+        self.board.temp_sensor.simulated_temperature = self.t
 
     def heat_then_cool(self):
         pid = self.pid.compute(self.target,
-                               self.board.temp_sensor.temperature +
+                               self.board.temp_sensor.temperature() +
                                config.thermocouple_offset)
         heat_on = float(self.time_step * pid)
         heat_off = float(self.time_step * (1 - pid))
@@ -486,7 +512,7 @@ class SimulatedOven(Oven):
 class RealOven(Oven):
 
     def __init__(self):
-        self.board = Board()
+        self.board = RealBoard()
         self.output = Output()
         self.reset()
 
@@ -502,7 +528,7 @@ class RealOven(Oven):
 
     def heat_then_cool(self):
         pid = self.pid.compute(self.target,
-                               self.board.temp_sensor.temperature +
+                               self.board.temp_sensor.temperature() +
                                config.thermocouple_offset)
         heat_on = float(self.time_step * pid)
         heat_off = float(self.time_step * (1 - pid))
