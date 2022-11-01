@@ -6,6 +6,7 @@ import logging
 import json
 import config
 import os
+import digitalio
 
 log = logging.getLogger(__name__)
 
@@ -32,71 +33,40 @@ duplog = Duplogger().logref()
 class Output(object):
     def __init__(self):
         self.active = False
-        self.load_libs()
-
-    def load_libs(self):
-        try:
-            import RPi.GPIO as GPIO
-            GPIO.setmode(GPIO.BCM)
-            GPIO.setwarnings(False)
-            GPIO.setup(config.gpio_heat, GPIO.OUT)
-            self.active = True
-            self.GPIO = GPIO
-        except:
-            msg = "Could not initialize GPIOs, oven operation will only be simulated!"
-            log.warning(msg)
-            self.active = False
+        self.heater = digitalio.DigitalInOut(config.gpio_heat) 
+        self.heater.direction = digitalio.Direction.OUTPUT 
 
     def heat(self,sleepfor):
-        self.GPIO.output(config.gpio_heat, self.GPIO.HIGH)
+        self.heater.value = True
         time.sleep(sleepfor)
 
     def cool(self,sleepfor):
         '''no active cooling, so sleep'''
-        self.GPIO.output(config.gpio_heat, self.GPIO.LOW)
+        self.heater.value = False
         time.sleep(sleepfor)
 
-# FIX - Board class needs to be completely removed
+# wrapper for blinka board
 class Board(object):
     def __init__(self):
-        self.name = None
-        self.active = False
-        self.temp_sensor = None
-        self.gpio_active = False
-        self.load_libs()
-        self.create_temp_sensor()
         self.temp_sensor.start()
 
-    def load_libs(self):
-        if config.max31855:
-            try:
-                #from max31855 import MAX31855, MAX31855Error
-                self.name='MAX31855'
-                self.active = True
-                log.info("import %s " % (self.name))
-            except ImportError:
-                msg = "max31855 config set, but import failed"
-                log.warning(msg)
-
-        if config.max31856:
-            try:
-                #from max31856 import MAX31856, MAX31856Error
-                self.name='MAX31856'
-                self.active = True
-                log.info("import %s " % (self.name))
-            except ImportError:
-                msg = "max31856 config set, but import failed"
-                log.warning(msg)
-
-    def create_temp_sensor(self):
-        if config.simulate == True:
-            self.temp_sensor = TempSensorSimulate()
-        else:
-            self.temp_sensor = TempSensorReal()
-
-class BoardSimulated(object):
+class BoardReal(Board):
     def __init__(self):
+        self.name = None
+        self.load_libs()
+        self.temp_sensor = TempSensorReal()
+        Board.__init__(self) 
+
+    def load_libs(self):
+        import board
+        log.info("blinka board recognized: %s" % (board.board_id))
+        self.name = board.board_id
+
+class BoardSimulated(Board):
+    def __init__(self):
+        self.name = "simulated board"
         self.temp_sensor = TempSensorSimulated()
+        Board.__init__(self) 
 
 class TempSensor(threading.Thread):
     def __init__(self):
@@ -121,27 +91,45 @@ class TempSensorReal(TempSensor):
         self.bad_count = 0
         self.ok_count = 0
         self.bad_stamp = 0
+      
+        import busio 
+        self.spi = busio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
+        self.cs = DigitalInOut(config.spi_cs)
 
         if config.max31855:
             log.info("init MAX31855")
-            from max31855 import MAX31855, MAX31855Error
-            self.thermocouple = MAX31855(config.gpio_sensor_cs,
-                                     config.gpio_sensor_clock,
-                                     config.gpio_sensor_data,
-                                     config.temp_scale)
+            import adafruit_max31855
+            self.thermocouple = adafruit_max31855.MAX31855(spi, cs)
 
         if config.max31856:
             log.info("init MAX31856")
-            from max31856 import MAX31856
-            software_spi = { 'cs': config.gpio_sensor_cs,
-                             'clk': config.gpio_sensor_clock,
-                             'do': config.gpio_sensor_data,
-                             'di': config.gpio_sensor_di }
-            self.thermocouple = MAX31856(tc_type=config.thermocouple_type,
-                                         software_spi = software_spi,
-                                         units = config.temp_scale,
-                                         ac_freq_50hz = config.ac_freq_50hz,
-                                         )
+            import adafruit_max31856
+            self.thermocouple = adafruit_max31856.MAX31856(spi, cs)
+            # FIX not sure what to do with config.ac_freq_50hz
+
+    def temperature(self):
+        try:
+            if config.max31855:
+                temp = self.thermocouple.temperature_NIST
+            else:
+                temp = self.thermocouple.temperature
+            return temp
+        except RuntimeError as rte:
+            if rte.args && rte.args[0] == "thermocouple not connected":
+                self.bad_count = self.bad_count + 1
+            if rte.args && rte.args[0] == "short circuit to ground":
+                if not config.ignore_tc_short_errors:
+                    self.bad_count = self.bad_count + 1
+            if rte.args && rte.args[0] == "short circuit to power":
+                if not config.ignore_tc_short_errors:
+                    self.bad_count = self.bad_count + 1
+            if rte.args && rte.args[0] == "faulty reading":
+                self.bad_count = self.bad_count + 1
+            if rte.args && rte.args[0] == "faulty reading":
+                self.bad_count = self.bad_count + 1
+           
+            log.error("Problem reading temp %s" % (rte.args[0]))
+        return None
 
     def run(self):
         '''use a moving average of config.temperature_average_samples across the time_step'''
@@ -157,7 +145,10 @@ class TempSensorReal(TempSensor):
                 self.ok_count = 0
                 self.bad_stamp = time.time()
 
-            temp = self.thermocouple.get()
+            try:
+                temp = self.thermocouple.temperature
+            except:
+            
             self.noConnection = self.thermocouple.noConnection
             self.shortToGround = self.thermocouple.shortToGround
             self.shortToVCC = self.thermocouple.shortToVCC
