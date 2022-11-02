@@ -1,6 +1,5 @@
 import threading
 import time
-import random
 import datetime
 import logging
 import json
@@ -30,8 +29,12 @@ class Duplogger():
 
 duplog = Duplogger().logref()
 
-
 class Output(object):
+    '''This represents a GPIO output that controls a solid
+    state relay to turn the kiln elements on and off.
+    inputs
+        config.gpio_heat
+    '''
     def __init__(self):
         self.active = False
         self.heater = digitalio.DigitalInOut(config.gpio_heat) 
@@ -48,11 +51,18 @@ class Output(object):
 
 # wrapper for blinka board
 class Board(object):
+    '''This represents a blinka board where this code
+    runs.
+    '''
     def __init__(self):
         log.info("board: %s" % (self.name))
         self.temp_sensor.start()
 
 class RealBoard(Board):
+    '''Each board has a thermocouple board attached to it.
+    Any blinka board that supports SPI can be used. The
+    board is automatically detected by blinka.
+    '''
     def __init__(self):
         self.name = None
         self.load_libs()
@@ -70,12 +80,18 @@ class RealBoard(Board):
             return Max31856()
 
 class SimulatedBoard(Board):
+    '''Simulated board used during simulations.
+    See config.simulate
+    '''
     def __init__(self):
         self.name = "simulated"
         self.temp_sensor = TempSensorSimulated()
         Board.__init__(self) 
 
 class TempSensor(threading.Thread):
+    '''Used by the Board class. Each Board must have
+    a TempSensor.
+    '''
     def __init__(self):
         threading.Thread.__init__(self)
         self.daemon = True
@@ -83,7 +99,7 @@ class TempSensor(threading.Thread):
         self.status = ThermocoupleTracker()
 
 class TempSensorSimulated(TempSensor):
-    '''not much here, just need to be able to set the temperature'''
+    '''Simulates a temperature sensor '''
     def __init__(self):
         TempSensor.__init__(self)
         self.simulated_temperature = 0
@@ -91,8 +107,11 @@ class TempSensorSimulated(TempSensor):
         return self.simulated_temperature
 
 class TempSensorReal(TempSensor):
-    '''real temperature sensor thread that takes N measurements
-       during the time_step'''
+    '''real temperature sensor that takes many measurements
+       during the time_step
+       inputs
+           config.temperature_average_samples 
+    '''
     def __init__(self):
         TempSensor.__init__(self)
         self.sleeptime = self.time_step / float(config.temperature_average_samples)
@@ -102,35 +121,20 @@ class TempSensorReal(TempSensor):
 
     def get_temperature(self):
         '''read temp from tc and convert if needed'''
-        temp = self.raw_temp() # raw_temp provided by subclasses
-        if config.temp_scale.lower() == "f":
-            temp = (temp*9/5)+32
-        return temp
-
-    #def get_temperature(self):
-    #    try:
-    #        temp = self.raw_temp
-    #        if config.temp_scale.lower() == "f":
-    #            temp = (temp*9/5)+32
-    #        log.info("temp = %0.2f" % temp)
-    #        return temp
-    #    except RuntimeError as rte:
-    #        if rte.args and rte.args[0] == "thermocouple not connected":
-    #            self.bad_count = self.bad_count + 1
-    #        if rte.args and rte.args[0] == "short circuit to ground":
-    #            if not config.ignore_tc_short_errors:
-    #                self.bad_count = self.bad_count + 1
-    #        if rte.args and rte.args[0] == "short circuit to power":
-    #            if not config.ignore_tc_short_errors:
-    #                self.bad_count = self.bad_count + 1
-    #        if rte.args and rte.args[0] == "faulty reading":
-    #            self.bad_count = self.bad_count + 1
-    #
-    #        log.error("Problem reading temp %s" % (rte.args[0]))
-    #    # fix still need to include max-31856 errors by calling fault
-    #    # and checking a dict of possible faults. what a shitty way to handle
-    #    # errors.
-    #    return None
+        try:
+            temp = self.raw_temp() # raw_temp provided by subclasses
+            if config.temp_scale.lower() == "f":
+                temp = (temp*9/5)+32
+            self.status.good()
+            return temp
+        except ThermocoupleError as tce:
+            if tce.ignore:
+                log.error("Problem reading temp (ignored) %s" % (tce.message))
+                self.status.good()
+            else:
+                log.error("Problem reading temp %s" % (tce.message))
+                self.status.bad()
+        return None
 
     def temperature(self):
         '''average temp over a duty cycle'''
@@ -138,20 +142,14 @@ class TempSensorReal(TempSensor):
 
     def run(self):
         while True:
-            # not at all sure this try/except should be here
-            # might be better getting the temp
-            try:
-                temp = self.get_temperature()
-                self.status.good()
+            temp = self.get_temperature()
+            if temp:
                 self.temptracker.add(temp)
-            except RuntimeError as rte:
-                self.status.bad()
-                log.error("Problem reading temp %s" % (rte.args[0]))
-
             time.sleep(self.sleeptime)
 
 class TempTracker(object):
-    '''creates a sliding window of temperatures
+    '''creates a sliding window of N temperatures per
+       config.sensor_time_wait
     '''
     def __init__(self):
         self.size = config.temperature_average_samples
@@ -204,8 +202,6 @@ class ThermocoupleTracker(object):
 
 class Max31855(TempSensorReal):
     '''each subclass expected to handle errors and get temperature'''
-    # FIX I need unified errors from these classes since the underlying
-    # implementations are different 
     def __init__(self):
         TempSensorReal.__init__(self)
         log.info("thermocouple MAX31855")
@@ -213,7 +209,83 @@ class Max31855(TempSensorReal):
         self.thermocouple = adafruit_max31855.MAX31855(self.spi, self.cs)
 
     def raw_temp(self):
-        return self.thermocouple.temperature_NIST
+        try:
+            return self.thermocouple.temperature_NIST
+        except RuntimeError as rte:
+            if rte.args and rte.args[0]:
+                raise Max31855_Error(rte.args[0])
+            raise Max31855_Error('unknown')
+
+class ThermocoupleError(Exception):
+    '''
+    thermocouple exception parent class to handle mapping of error messages
+    and make them consistent across adafruit libraries. Also set whether
+    each exception should be ignored based on settings in config.py.
+    '''
+    def __init__(self, message):
+        self.ignore = False
+        self.message = message
+        self.map_message()
+        self.set_ignore()
+        super().__init__(self.message)
+
+    def set_ignore(self):
+        if self.message == "not connected" and config.ignore_tc_lost_connection == True:
+            self.ignore = True
+        if self.message == "short circuit" and config.ignore_tc_short_errors == True:
+            self.ignore = True
+        if self.message == "unknown" and config.ignore_tc_unknown_error == True:
+            self.ignore = True
+        if self.message == "cold junction range fault" and config.ignore_tc_cold_junction_range_error == True:
+            self.ignore = True
+        if self.message == "thermocouple range fault" and config.ignore_tc_range_error == True:
+            self.ignore = True
+        if self.message == "cold junction temp too high" and config.ignore_tc_cold_junction_temp_high == True:
+            self.ignore = True
+        if self.message == "cold junction temp too low" and config.ignore_tc_cold_junction_temp_low == True:
+            self.ignore = True
+        if self.message == "thermocouple temp too high" and config.ignore_tc_temp_high == True:
+            self.ignore = True
+        if self.message == "thermocouple temp too low" and config.ignore_tc_temp_low == True:
+            self.ignore = True
+        if self.message == "voltage too high or low" and config.ignore_tc_voltage_error == True:
+            self.ignore = True
+
+    def map_message(self):
+        try:
+            self.message = self.map[self.orig_message]
+        except KeyError:
+            self.message = "unknown"
+
+class Max31855_Error(ThermocoupleError):
+    '''
+    All children must set self.orig_message and self.map
+    '''
+    def __init__(self, message):
+        self.orig_message = message
+        # this purposefully makes "fault reading" and
+        # "Total thermoelectric voltage out of range..." unknown errors
+        self.map = {
+            "thermocouple not connected" : "not connected",
+            "short circuit to ground" : "short circuit",
+            "short circuit to power" : "short circuit",
+            }
+        super().__init__(self.message)
+
+class Max31856_Error(ThermocoupleError):
+    def __init__(self, message):
+        self.orig_message = message
+        self.map = {
+            "cj_range" : "cold junction range fault",
+            "tc_range" : "thermocouple range fault",
+            "cj_high"  : "cold junction temp too high",
+            "cj_low"   : "cold junction temp too low",
+            "tc_high"  : "thermocouple temp too high",
+            "tc_low"   : "thermocouple temp too low",
+            "voltage"  : "voltage too high or low", 
+            "open_tc"  : "not connected"
+            }
+        super().__init__(self.message)
 
 class Max31856(TempSensorReal):
     '''each subclass expected to handle errors and get temperature'''
@@ -229,7 +301,16 @@ class Max31856(TempSensorReal):
             self.thermocouple.noise_rejection(60)
 
     def raw_temp(self):
-        return self.thermocouple.temperature
+        # The underlying adafruit library does not throw exceptions
+        # for thermocouple errors. Instead, they are stored in 
+        # dict named self.thermocouple.fault. Here we check that
+        # dict for errors and raise an exception.
+        # and raise Max31856_Error(message)
+        temp = self.thermocouple.temperature
+        for k,v in self.thermocouple.fault:
+            if v:
+                raise Max31856_Error(k)
+        return temp
 
 class Oven(threading.Thread):
     '''parent oven class. this has all the common code
@@ -254,21 +335,6 @@ class Oven(threading.Thread):
 
     def run_profile(self, profile, startat=0):
         self.reset()
-
-        # FIX, these need to be moved
-        #if self.board.temp_sensor.noConnection:
-        #    log.info("Refusing to start profile - thermocouple not connected")
-        #    return
-        #if self.board.temp_sensor.shortToGround:
-        #    log.info("Refusing to start profile - thermocouple short to ground")
-        #    return
-        #if self.board.temp_sensor.shortToVCC:
-        #    log.info("Refusing to start profile - thermocouple short to VCC")
-        #    return
-        #if self.board.temp_sensor.unknownError:
-        #    log.info("Refusing to start profile - thermocouple unknown error")
-        #    return
-
         self.startat = startat * 60
         self.runtime = self.startat
         self.start_time = datetime.datetime.now() - datetime.timedelta(seconds=self.startat)
@@ -310,27 +376,16 @@ class Oven(threading.Thread):
 
     def reset_if_emergency(self):
         '''reset if the temperature is way TOO HOT, or other critical errors detected'''
-        # FIX - need to fix this whole thing...
-        #if (self.board.temp_sensor.temperature() + config.thermocouple_offset >=
-        #    config.emergency_shutoff_temp):
-        #    log.info("emergency!!! temperature too high")
-        #    if config.ignore_temp_too_high == False:
-        #        self.abort_run()
-
-        #if self.board.temp_sensor.noConnection:
-        #    log.info("emergency!!! lost connection to thermocouple")
-        #    if config.ignore_lost_connection_tc == False:
-        #        self.abort_run()
-
-        #if self.board.temp_sensor.unknownError:
-        #    log.info("emergency!!! unknown thermocouple error")
-        #    if config.ignore_unknown_tc_error == False:
-        #        self.abort_run()
-
-        #if self.board.temp_sensor.status.over_error_limit():
-        #    log.info("emergency!!! too many errors in a short period")
-        #    if config.ignore_too_many_tc_errors == False:
-        #        self.abort_run()
+        if (self.board.temp_sensor.temperature() + config.thermocouple_offset >=
+            config.emergency_shutoff_temp):
+            log.info("emergency!!! temperature too high")
+            if config.ignore_temp_too_high == False:
+                self.abort_run()
+        
+        if self.board.temp_sensor.status.over_error_limit():
+            log.info("emergency!!! too many errors in a short period")
+            if config.ignore_too_many_tc_errors == False:
+                self.abort_run()
 
     def reset_if_schedule_ended(self):
         if self.runtime > self.totaltime:

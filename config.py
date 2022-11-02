@@ -66,17 +66,20 @@ gpio_heat = board.D23 #output that controls relay
 ### Thermocouple Adapter selection:
 #   max31855 - bitbang SPI interface
 #   max31856 - bitbang SPI interface. must specify thermocouple_type.
-#max31855 = 1
-#max31856 = 0
-# see lib/max31856.py for other thermocouple_type, only applies to max31856
+max31855 = 1
+max31856 = 0
 # uncomment this if using MAX-31856
-#thermocouple_type = MAX31856.MAX31856_S_TYPE
+#thermocouple_type = ThermocoupleType.S
 
-### Thermocouple Connection (using bitbang interfaces)
-#gpio_sensor_cs = 27
-#gpio_sensor_clock = 22
-#gpio_sensor_data = 17
-#gpio_sensor_di = 10 # only used with max31856
+# here are the possible max-31856 thermocouple types
+#   ThermocoupleType.B
+#   ThermocoupleType.E
+#   ThermocoupleType.J
+#   ThermocoupleType.K
+#   ThermocoupleType.N
+#   ThermocoupleType.R
+#   ThermocoupleType.S
+#   ThermocoupleType.T
 
 ########################################################################
 #
@@ -112,7 +115,7 @@ stop_integral_windup = True
 ########################################################################
 #
 #   Simulation parameters
-simulate = True
+simulate = False
 sim_t_env      = 60.0   # deg C
 sim_c_heat     = 500.0  # J/K  heat capacity of heat element
 sim_c_oven     = 5000.0 # J/K  heat capacity of oven
@@ -179,16 +182,25 @@ ac_freq_50hz = False
 # - unknown error with thermocouple
 # - too many errors in a short period from thermocouple
 # but in some cases, you might want to ignore a specific error, log it,
-# and continue running your profile.
+# and continue running your profile instead of having the process die.
+#
+# You should only set these to True if you experience a problem
+# and WANT to ignore it to complete a firing.
 ignore_temp_too_high = False
-ignore_lost_connection_tc = False
-ignore_unknown_tc_error = False
-ignore_too_many_tc_errors = False
-# some kilns/thermocouples start erroneously reporting "short" 
-# errors at higher temperatures due to plasma forming in the kiln.
-# Set this to True to ignore these errors and assume the temperature 
-# reading was correct anyway
+ignore_tc_lost_connection = False
+ignore_tc_cold_junction_range_error = False
+ignore_tc_range_error = False
+ignore_tc_cold_junction_temp_high = False
+ignore_tc_cold_junction_temp_low = False
+ignore_tc_temp_high = False
+ignore_tc_temp_low = False
+ignore_tc_voltage_error = False
 ignore_tc_short_errors = False 
+ignore_tc_unknown_error = False
+
+# This overrides all possible thermocouple errors and prevents the 
+# process from exiting.
+ignore_tc_too_many_errors = False
 
 ########################################################################
 # automatic restarts - if you have a power brown-out and the raspberry pi

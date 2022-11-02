@@ -6,9 +6,12 @@ gevent-websocket
 websocket-client
 
 
-#RPi.GPIO
-#Adafruit-MAX31855
-#Adafruit-GPIO
-
-adafruit-circuitpython-max31856
+# List of all supported adafruit modules for thermocouples
 adafruit-circuitpython-max31855
+adafruit-circuitpython-max31856
+
+# untested - for PT100 platinum thermocouples
+#adafruit-circuitpython-max31865
+
+# untested - for mcp9600 and mcp9601
+#adafruit-circuitpython-mcp9600
