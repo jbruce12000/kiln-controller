@@ -94,9 +94,11 @@ If you're done playing around with simulations and want to deploy the code on a 
 
 All parameters are defined in config.py, review/change to your mind's content.
 
-You should change, test, and verify PID parameters in config.py.  Here is a [PID Tuning Guide](https://github.com/jbruce12000/kiln-controller/blob/master/docs/pid_tuning.md). There is also an [autotuner](https://github.com/jbruce12000/kiln-controller/blob/master/docs/ziegler_tuning.md). Be patient with tuning. No tuning is perfect across a wide temperature range.
+You should change, test, and verify PID parameters in config.py.  You need to read through config.py carefully to understand each setting.
 
 You may want to change the configuration parameter **sensor_time_wait**. It's the duty cycle for the entire system.  It's set to two seconds by default which means that a decision is made every 2s about whether to turn on relay[s] and for how long. If you use mechanical relays, you may want to increase this. At 2s, my SSR switches 11,000 times in 13 hours.
+
+You should change **temp_scale** to either f for Farenheit or c for Celcius.
 
 ## Testing
 
@@ -115,6 +117,10 @@ then test the output with:
 and you can use this script to examine each pin's state including input/output/voltage on your board:
 
      $ ./gpioreadall.py
+
+## PID Tuning
+
+Run the [autotuner](https://github.com/jbruce12000/kiln-controller/blob/master/docs/ziegler_tuning.md). It will heat your kiln to 400, pass that, and then once it cools back down to 400, it will calculate PID values to copy into config.py. No tuning is perfect across a wide temperature range. Here is a [PID Tuning Guide](https://github.com/jbruce12000/kiln-controller/blob/master/docs/pid_tuning.md) if you end up having to manually tune.
 
 ## Usage
 
