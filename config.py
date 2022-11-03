@@ -6,7 +6,7 @@ import busio
 try:
     import board
 except NotImplementedError:
-    print("not running on Raspberry PI, assuming simulation")
+    print("not running on blinka recognized board, probably a simulation")
 
 # FIX how to choose a thermocouple control board
 # FIX how to choose a microcontrol board (like rpi)
