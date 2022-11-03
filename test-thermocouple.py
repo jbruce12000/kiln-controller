@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import config
-import adafruit_max31855
 from digitalio import DigitalInOut
 import time
 import datetime
@@ -9,8 +8,9 @@ import busio
 try:
     import board
 except NotImplementedError:
-    print("not running on Raspberry PI, assuming simulation")
-
+    print("not running a recognized blinka board, exiting...")
+    import sys
+    sys.exit()
 
 ########################################################################
 #
@@ -30,14 +30,25 @@ except NotImplementedError:
 
 spi = busio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
 cs = DigitalInOut(config.spi_cs)
-sensor = adafruit_max31855.MAX31855(spi, cs)
+sensor = None
 
 print("\nboard: %s" % (board.board_id))
+if(config.max31855):
+    import adafruit_max31855
+    print("thermocouple: adafruit max31855")
+    sensor = adafruit_max31855.MAX31855(spi, cs)
+if(config.max31856):
+    import adafruit_max31856
+    print("thermocouple: adafruit max31856")
+    sensor = adafruit_max31856.MAX31856(spi, cs)
+
 print("SPI configured as:\n")
 print("    config.spi_sclk = %s BCM pin" % (config.spi_sclk))
 print("    config.spi_mosi = %s BCM pin" % (config.spi_mosi))
 print("    config.spi_miso = %s BCM pin" % (config.spi_miso))
 print("    config.spi_cs   = %s BCM pin\n" % (config.spi_cs))
+print("Degrees displayed in %s\n" % (config.temp_scale))
+
 
 while(True):
    time.sleep(1)
