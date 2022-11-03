@@ -6,7 +6,6 @@ import csv
 import time
 import argparse
 
-
 def recordprofile(csvfile, targettemp):
 
     try:
@@ -32,6 +31,7 @@ def recordprofile(csvfile, targettemp):
     # construct the oven
     if config.simulate:
         oven = SimulatedOven()
+        oven.target = targettemp * 2 # insures max heating for simulation
     else:
         oven = RealOven()
 
@@ -42,35 +42,43 @@ def recordprofile(csvfile, targettemp):
     # * wait for it to decay back to the target again.
     # * quit
     #
-    # We record the temperature every second
+    # We record the temperature every config.sensor_time_wait
     try:
-        stage = 'heating'
-        if not config.simulate:
-            oven.output.heat(0)
 
-        while True:
-            temp = oven.board.temp_sensor.temperature + \
+        # heating to target of 400F
+        temp = 0
+        sleepfor = config.sensor_time_wait
+        stage = "heating"
+        while(temp <= targettemp):
+            if config.simulate:
+                oven.heat_then_cool()
+            else:
+                oven.output.heat(sleepfor)
+            temp = oven.board.temp_sensor.temperature() + \
                 config.thermocouple_offset
-
+            
+            print("stage = %s, actual = %.2f, target = %.2f" % (stage,temp,targettemp))
             csvout.writerow([time.time(), temp])
             f.flush()
 
-            if stage == 'heating':
-                if temp >= targettemp:
-                    if not config.simulate:
-                        oven.output.cool(0)
-                    stage = 'cooling'
-
-            elif stage == 'cooling':
-                if temp < targettemp:
-                    break
-
-            print("stage = %s, actual = %s, target = %s" % (stage,temp,targettemp))
-            time.sleep(1)
-
-        f.close()
+        # overshoot past target of 400F and then cooling down to 400F
+        stage = "cooling"
+        if config.simulate:
+            oven.target = 0
+        while(temp >= targettemp):
+            if config.simulate:
+                oven.heat_then_cool()
+            else:
+                oven.output.cool(sleepfor)
+            temp = oven.board.temp_sensor.temperature() + \
+                config.thermocouple_offset
+            
+            print("stage = %s, actual = %.2f, target = %.2f" % (stage,temp,targettemp))
+            csvout.writerow([time.time(), temp])
+            f.flush()
 
     finally:
+        f.close()
         # ensure we always shut the oven down!
         if not config.simulate:
             oven.output.cool(0)
