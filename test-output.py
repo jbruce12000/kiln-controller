@@ -8,8 +8,9 @@ import datetime
 try:
     import board
 except NotImplementedError:
-    print("not running on Raspberry PI, assuming simulation")
-
+    print("not running a recognized blinka board, exiting...")
+    import sys
+    sys.exit()
 
 ########################################################################
 #
