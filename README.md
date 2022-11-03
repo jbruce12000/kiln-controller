@@ -87,7 +87,7 @@ If you're done playing around with simulations and want to deploy the code on a 
 ### Enable SPI
 
     $ sudo raspi-config
-    interfacing options -> SPI -> Select **Yes** to enable
+    interfacing options -> SPI -> Select Yes to enable
     select reboot
 
 ## Configuration
