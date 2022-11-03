@@ -120,7 +120,7 @@ and you can use this script to examine each pin's state including input/output/v
 
 ## PID Tuning
 
-Run the [autotuner](https://github.com/jbruce12000/kiln-controller/blob/master/docs/ziegler_tuning.md). It will heat your kiln to 400, pass that, and then once it cools back down to 400, it will calculate PID values to copy into config.py. No tuning is perfect across a wide temperature range. Here is a [PID Tuning Guide](https://github.com/jbruce12000/kiln-controller/blob/master/docs/pid_tuning.md) if you end up having to manually tune.
+Run the [autotuner](https://github.com/jbruce12000/kiln-controller/blob/master/docs/ziegler_tuning.md). It will heat your kiln to 400F, pass that, and then once it cools back down to 400F, it will calculate PID values which you must copy into config.py. No tuning is perfect across a wide temperature range. Here is a [PID Tuning Guide](https://github.com/jbruce12000/kiln-controller/blob/master/docs/pid_tuning.md) if you end up having to manually tune.
 
 ## Usage
 
