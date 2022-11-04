@@ -6,11 +6,11 @@ The method implemented here is taken from ["Ziegler–Nichols Tuning Method"](ht
 
 One issue with Ziegler Nicols is that is a **heuristic**: it generally works quite well, but it might not be the optimal values. Further manual adjustment may be necessary.
 
-## Step 1: Record Temperature Profie
+## Step 1: Run the Auto-Tuner
 
-Make sure the kiln-controller is **stopped**. Make sure your kiln is in the same state it will be in during a normal firing. For instance, if you use a kiln vent during normal firing, make sure it is on. Make sure your kiln is completely cool - we need to record the data starting from room temperature to correctly measure the effect of kiln/heating.
-
-execute the code to record data and provide estimates at the end:
+  - make sure the kiln-controller is **stopped**
+  - make sure your kiln is in the same state it will be in during a normal firing. For instance, if you use a kiln vent during normal firing, make sure it is on.
+  - make sure the kiln is completely cool. We need to record the data starting from room temperature to correctly measure the effect of kiln/heating.
 
 ```
 source venv/bin/activate; ./kiln-tuner.py
