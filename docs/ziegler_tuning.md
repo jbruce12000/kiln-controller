@@ -6,84 +6,58 @@ The method implemented here is taken from ["Ziegler–Nichols Tuning Method"](ht
 
 One issue with Ziegler Nicols is that is a **heuristic**: it generally works quite well, but it might not be the optimal values. Further manual adjustment may be necessary.
 
-## Process Overview
-
-1. First of all, you will record a temperature profile for your kiln.
-2. Next, we use those figures to estimate Kp/Ki/Kd.
-
 ## Step 1: Record Temperature Profie
 
-Ensure `kiln-controller` is **stopped** during profile recording: The profile must be recorded without any interference from the actual PID control loop (you also don't want two things changing the same GPIOs at the same time!)
+Make sure the kiln-controller is **stopped**. Make sure your kiln is in the same state it will be in during a normal firing. For instance, if you use a kiln vent during normal firing, make sure it is on. Make sure your kiln is completely cool - we need to record the data starting from room temperature to correctly measure the effect of kiln/heating.
 
-Make sure your kiln is completely cool - we need to record the data starting from room temperature to correctly measure the effect of kiln/heating.
-
-There needs to be no abnormal source of temperature change to the kiln: eg if you normally run with a kiln plug in place - make sure its in place for the test!
-
-To record the profile, run:
-```
-python kiln-tuner.py recordprofile zn.csv
-```
-
-The above will drive your kiln to 400 and record the temperature profile to the file `zn.csv`. The file will look something like this:
+execute the code to record data and provide estimates at the end:
 
 ```
-time,temperature
-4.025461912,45.5407078
-6.035358906,45.5407078
-8.045399904,45.5407078
-10.05544925,45.59087846
-...
+source venv/bin/activate; ./kiln-tuner.py
 ```
 
-## Step 2: Compute the PID parameters
-
-Once you have your zn.csv profile, run the following:
+The kiln-tuner will heat your kiln to 400F. Next it will start cooling. Once the temperature goes back to 400F, the PID values are calculated and the program ends. The output will look like this:
 
 ```
-python kiln-tuner.py zn zn.csv
+stage = cooling, actual = 401.51, target = 400.00
+stage = cooling, actual = 401.26, target = 400.00
+stage = cooling, actual = 401.01, target = 400.00
+stage = cooling, actual = 400.77, target = 400.00
+stage = cooling, actual = 400.52, target = 400.00
+stage = cooling, actual = 400.28, target = 400.00
+stage = cooling, actual = 400.03, target = 400.00
+stage = cooling, actual = 399.78, target = 400.00
+pid_kp = 14.231158917317776
+pid_ki = 4.745613033146341
+pid_kd = 240.27736881914797
 ```
 
-The values will be output to stdout, for example:
-```
-Kp: 3.853985144980333 1/Ki: 87.78173053095107 Kd: 325.9599328488931
-```
-(Note that the Ki value is already inverted ready for use in config)
+## Step 2: Replace the PID parameters in config.py
 
-------
+Copy & paste the pid_kp, pid_ki, and pid_kd values into config.py and Restart the kiln-controller. Test out the values by firing your kiln. They may require manual adjustment.
 
-## Sanity checking the results
+## The values didn't work for me.
 
-If you run
-```
-python kiln-tuner.py zn zn.csv --showplot
-```
-
-It will display a plot of the parameters. It should look simular to this ![kiln-tuner-example.png](kiln-tuner-example.png).
-
-Note: you will need python's `pyplot` installed for this to work.
-
-The smooth linear part of the chart is very important. If it is too short, try increasing the target temperature (see later).
-
-The red diagonal line: this **must** follow the smooth part of your chart closely.
+The Ziegler Nicols estimate requires that your graph look similar to this: [kiln-tuner-example.png](kiln-tuner-example.png). The smooth linear part of the chart is very important. If it is too short, try increasing the target temperature (see later). The red diagonal line **must** follow the smooth part of your chart closely.
 
 ## My diagonal line isn't right
 
-You might need to adjust the line parameters to make it fit your data properly. You can do this as follows:
+You might need to adjust the line parameters to make it fit your data properly. You'll do this using previously saved data without the need to heat & cool again. 
 
 ```
-python kiln-tuner.py zn zn.csv --tangentdivisor 4
+source venv/bin/activate;./kiln-tuner.py -c -s -d 4
 ```
 
-`tangentdivisor` modifies which parts of the profile is used to calculate the line.
-
-It is a floating point number >= 2; If necessary, try varying it till you get a better fit.
+| Parameter | Description |
+| --------- | ----------- |
+| -c | calculate only (don't heat/cool and record) |
+| -s | show plot (requires pyplot be installed in the virtual env) |
+| -d float | tangent divisor which modifies which part of the profile is used to calculate the line. Must be >= 2.0. Vary it to get a better fit. |
 
 ## Changing the target temperature
 
-By default it is 400. You can change this as follows:
+By default it is 400F. You can change this as follows:
 
 ```
-python kiln-tuner.py recordprofile zn.csv --targettemp 500
+python kiln-tuner.py -t 500
 ```
-
-(where the target temperature has been changed to 500 in the example above)
