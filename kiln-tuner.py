@@ -184,32 +184,23 @@ def calculate(filename, tangentdivisor, showplot):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Kiln tuner')
-    subparsers = parser.add_subparsers()
-    parser.set_defaults(mode='')
+    parser.add_argument('-c', '--calculate_only', action='store_true')
+    parser.add_argument('-t', '--tangent_divisor', type=float, default=8, help="Adjust the tangent calculation to fit better. Must be >= 2 (default 8).")
+    args = parser.parse_args()
 
     csvfile = "tuning.csv"
     target = 400
     if config.temp_scale.lower() == "c":
         target = (target - 32)*5/9
-    tangentdivisor = 8
-
-    # parser_profile = subparsers.add_parser('recordprofile', help='Record kiln temperature profile')
-    # parser_profile.add_argument('csvfile', type=str, help="The CSV file to write to.")
-    # parser_profile.add_argument('--targettemp', type=int, default=400, help="The target temperature to drive the kiln to (default 400).")
-    # parser_profile.set_defaults(mode='recordprofile')
-
-    #parser_zn = subparsers.add_parser('zn', help='Calculate Ziegler-Nicols parameters')
-    #parser_zn.add_argument('csvfile', type=str, help="The CSV file to read from. Must contain two columns called time (time in seconds) and temperature (observed temperature)")
-    #parser_zn.add_argument('--showplot', action='store_true', help="If set, also plot results (requires pyplot to be pip installed)")
-    #parser_zn.add_argument('--tangentdivisor', type=float, default=8, help="Adjust the tangent calculation to fit better. Must be >= 2 (default 8).")
-    #parser_zn.set_defaults(mode='zn')
-
-    args = parser.parse_args()
+    tangentdivisor = args.tangent_divisor 
 
     # default behavior is to record profile to csv file tuning.csv
     # and then calculate pid values and print them
-    recordprofile(csvfile, target)
-    calculate(csvfile, tangentdivisor, False)
+    if args.calculate_only:
+        calculate(csvfile, tangentdivisor, False)
+    else:
+        recordprofile(csvfile, target)
+        calculate(csvfile, tangentdivisor, False)
 
     #elif args.mode == 'zn':
     #    if args.tangentdivisor < 2:
