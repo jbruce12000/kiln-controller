@@ -38,7 +38,7 @@ Start a glaze firing in 15 minutes and start a kiln watcher. This is really usef
     source ~/kiln-controller/venv/bin/activate; ~/kiln-controller/watcher.jbruce.py
     END
 
-Start a biscuit fire at 1a tomorrow, but skip the first two hours [120 minutes] of candling because I know my wares are dry:
+Start a biscuit fire at 1a tomorrow, but skip the first two hours [120 minutes] of candling because I know my wares are dry. One interesting thing to note about this example is that I am not starting a kiln watcher here. If I did, the watcher would page me at the start of the run because skipping the first two hours means that we are asking the kiln to immediately be at 200F... which it cannot immediately do. It would page me every 60s until it reaches temp. This is easily addressed by creating a new profile that does not include candling, but starts at room temp and heats at a rate which the kiln is capable. Another possibility would be to schedule the start of the watcher say ten or fifteen minutes after the biscuit firing starts which gives the kiln time to heat up. options.
 
     at 1am tomorrow <<END
     curl -d '{"cmd":"run", "profile":"cone-05-long-bisque","startat":120}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
