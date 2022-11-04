@@ -144,6 +144,10 @@ of your PI and the port defined in config.py (default 8081).
 
 In config.py, set **simulate=True**. Start the server and select a profile and click Start. Simulations run at near real time.
 
+### Scheduling a Kiln run
+
+If you want to schedule a kiln run to start in the future. Here are [examples](https://github.com/jbruce12000/kiln-controller/blob/master/docs/scheduling.md).
+
 ### Watcher
 
 If you're busy and do not want to sit around watching the web interface for problems, there is a watcher.py script which you can run on any machine in your local network or even on the raspberry pi which will watch the kiln-controller process to make sure it is running a schedule, and staying within a pre-defined temperature range. When things go bad, it sends messages to a slack channel you define. I have alerts set on my android phone for that specific slack channel. Here are detailed [instructions](https://github.com/jbruce12000/kiln-controller/blob/master/docs/watcher.md).
