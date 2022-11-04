@@ -185,11 +185,13 @@ def calculate(filename, tangentdivisor, showplot):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Kiln tuner')
     parser.add_argument('-c', '--calculate_only', action='store_true')
-    parser.add_argument('-t', '--tangent_divisor', type=float, default=8, help="Adjust the tangent calculation to fit better. Must be >= 2 (default 8).")
+    parser.add_argument('-t', '--target_temp', type=float, default=400, help="Target temperature")
+    parser.add_argument('-d', '--tangent_divisor', type=float, default=8, help="Adjust the tangent calculation to fit better. Must be >= 2 (default 8).")
+    parser.add_argument('-s', '--showplot', action='store_true', help="draw plot so you can see tanget line and possibly change")
     args = parser.parse_args()
 
     csvfile = "tuning.csv"
-    target = 400
+    target = args.target_temp
     if config.temp_scale.lower() == "c":
         target = (target - 32)*5/9
     tangentdivisor = args.tangent_divisor 
@@ -197,20 +199,7 @@ if __name__ == "__main__":
     # default behavior is to record profile to csv file tuning.csv
     # and then calculate pid values and print them
     if args.calculate_only:
-        calculate(csvfile, tangentdivisor, False)
+        calculate(csvfile, tangentdivisor, args.showplot)
     else:
         recordprofile(csvfile, target)
-        calculate(csvfile, tangentdivisor, False)
-
-    #elif args.mode == 'zn':
-    #    if args.tangentdivisor < 2:
-    #        raise ValueError("tangentdivisor must be >= 2")
-    #
-    #        calculate(args.csvfile, args.tangentdivisor, args.showplot)
-    #
-    #    elif args.mode == '':
-    #        parser.print_help()
-    #        exit(1)
-    #
-    #    else:
-    #        raise NotImplementedError("Unknown mode %s" % args.mode)
+        calculate(csvfile, tangentdivisor, args.showplot)
