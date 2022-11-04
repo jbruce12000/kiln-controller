@@ -1,8 +1,7 @@
 Scheduling a Kiln Run
 =====================
 
-Our lives are busy. Sometimes you'll want your kiln to start at a scheduled time. This is really easy to do with the **at** command.
-
+Our lives are busy. Sometimes you'll want your kiln to start at a scheduled time. This is really easy to do with the **at** command. Scheduled events persist if the raspberry pi reboots.
 
 ## Install the scheduler
 
