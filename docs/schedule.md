@@ -57,7 +57,7 @@ Start a 15 hour long glaze firing in 5 minutes and schedule for graphs from [kil
     END 
 
     at now + 16 hours <<END
-    source ~/kiln-stats/venv/bin/activate; cd ~/kiln-stats/scripts/; cat /var/log/daemon.log |./log-splitter.pl |grep ^1|./go; cd ~/kiln-stats/output; python3 -m http.server 
+    source ~/kiln-stats/venv/bin/activate; cd ~/kiln-stats/scripts/; cat /var/log/daemon.log |~/kiln-stats/scripts/log-splitter.pl |grep ^1>~/kiln-stats/input/daemon.log; ~/kiln-stats/scripts/go; cd ~/kiln-stats/output; python3 -m http.server
     END
 
 List scheduled jobs...
