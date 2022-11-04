@@ -5,7 +5,7 @@ Turns a Raspberry Pi into an inexpensive, web-enabled kiln controller.
 
 ## Features
 
-  * supports [many boards](https://github.com/jbruce12000/kiln-controller/blob/blinka/docs/supported-boards.md) other than raspberry pi
+  * supports [many boards](https://github.com/jbruce12000/kiln-controller/blob/blinka/docs/supported-boards.md) into addition to raspberry pi
   * supports Adafruit MAX31856 and MAX31855 thermocouple boards
   * support for K, J, N, R, S, T, E, or B type thermocouples
   * easy to create new kiln schedules and edit / modify existing schedules
