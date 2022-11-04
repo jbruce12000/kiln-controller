@@ -12,6 +12,7 @@ One issue with Ziegler Nicols is that is a **heuristic**: it generally works qui
   - make sure your kiln is in the same state it will be in during a normal firing. For instance, if you use a kiln vent during normal firing, make sure it is on.
   - make sure the kiln is completely cool. We need to record the data starting from room temperature to correctly measure the effect of kiln/heating.
 
+run the auto-tuner:
 ```
 source venv/bin/activate; ./kiln-tuner.py
 ```
@@ -34,7 +35,7 @@ pid_kd = 240.27736881914797
 
 ## Step 2: Replace the PID parameters in config.py
 
-Copy & paste the pid_kp, pid_ki, and pid_kd values into config.py and Restart the kiln-controller. Test out the values by firing your kiln. They may require manual adjustment.
+Copy & paste the pid_kp, pid_ki, and pid_kd values into config.py and restart the kiln-controller. Test out the values by firing your kiln. They may require manual adjustment.
 
 ## The values didn't work for me.
 
