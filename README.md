@@ -92,13 +92,15 @@ If you're done playing around with simulations and want to deploy the code on a 
 
 ## Configuration
 
-All parameters are defined in config.py, review/change to your mind's content.
+All parameters are defined in config.py. You need to read through config.py carefully to understand each setting.
 
-You should change, test, and verify PID parameters in config.py.  You need to read through config.py carefully to understand each setting.
-
-You may want to change the configuration parameter **sensor_time_wait**. It's the duty cycle for the entire system.  It's set to two seconds by default which means that a decision is made every 2s about whether to turn on relay[s] and for how long. If you use mechanical relays, you may want to increase this. At 2s, my SSR switches 11,000 times in 13 hours.
-
-You should change **temp_scale** to either f for Farenheit or c for Celcius.
+| Variable | Default | Description |
+| -------- | ------- | ----------- |
+| sensor_time_wait | 2 seconds | It's the duty cycle for the entire system.  It's set to two seconds by default which means that a decision is made every 2s about whether to turn on relay[s] and for how long. If you use mechanical relays, you may want to increase this. At 2s, my SSR switches 11,000 times in 13 hours. |
+| temp_scale | f | f for farenheit, c for celcius |
+| pid parameters | | You should tune your kiln. See PID Tuning |
+| simulate | True | Simulate a kiln. Used to test the software by new users so they can check out the features. |
+ 
 
 ## Testing
 
