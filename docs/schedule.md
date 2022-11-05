@@ -50,7 +50,7 @@ Stop any running firing at 3pm tomorrow:
     curl -d '{"cmd":"stop"}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
     END
 
-Start a 15 hour long glaze firing in 5 minutes and schedule for graphs from [kiln-stats](https://github.com/jbruce12000/kiln-stats) to be created on the raspberry-pi afterward and make the graphs available via a web server running on port 8000. You can do all kinds of interesting things with this. You could create a single job for the webserver and a job per hour to update the graphs. This way you can see detailed graphs of PID params and how the system is responding to your PID parameters.
+Start a 15 hour long glaze firing in 5 minutes and schedule for graphs from [kiln-stats](https://github.com/jbruce12000/kiln-stats) to be created on the raspberry-pi afterward and make the graphs available via a web server running on port 8000. You can do all kinds of interesting things with this. You could create a single job for the webserver and a job per hour to update the graphs. This way you can see detailed graphs of PID params and how the system is responding to them.
 
     at now + 5 minutes <<END
     curl -d '{"cmd":"run", "profile":"cone-6-long-glaze"}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
