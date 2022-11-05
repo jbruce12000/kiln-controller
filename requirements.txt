@@ -4,7 +4,7 @@ bottle
 gevent
 gevent-websocket
 websocket-client
-
+requests
 
 # List of all supported adafruit modules for thermocouples
 adafruit-circuitpython-max31855
