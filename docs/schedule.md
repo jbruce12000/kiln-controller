@@ -39,6 +39,7 @@ Start a glaze firing in 15 minutes and start a kiln watcher. This is really usef
     END
 
 Start a biscuit fire at 1a tomorrow, but skip the first two hours [120 minutes] of candling because I know my wares are dry. Start a kiln watcher 15 minutes later to give the kiln time to reach temperature so the watcher does not page me. 
+
     at 1am tomorrow <<END
     curl -d '{"cmd":"run", "profile":"cone-05-long-bisque","startat":120}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
     END
