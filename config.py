@@ -3,11 +3,6 @@ import os
 from digitalio import DigitalInOut
 import busio
 
-try:
-    import board
-except NotImplementedError:
-    print("not running on blinka recognized board, probably a simulation")
-
 ########################################################################
 #
 #   General options
@@ -52,12 +47,15 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 # To control the kiln, one gpio pin is used as an output. Pick any 
 # you like. I chose gpio pin 23. This output is used to control a
 # zero-cross solid-state-relay.
-
-spi_sclk  = board.D11 #spi clock
-spi_mosi  = board.D10 #spi Microcomputer Out Serial In (not connected) 
-spi_miso  = board.D9  #spi Microcomputer In Serial Out
-spi_cs    = board.D5  #spi Chip Select
-gpio_heat = board.D23 #output that controls relay
+try:
+    import board
+    spi_sclk  = board.D11 #spi clock
+    spi_mosi  = board.D10 #spi Microcomputer Out Serial In (not connected) 
+    spi_miso  = board.D9  #spi Microcomputer In Serial Out
+    spi_cs    = board.D5  #spi Chip Select
+    gpio_heat = board.D23 #output that controls relay
+except NotImplementedError:
+    print("not running on blinka recognized board, probably a simulation")
 
 ### Thermocouple Adapter selection:
 #   max31855 - bitbang SPI interface
