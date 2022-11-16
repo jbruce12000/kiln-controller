@@ -65,28 +65,17 @@ Download [Raspberry PI OS](https://www.raspberrypi.org/software/). Use Rasberry 
 
     $ sudo apt-get update
     $ sudo apt-get dist-upgrade
-    $ sudo apt-get install python3-dev python3-virtualenv libevent-dev virtualenv
     $ git clone https://github.com/jbruce12000/kiln-controller
     $ cd kiln-controller
-    $ virtualenv -p python3 venv
+    $ python3 -m venv venv
     $ source venv/bin/activate
-    $ export CFLAGS=-fcommon
-    $ pip3 install --upgrade setuptools
-    $ pip3 install greenlet bottle gevent gevent-websocket
+    $ pip install -r requirements.txt
 
 *Note: The above steps work on ubuntu if you prefer*
 
 ### Raspberry PI deployment
 
 If you're done playing around with simulations and want to deploy the code on a Raspberry PI to control a kiln, you'll need to do this in addition to the stuff listed above:
-
-    $ cd kiln-controller
-    $ virtualenv -p python3 venv
-    $ source venv/bin/activate
-    $ export CFLAGS=-fcommon
-    $ pip3 install -r requirements.txt
-
-### Enable SPI
 
     $ sudo raspi-config
     interfacing options -> SPI -> Select Yes to enable
