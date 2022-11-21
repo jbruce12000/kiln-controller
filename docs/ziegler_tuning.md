@@ -6,6 +6,10 @@ The method implemented here is taken from ["Ziegler–Nichols Tuning Method"](ht
 
 One issue with Ziegler Nicols is that is a **heuristic**: it generally works quite well, but it might not be the optimal values. Further manual adjustment may be necessary.
 
+  - make sure the kiln-controller is **stopped**
+  - make sure your kiln is in the same state it will be in during a normal firing. For instance, if you use a kiln vent during normal firing, make sure it is on.
+  - make sure the kiln is completely cool. We need to record the data starting from room temperature to correctly measure the effect of kiln/heating.
+
 ## Step 1: Stop the kiln-controller process
 
 If the kiln controller auto-starts, you'll need to stop it before tuning...
@@ -15,10 +19,6 @@ If the kiln controller auto-starts, you'll need to stop it before tuning...
 After, you're done with the tuning process, just reboot and the kiln-controller will automatically restart.
 
 ## Step 2: Run the Auto-Tuner
-
-  - make sure the kiln-controller is **stopped**
-  - make sure your kiln is in the same state it will be in during a normal firing. For instance, if you use a kiln vent during normal firing, make sure it is on.
-  - make sure the kiln is completely cool. We need to record the data starting from room temperature to correctly measure the effect of kiln/heating.
 
 run the auto-tuner:
 ```
