@@ -6,7 +6,15 @@ The method implemented here is taken from ["Ziegler–Nichols Tuning Method"](ht
 
 One issue with Ziegler Nicols is that is a **heuristic**: it generally works quite well, but it might not be the optimal values. Further manual adjustment may be necessary.
 
-## Step 1: Run the Auto-Tuner
+## Step 1: Stop the kiln-controller process
+
+If the kiln controller auto-starts, you'll need to stop it before tuning...
+
+```sudo service kiln-controller stop```
+
+After, you're done with the tuning process, just reboot and the kiln-controller will automatically restart.
+
+## Step 2: Run the Auto-Tuner
 
   - make sure the kiln-controller is **stopped**
   - make sure your kiln is in the same state it will be in during a normal firing. For instance, if you use a kiln vent during normal firing, make sure it is on.
@@ -33,7 +41,7 @@ pid_ki = 4.745613033146341
 pid_kd = 240.27736881914797
 ```
 
-## Step 2: Replace the PID parameters in config.py
+## Step 3: Replace the PID parameters in config.py
 
 Copy & paste the pid_kp, pid_ki, and pid_kd values into config.py and restart the kiln-controller. Test out the values by firing your kiln. They may require manual adjustment.
 
