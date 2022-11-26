@@ -270,7 +270,7 @@ class Max31855_Error(ThermocoupleError):
             "short circuit to ground" : "short circuit",
             "short circuit to power" : "short circuit",
             }
-        super().__init__(self.message)
+        super().__init__(message)
 
 class Max31856_Error(ThermocoupleError):
     def __init__(self, message):
@@ -285,7 +285,7 @@ class Max31856_Error(ThermocoupleError):
             "voltage"  : "voltage too high or low", 
             "open_tc"  : "not connected"
             }
-        super().__init__(self.message)
+        super().__init__(message)
 
 class Max31856(TempSensorReal):
     '''each subclass expected to handle errors and get temperature'''
