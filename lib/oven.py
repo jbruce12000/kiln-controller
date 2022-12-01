@@ -7,6 +7,7 @@ import config
 import os
 import digitalio
 import busio
+import statistics
 
 log = logging.getLogger(__name__)
 
@@ -162,15 +163,10 @@ class TempTracker(object):
 
     def get_avg_temp(self, chop=25):
         '''
-        strip off chop percent from the beginning and end of the sorted temps
-        then return the average of what is left
+        take the median of the given values. this used to take an avg
+        after getting rid of outliers. median works better.
         '''
-        chop = chop / 100
-        temps = sorted(self.temps)
-        total = len(temps)
-        items = int(total*chop)
-        temps = temps[items:total-items]
-        return sum(temps) / len(temps)
+        return statistics.median(self.temps)
 
 class ThermocoupleTracker(object):
     '''Keeps sliding window to track successful/failed calls to get temp
