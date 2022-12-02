@@ -93,12 +93,9 @@ sensor_time_wait = 2
 # well with the simulated oven. You must tune them to work well with 
 # your specific kiln. Note that the integral pid_ki is
 # inverted so that a smaller number means more integral action.
-#pid_kp = 25   # Proportional 25,200,200
-#pid_ki = 10   # Integral
-#pid_kd = 200  # Derivative
-pid_kp = 14.22801211254364
-pid_ki = 4.747842807629315
-pid_kd = 240.283966775251
+pid_kp = 25   # Proportional 25,200,200
+pid_ki = 10   # Integral
+pid_kd = 200  # Derivative
 
 ########################################################################
 #
@@ -159,10 +156,10 @@ pid_control_window = 5 #degrees
 # cheap thermocouple.  Invest in a better thermocouple.
 thermocouple_offset=0
 
-# number of samples of temperature to average over each duty cycle.
+# number of samples of temperature to take over each duty cycle.
 # The larger the number, the more load on the board. K type 
-# thermocouples have a precision of about 1/2 degree C. This 
-# averaging smooths out the stair step jumps of this imprecision.
+# thermocouples have a precision of about 1/2 degree C. 
+# The median of these samples is used for the temperature.
 temperature_average_samples = 40 
 
 # Thermocouple AC frequency filtering - set to True if in a 50Hz locale, else leave at False for 60Hz locale
