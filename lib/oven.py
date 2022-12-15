@@ -417,7 +417,7 @@ class SimulatedOven(Oven):
         self.R_o_nocool = config.sim_R_o_nocool
         self.R_ho_noair = config.sim_R_ho_noair
         self.R_ho = self.R_ho_noair
-        self.speedup_factor = 10
+        self.speedup_factor = 1000
 
         # set temps to the temp of the surrounding environment
         self.t = self.t_env # deg C temp of oven
@@ -440,6 +440,9 @@ class SimulatedOven(Oven):
             runtime_delta = datetime.timedelta(0)
 
         self.runtime = runtime_delta.total_seconds() * self.speedup_factor
+
+    def update_target_temp(self):
+        self.target = self.profile.get_target_temperature(self.runtime)
 
     def heating_energy(self,pid):
         # using pid here simulates the element being on for
@@ -466,7 +469,7 @@ class SimulatedOven(Oven):
     def heat_then_cool(self):
         pid = self.pid.compute(self.target,
                                self.board.temp_sensor.temperature +
-                               config.thermocouple_offset)
+                               config.thermocouple_offset, self.start_time + datetime.timedelta(milliseconds = self.runtime * 1000))
         heat_on = float(self.time_step * pid)
         heat_off = float(self.time_step * (1 - pid))
 
@@ -528,7 +531,7 @@ class RealOven(Oven):
     def heat_then_cool(self):
         pid = self.pid.compute(self.target,
                                self.board.temp_sensor.temperature +
-                               config.thermocouple_offset)
+                               config.thermocouple_offset, datetime.datetime.now())
         heat_on = float(self.time_step * pid)
         heat_off = float(self.time_step * (1 - pid))
 
@@ -610,8 +613,7 @@ class PID():
     # settled on -50 to 50 and then divide by 50 at the end. This results
     # in a larger PID control window and much more accurate control...
     # instead of what used to be binary on/off control.
-    def compute(self, setpoint, ispoint):
-        now = datetime.datetime.now()
+    def compute(self, setpoint, ispoint, now):
         timeDelta = (now - self.lastNow).total_seconds()
 
         window_size = 100

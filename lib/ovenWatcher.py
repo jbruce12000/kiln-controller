@@ -36,7 +36,7 @@ class OvenWatcher(threading.Thread):
             self.notify_all(oven_state)
 
             if config.simulate:
-                time.sleep(self.oven.time_step / self.oven.speedup_factor)
+                time.sleep(self.oven.time_step)
             else:
                 time.sleep(self.oven.time_step)
 
