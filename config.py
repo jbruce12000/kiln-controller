@@ -204,7 +204,7 @@ ignore_tc_too_many_errors = False
 # cleaned up (deleted) by the OS on boot.
 # The state file is written to disk every sensor_time_wait seconds (2s by default)
 # and is written in the same directory as config.py.
-automatic_restarts = True
+automatic_restarts = False
 automatic_restart_window = 15 # max minutes since power outage
 automatic_restart_state_file = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'state.json'))
 
