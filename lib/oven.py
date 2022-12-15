@@ -558,10 +558,10 @@ class SimulatedOven(Oven):
         self.board.temp_sensor.simulated_temperature = self.t
 
     def heat_then_cool(self):
-        now_simulator = self.start_time + datetime.timedelta(milliseconds = self.runtime * 1000)
+        # now_simulator = self.start_time + datetime.timedelta(milliseconds = self.runtime * 1000)
         pid = self.pid.compute(self.target,
                                self.board.temp_sensor.temperature +
-                               config.thermocouple_offset, now_simulator)
+                               config.thermocouple_offset, self.start_time + datetime.timedelta(milliseconds = self.runtime * 1000))
 
         heat_on = float(self.time_step * pid)
         heat_off = float(self.time_step * (1 - pid))
