@@ -322,7 +322,7 @@ class Oven(threading.Thread):
         self.cost = 0
         self.state = "IDLE"
         self.profile = None
-        self.start_time = 0
+        self.start_time = datetime.datetime.now()
         self.runtime = 0
         self.totaltime = 0
         self.target = 0
@@ -525,7 +525,6 @@ class SimulatedOven(Oven):
         return datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000 / self.speedup_factor)
 
     def update_runtime(self):
-
         runtime_delta = datetime.datetime.now() - self.start_time
         if runtime_delta.total_seconds() < 0:
             runtime_delta = datetime.timedelta(0)
@@ -558,10 +557,10 @@ class SimulatedOven(Oven):
         self.board.temp_sensor.simulated_temperature = self.t
 
     def heat_then_cool(self):
-        # now_simulator = self.start_time + datetime.timedelta(milliseconds = self.runtime * 1000)
+        now_simulator = self.start_time + datetime.timedelta(milliseconds = self.runtime * 1000)
         pid = self.pid.compute(self.target,
-                               self.board.temp_sensor.temperature +
-                               config.thermocouple_offset, self.start_time + datetime.timedelta(milliseconds = self.runtime * 1000))
+                               self.board.temp_sensor.temperature() +
+                               config.thermocouple_offset, now_simulator)
 
         heat_on = float(self.time_step * pid)
         heat_off = float(self.time_step * (1 - pid))
