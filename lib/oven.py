@@ -243,6 +243,9 @@ class Oven(threading.Thread):
         self.reset()
         self.save_automatic_restart_state()
 
+    def get_start_time(self):
+        return datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
+
     def kiln_must_catch_up(self):
         '''shift the whole schedule forward in time by one time_step
         to wait for the kiln to catch up'''
@@ -252,11 +255,11 @@ class Oven(threading.Thread):
             # kiln too cold, wait for it to heat up
             if self.target - temp > config.pid_control_window:
                 log.info("kiln must catch up, too cold, shifting schedule")
-                self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
+                self.start_time = self.get_start_time()
             # kiln too hot, wait for it to cool down
             if temp - self.target > config.pid_control_window:
                 log.info("kiln must catch up, too hot, shifting schedule")
-                self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
+                self.start_time = self.get_start_time()
 
     def update_runtime(self):
 
@@ -414,6 +417,7 @@ class SimulatedOven(Oven):
         self.R_o_nocool = config.sim_R_o_nocool
         self.R_ho_noair = config.sim_R_ho_noair
         self.R_ho = self.R_ho_noair
+        self.speedup_factor = 10
 
         # set temps to the temp of the surrounding environment
         self.t = self.t_env # deg C temp of oven
@@ -424,6 +428,18 @@ class SimulatedOven(Oven):
         # start thread
         self.start()
         log.info("SimulatedOven started")
+
+    # runtime is in sped up time, start_time is actual time of day
+    def get_start_time(self):
+        return datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000 / self.speedup_factor)
+
+    def update_runtime(self):
+
+        runtime_delta = datetime.datetime.now() - self.start_time
+        if runtime_delta.total_seconds() < 0:
+            runtime_delta = datetime.timedelta(0)
+
+        self.runtime = runtime_delta.total_seconds() * self.speedup_factor
 
     def heating_energy(self,pid):
         # using pid here simulates the element being on for
@@ -489,7 +505,7 @@ class SimulatedOven(Oven):
 
         # we don't actually spend time heating & cooling during
         # a simulation, so sleep.
-        time.sleep(self.time_step)
+        time.sleep(self.time_step / self.speedup_factor)
 
 
 class RealOven(Oven):

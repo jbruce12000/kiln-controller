@@ -1,4 +1,6 @@
 import threading,logging,json,time,datetime
+
+import config
 from oven import Oven
 log = logging.getLogger(__name__)
 
@@ -32,7 +34,12 @@ class OvenWatcher(threading.Thread):
             else:
                 self.recording = False
             self.notify_all(oven_state)
-            time.sleep(self.oven.time_step)
+
+            if config.simulate:
+                time.sleep(self.oven.time_step / self.oven.speedup_factor)
+            else:
+                time.sleep(self.oven.time_step)
+
    
     def lastlog_subset(self,maxpts=50):
         '''send about maxpts from lastlog by skipping unwanted data'''
