@@ -508,7 +508,7 @@ class SimulatedOven(Oven):
         self.R_o_nocool = config.sim_R_o_nocool
         self.R_ho_noair = config.sim_R_ho_noair
         self.R_ho = self.R_ho_noair
-        self.speedup_factor = 1000
+        self.speedup_factor = config.sim_speedup_factor
 
         # set temps to the temp of the surrounding environment
         self.t = self.t_env # deg C temp of oven
