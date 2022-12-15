@@ -82,7 +82,7 @@ max31856 = 0
 # Every N seconds a decision is made about switching the relay[s] 
 # on & off and for how long. The thermocouple is read 
 # temperature_average_samples times during and the average value is used.
-sensor_time_wait = 0.2
+sensor_time_wait = 2
 
 
 ########################################################################

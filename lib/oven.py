@@ -573,7 +573,7 @@ class SimulatedOven(Oven):
         if heat_on > 0:
             self.heat = heat_on
 
-        log.info("simulation: -> %dW heater: %.0f -> %dW oven: %.0f -> %dW env"            % (int(self.p_heat * pid),
+        log.info("simulation: -> %dW heater: %.0f -> %dW oven: %.0f -> %dW env" % (int(self.p_heat * pid),
             self.t_h,
             int(self.p_ho),
             self.t,
