@@ -368,14 +368,14 @@ function saveProfile()
 }
 
 function get_tick_size() {
-switch(time_scale_profile){
-  case "s":
-    return 1;
-  case "m":
-    return 60;
-  case "h":
-    return 3600;
-  }
+//switch(time_scale_profile){
+//  case "s":
+//    return 1;
+//  case "m":
+//    return 60;
+//  case "h":
+//    return 3600;
+//  }
 return 3600;
 }
 
