@@ -473,17 +473,17 @@ $(document).ready(function()
         {
             console.log("Status Socket has been opened");
 
-            $.bootstrapGrowl("<span class=\"glyphicon glyphicon-exclamation-sign\"></span>Getting data from server",
-            {
-            ele: 'body', // which element to append to
-            type: 'success', // (null, 'info', 'error', 'success')
-            offset: {from: 'top', amount: 250}, // 'top', or 'bottom'
-            align: 'center', // ('left', 'right', or 'center')
-            width: 385, // (integer, or 'auto')
-            delay: 2500,
-            allow_dismiss: true,
-            stackup_spacing: 10 // spacing between consecutively stacked growls.
-            });
+//            $.bootstrapGrowl("<span class=\"glyphicon glyphicon-exclamation-sign\"></span>Getting data from server",
+//            {
+//            ele: 'body', // which element to append to
+//            type: 'success', // (null, 'info', 'error', 'success')
+//            offset: {from: 'top', amount: 250}, // 'top', or 'bottom'
+//            align: 'center', // ('left', 'right', or 'center')
+//            width: 385, // (integer, or 'auto')
+//            delay: 2500,
+//            allow_dismiss: true,
+//            stackup_spacing: 10 // spacing between consecutively stacked growls.
+//            });
         };
 
         ws_status.onclose = function()
