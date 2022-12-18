@@ -1,6 +1,5 @@
 import threading,logging,json,time,datetime
 
-import config
 from oven import Oven
 log = logging.getLogger(__name__)
 

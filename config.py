@@ -149,7 +149,7 @@ kiln_must_catch_up = True
 # or 100% off because the kiln is too hot. No integral builds up
 # outside the window. The bigger you make the window, the more
 # integral you will accumulate. This should be a positive integer.
-pid_control_window = 50 #degrees
+pid_control_window = 5 #degrees
 
 # thermocouple offset
 # If you put your thermocouple in ice water and it reads 36F, you can
@@ -205,7 +205,7 @@ ignore_tc_too_many_errors = False
 # cleaned up (deleted) by the OS on boot.
 # The state file is written to disk every sensor_time_wait seconds (2s by default)
 # and is written in the same directory as config.py.
-automatic_restarts = False
+automatic_restarts = True
 automatic_restart_window = 15 # max minutes since power outage
 automatic_restart_state_file = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'state.json'))
 

@@ -322,7 +322,7 @@ class Oven(threading.Thread):
         self.cost = 0
         self.state = "IDLE"
         self.profile = None
-        self.start_time = datetime.datetime.now()
+        self.start_time = 0
         self.runtime = 0
         self.totaltime = 0
         self.target = 0
