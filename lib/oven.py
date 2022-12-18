@@ -290,7 +290,7 @@ class Max31856(TempSensorReal):
         log.info("thermocouple MAX31856")
         import adafruit_max31856
         adafruit_max31856.ThermocoupleType(config.thermocouple_type)
-        self.thermocouple = adafruit_max31856.MAX31856(spi, cs)
+        self.thermocouple = adafruit_max31856.MAX31856(self.spi,self.cs)
         if (config.ac_freq_50hz == True):
             self.thermocouple.noise_rejection(50)
         else:
