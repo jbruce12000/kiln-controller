@@ -1,5 +1,4 @@
 import threading,logging,json,time,datetime
-
 from oven import Oven
 log = logging.getLogger(__name__)
 
@@ -33,7 +32,6 @@ class OvenWatcher(threading.Thread):
             else:
                 self.recording = False
             self.notify_all(oven_state)
-
             time.sleep(self.oven.time_step)
 
     def lastlog_subset(self,maxpts=50):
