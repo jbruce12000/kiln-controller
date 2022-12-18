@@ -99,11 +99,19 @@ pid_kd = 200  # Derivative
 
 ########################################################################
 #
+# Initial heating and Integral Windup
+#
+# this setting is deprecated and is no longer used. this happens by
+# default and is the expected behavior.
+stop_integral_windup = True
+
+########################################################################
+#
 #   Simulation parameters
 simulate = True
 sim_t_env      = 60.0   # deg C
 sim_c_heat     = 500.0  # J/K  heat capacity of heat element
-sim_c_oven     = 10000.0 # J/K  heat capacity of oven
+sim_c_oven     = 5000.0 # J/K  heat capacity of oven
 sim_p_heat     = 5450.0 # W    heating power of oven
 sim_R_o_nocool = 0.5   # K/W  thermal resistance oven -> environment
 sim_R_o_cool   = 0.05   # K/W  " with cooling
@@ -127,7 +135,7 @@ time_scale_profile  = "m" # s = Seconds | m = Minutes | h = Hours - Enter and vi
 # naturally cool off. If your SSR has failed/shorted/closed circuit, this
 # means your kiln receives full power until your house burns down.
 # this should not replace you watching your kiln or use of a kiln-sitter
-emergency_shutoff_temp = 2350 #2264 #cone 7
+emergency_shutoff_temp = 2264 #cone 7
 
 # If the current temperature is outside the pid control window,
 # delay the schedule until it does back inside. This allows for heating

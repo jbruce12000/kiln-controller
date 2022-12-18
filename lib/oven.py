@@ -314,7 +314,7 @@ class Oven(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.daemon = True
-        self.temperature = 70
+        self.temperature = 0
         self.time_step = config.sensor_time_wait
         self.reset()
 
@@ -356,12 +356,11 @@ class Oven(threading.Thread):
             # kiln too cold, wait for it to heat up
             if self.target - temp > config.pid_control_window:
                 log.info("kiln must catch up, too cold, shifting schedule")
-                self.profile.shift_remaining_segments(self.runtime, 10)
-                self.totaltime = self.profile.get_duration()
+                self.start_time = self.get_start_time()
             # kiln too hot, wait for it to cool down
             if temp - self.target > config.pid_control_window:
-                self.profile.shift_remaining_segments(self.runtime, 10)
-                self.totaltime = self.profile.get_duration()
+                log.info("kiln must catch up, too hot, shifting schedule")
+                self.start_time = self.get_start_time()
 
     def update_runtime(self):
 
@@ -680,21 +679,6 @@ class Profile():
 
         return (prev_point, next_point)
 
-    def get_next_point(self, now):
-        next_point = None # Handle error if nothing found
-        for i in range(len(self.data)):
-            if now < self.data[i][0]:
-                next_point = i
-                break
-
-        return next_point
-
-    def shift_remaining_segments(self, now, shift_seconds):
-        next_point = self.get_next_point(now)
-        for i in range(len(self.data)):
-            if i >= next_point:
-                self.data[i][0] += shift_seconds
-
     def get_target_temperature(self, time):
         if time > self.get_duration():
             return 0
@@ -749,7 +733,7 @@ class PID():
             icomp = (error * timeDelta * (1/self.ki))
             self.iterm += (error * timeDelta * (1/self.ki))
             dErr = (error - self.lastErr) / timeDelta
-            output = self.kp * error #+ self.iterm + self.kd * dErr
+            output = self.kp * error + self.iterm + self.kd * dErr
             output = sorted([-1 * window_size, output, window_size])[1]
             out4logs = output
             output = float(output / window_size)
