@@ -380,7 +380,7 @@ class Oven(threading.Thread):
         
         if self.board.temp_sensor.status.over_error_limit():
             log.info("emergency!!! too many errors in a short period")
-            if config.ignore_too_many_tc_errors == False:
+            if config.ignore_tc_too_many_errors == False:
                 self.abort_run()
 
     def reset_if_schedule_ended(self):
