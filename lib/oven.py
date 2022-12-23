@@ -103,7 +103,7 @@ class TempSensorSimulated(TempSensor):
     '''Simulates a temperature sensor '''
     def __init__(self):
         TempSensor.__init__(self)
-        self.simulated_temperature = 0
+        self.simulated_temperature = 255
     def temperature(self):
         return self.simulated_temperature
 
@@ -329,10 +329,26 @@ class Oven(threading.Thread):
         self.heat = 0
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
 
+    @staticmethod
+    def get_start_from_temperature(profile, temp):
+        target_temp = profile.get_target_temperature(0)
+        if temp > target_temp + 5:
+            startat = profile.find_next_time_from_temperature(temp)
+            log.info("seek_start is in effect")
+        else:
+            startat = 0
+        return startat
+
     def run_profile(self, profile, startat=0):
+        runtime = startat * 60
+        if self.state == 'IDLE':
+            if config.seek_start:
+                temp = self.board.temp_sensor.temperature()  # Defined in a subclass
+                runtime += self.get_start_from_temperature(profile, temp)
+
         self.reset()
         self.startat = startat * 60
-        self.runtime = self.startat
+        self.runtime = runtime
         self.start_time = datetime.datetime.now() - datetime.timedelta(seconds=self.startat)
         self.profile = profile
         self.totaltime = profile.get_duration()
@@ -507,7 +523,7 @@ class SimulatedOven(Oven):
         self.R_ho = self.R_ho_noair
 
         # set temps to the temp of the surrounding environment
-        self.t = self.t_env # deg C temp of oven
+        self.t = 255  # self.t_env # deg C temp of oven
         self.t_h = self.t_env #deg C temp of heating element
 
         super().__init__()
@@ -642,6 +658,28 @@ class Profile():
 
     def get_duration(self):
         return max([t for (t, x) in self.data])
+
+    #  x = (y-y1)(x2-x1)/(y2-y1) + x1
+    @staticmethod
+    def find_x_given_y_on_line_from_two_points(y, point1, point2):
+        if point1[0] > point2[0]: return 0  # time2 before time1 makes no sense in kiln segment
+        if point1[1] >= point2[1]: return 0 # Zero will crach. Negative temeporature slope, we don't want to seek a time.
+        x = (y - point1[1]) * (point2[0] -point1[0] ) / (point2[1] - point1[1]) + point1[0]
+        return x
+
+    def find_next_time_from_temperature(self, temperature):
+        time = 0 # The seek function will not do anything if this returns zero, no useful intersection was found
+        for index, point2 in enumerate(self.data):
+            if point2[1] >= temperature:
+                if index > 0: #  Zero here would be before the first segment
+                    if self.data[index - 1][1] <= temperature: # We have an intersection
+                        time = self.find_x_given_y_on_line_from_two_points(temperature, self.data[index - 1], point2)
+                        if time == 0:
+                            if self.data[index - 1][1] == point2[1]: # It's a flat segment that matches the temperature
+                                time = self.data[index - 1][0]
+                                break
+
+        return time
 
     def get_surrounding_points(self, time):
         if time > self.get_duration():
