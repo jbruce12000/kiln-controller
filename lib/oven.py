@@ -334,14 +334,15 @@ class Oven(threading.Thread):
         target_temp = profile.get_target_temperature(0)
         if temp > target_temp + 5:
             startat = profile.find_next_time_from_temperature(temp)
-            log.info("seek_start is in effect")
+            log.info("seek_start is in effect, starting at: {} s, {} deg".format(round(startat), round(temp)))
         else:
             startat = 0
         return startat
 
-    def run_profile(self, profile, startat=0, auto_start=False):
+    def run_profile(self, profile, startat=0, allow_seek=True):
+        log.debug('run_profile run on thread' + threading.current_thread().name)
         runtime = startat * 60
-        if not auto_start:
+        if allow_seek:
             if self.state == 'IDLE':
                 if config.seek_start:
                     temp = self.board.temp_sensor.temperature()  # Defined in a subclass
@@ -485,7 +486,7 @@ class Oven(threading.Thread):
         with open(profile_path) as infile:
             profile_json = json.dumps(json.load(infile))
         profile = Profile(profile_json)
-        self.run_profile(profile,startat=startat, auto_start=True)
+        self.run_profile(profile, startat=startat, allow_seek=False)  # We don't want a seek on an auto restart.
         self.cost = d["cost"]
         time.sleep(1)
         self.ovenwatcher.record(profile)
@@ -496,6 +497,7 @@ class Oven(threading.Thread):
 
     def run(self):
         while True:
+            log.debug('Oven running on ' + threading.current_thread().name)
             if self.state == "IDLE":
                 if self.should_i_automatic_restart() == True:
                     self.automatic_restart()
