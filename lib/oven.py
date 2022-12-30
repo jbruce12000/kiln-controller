@@ -103,7 +103,7 @@ class TempSensorSimulated(TempSensor):
     '''Simulates a temperature sensor '''
     def __init__(self):
         TempSensor.__init__(self)
-        self.simulated_temperature = 255
+        self.simulated_temperature = config.sim_t_env
     def temperature(self):
         return self.simulated_temperature
 
@@ -526,7 +526,7 @@ class SimulatedOven(Oven):
         self.R_ho = self.R_ho_noair
 
         # set temps to the temp of the surrounding environment
-        self.t = 255  # self.t_env # deg C temp of oven
+        self.t = config.sim_t_env  # deg C or F temp of oven
         self.t_h = self.t_env #deg C temp of heating element
 
         super().__init__()
