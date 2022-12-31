@@ -79,6 +79,7 @@ class OvenWatcher(threading.Thread):
     def notify_all(self,message):
         message_json = json.dumps(message)
         log.debug("sending to %d clients: %s"%(len(self.observers),message_json))
+
         for wsock in self.observers:
             if wsock:
                 try:

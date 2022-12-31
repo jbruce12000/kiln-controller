@@ -73,6 +73,11 @@ def handle_api():
         if 'startat' in bottle.request.json:
             startat = bottle.request.json['startat']
 
+        #Shut off seek if start time has been set
+        allow_seek = True
+        if startat > 0:
+            allow_seek = False
+
         # get the wanted profile/kiln schedule
         profile = find_profile(wanted)
         if profile is None:
@@ -81,7 +86,7 @@ def handle_api():
         # FIXME juggling of json should happen in the Profile class
         profile_json = json.dumps(profile)
         profile = Profile(profile_json)
-        oven.run_profile(profile,startat=startat)
+        oven.run_profile(profile, startat=startat, allow_seek=allow_seek)
         ovenWatcher.record(profile)
 
     if bottle.request.json['cmd'] == 'stop':
