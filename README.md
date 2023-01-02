@@ -13,12 +13,12 @@ Turns a Raspberry Pi into an inexpensive, web-enabled kiln controller.
   * view status from multiple devices at once - computer, tablet etc
   * real-time firing cost estimate
   * real-time heating rate displayed in degrees per hour
-  * NIST-linearized conversion for accurate K type thermocouple readings
   * supports PID parameters you tune to your kiln
   * monitors temperature in kiln after schedule has ended
   * api for starting and stopping at any point in a schedule
   * accurate simulation
   * support for shifting schedule when kiln cannot heat quickly enough
+  * support for skipping first part of profile to match current kiln temperature
   * prevents integral wind-up when temperatures not near the set point
   * automatic restarts if there is a power outage or other event
   * support for a watcher to page you via slack if you kiln is out of whack
