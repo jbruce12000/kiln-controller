@@ -575,6 +575,10 @@ $(document).ready(function()
                 }
 
                 $('#act_temp').html(parseInt(x.temperature));
+                heat_rate = parseInt(x.heat_rate)
+                if (heat_rate > 9999) { heat_rate = 9999; }
+                if (heat_rate < -9999) { heat_rate = -9999; }
+                $('#heat_rate').html(heat_rate);
                 $('#heat').html('<div class="bar" style="height:'+x.pidstats.out*70+'%;"></div>')
                 if (x.cool > 0.5) { $('#cool').addClass("ds-led-cool-active"); } else { $('#cool').removeClass("ds-led-cool-active"); }
                 if (x.air > 0.5) { $('#air').addClass("ds-led-air-active"); } else { $('#air').removeClass("ds-led-air-active"); }
@@ -608,6 +612,7 @@ $(document).ready(function()
 
             $('#act_temp_scale').html('º'+temp_scale_display);
             $('#target_temp_scale').html('º'+temp_scale_display);
+            $('#heat_rate_temp_scale').html('º'+temp_scale_display);
 
             switch(time_scale_profile){
                 case "s":
