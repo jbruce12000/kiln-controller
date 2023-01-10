@@ -14,9 +14,7 @@ from geventwebsocket.handler import WebSocketHandler
 from geventwebsocket import WebSocketError
 
 try:
-    sys.dont_write_bytecode = True
     import config
-    sys.dont_write_bytecode = False
 except:
     print ("Could not import config file.")
     print ("Copy config.py.EXAMPLE to config.py and adapt it for your setup.")

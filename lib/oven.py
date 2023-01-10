@@ -289,12 +289,12 @@ class Max31856(TempSensorReal):
         TempSensorReal.__init__(self)
         log.info("thermocouple MAX31856")
         import adafruit_max31856
-        adafruit_max31856.ThermocoupleType(config.thermocouple_type)
-        self.thermocouple = adafruit_max31856.MAX31856(self.spi,self.cs)
+        self.thermocouple = adafruit_max31856.MAX31856(self.spi,self.cs,
+                                        thermocouple_type=config.thermocouple_type)
         if (config.ac_freq_50hz == True):
-            self.thermocouple.noise_rejection(50)
+            self.thermocouple.noise_rejection = 50
         else:
-            self.thermocouple.noise_rejection(60)
+            self.thermocouple.noise_rejection = 60
 
     def raw_temp(self):
         # The underlying adafruit library does not throw exceptions
@@ -303,7 +303,7 @@ class Max31856(TempSensorReal):
         # dict for errors and raise an exception.
         # and raise Max31856_Error(message)
         temp = self.thermocouple.temperature
-        for k,v in self.thermocouple.fault:
+        for k,v in self.thermocouple.fault.items():
             if v:
                 raise Max31856_Error(k)
         return temp
@@ -664,7 +664,7 @@ class RealOven(Oven):
 
     def heat_then_cool(self):
         pid = self.pid.compute(self.target,
-                               self.board.temp_sensor.temperature +
+                               self.board.temp_sensor.temperature() +
                                config.thermocouple_offset, datetime.datetime.now())
 
         heat_on = float(self.time_step * pid)
