@@ -322,8 +322,10 @@ class Oven(threading.Thread):
         self.cost = 0
         self.state = "IDLE"
         self.profile = None
-        self.start_time = 0
+        self.start_time =  datetime.datetime.now()
+        self.original_start_time = self.start_time
         self.runtime = 0
+        self.plot_runtime = 0
         self.totaltime = 0
         self.target = 0
         self.heat = 0
@@ -401,12 +403,15 @@ class Oven(threading.Thread):
                 self.start_time = self.get_start_time()
 
     def update_runtime(self):
-
         runtime_delta = datetime.datetime.now() - self.start_time
+        plot_rt_delta = datetime.datetime.now() - self.original_start_time
         if runtime_delta.total_seconds() < 0:
             runtime_delta = datetime.timedelta(0)
+        if plot_rt_delta.total_seconds() < 0:
+            plot_rt_delta = datetime.timedelta(0)
 
         self.runtime = runtime_delta.total_seconds()
+        self.plot_runtime = plot_rt_delta.total_seconds()
 
     def update_target_temp(self):
         self.target = self.profile.get_target_temperature(self.runtime)
@@ -450,7 +455,7 @@ class Oven(threading.Thread):
 
         state = {
             'cost': self.cost,
-            'runtime': self.runtime,
+            'runtime': self.plot_runtime,
             'temperature': temp,
             'target': self.target,
             'state': self.state,
@@ -568,10 +573,14 @@ class SimulatedOven(Oven):
 
     def update_runtime(self):
         runtime_delta = datetime.datetime.now() - self.start_time
+        plot_rt_delta = datetime.datetime.now() - self.original_start_time
         if runtime_delta.total_seconds() < 0:
             runtime_delta = datetime.timedelta(0)
+        if plot_rt_delta.total_seconds() < 0:
+            plot_rt_delta = datetime.timedelta(0)
 
         self.runtime = runtime_delta.total_seconds() * self.speedup_factor
+        self.plot_runtime = plot_rt_delta.total_seconds() * self.speedup_factor
 
     def update_target_temp(self):
         self.target = self.profile.get_target_temperature(self.runtime)
