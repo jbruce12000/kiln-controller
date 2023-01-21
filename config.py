@@ -172,7 +172,7 @@ thermocouple_offset=0
 # The larger the number, the more load on the board. K type 
 # thermocouples have a precision of about 1/2 degree C. 
 # The median of these samples is used for the temperature.
-temperature_average_samples = 40 
+temperature_average_samples = 10 
 
 # Thermocouple AC frequency filtering - set to True if in a 50Hz locale, else leave at False for 60Hz locale
 ac_freq_50hz = False
