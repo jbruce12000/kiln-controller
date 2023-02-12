@@ -8,7 +8,7 @@ import busio
 #   General options
 
 ### Logging
-log_level = logging.INFO
+log_level = logging.DEBUG
 log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 ### Server

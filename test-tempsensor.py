@@ -6,6 +6,11 @@ import datetime
 # import busio
 # import adafruit_bitbangio as bitbangio
 from lib.oven import RealBoard
+import logging
+
+logging.basicConfig(level=config.log_level, format=config.log_format)
+log = logging.getLogger("test-tenpsensor")
+log.info("Starting Test")
 
 try:
     import board
