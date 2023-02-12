@@ -4,6 +4,7 @@ from digitalio import DigitalInOut
 import time
 import datetime
 import busio
+import adafruit_bitbangio as bitbangio
 
 try:
     import board
@@ -28,7 +29,14 @@ except NotImplementedError:
 # of my thermocouple is .25C.
 ########################################################################
 
-spi = busio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
+try:
+    spi = busio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
+except ValueError as ex:
+    if config.max31855: #  Try spfware SPI
+        spi = bitbangio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
+    else:
+        raise ex
+
 cs = DigitalInOut(config.spi_cs)
 sensor = None
 
