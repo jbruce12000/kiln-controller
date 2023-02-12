@@ -124,10 +124,10 @@ class TempSensorReal(TempSensor):
     def spi_setup(self):
         spi = None
         try:
-            spi = busio.SPI(self.config.spi_sclk, self.config.spi_mosi, self.config.spi_miso)
+            spi = busio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
         except ValueError as ex:
             if config.max31855:
-                spi = bitbangio.SPI(self.config.spi_sclk, self.config.spi_mosi, self.config.spi_miso)
+                spi = bitbangio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
             else:
                 raise ex
 
