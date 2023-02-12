@@ -157,7 +157,7 @@ class TempSensorReal(TempSensor):
 
     def run(self):
         while True:
-            log.debug('get_temperature run on thread' + threading.current_thread().name)
+            log.debug('get_temperature run on thread: ' + threading.current_thread().name)
 
             temp = self.get_temperature()
             if temp:
@@ -379,7 +379,7 @@ class Oven(threading.Thread):
             self.heat_rate = ((temp2 - temp1) / (time2 - time1))*3600
 
     def run_profile(self, profile, startat=0, allow_seek=True):
-        log.debug('run_profile run on thread' + threading.current_thread().name)
+        log.debug('run_profile run on thread: ' + threading.current_thread().name)
         runtime = startat * 60
         if allow_seek:
             if self.state == 'IDLE':
