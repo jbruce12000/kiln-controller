@@ -5,8 +5,7 @@ import time
 import datetime
 # import busio
 # import adafruit_bitbangio as bitbangio
-from lib.oven import Max31855
-from lib.oven import Max31856
+from lib.oven import RealBoard
 
 try:
     import board
@@ -44,12 +43,10 @@ except NotImplementedError:
 # sensor = None
 
 print("\nboard: %s" % (board.board_id))
-if(config.max31855):
+if config.max31855:
     print("thermocouple: adafruit max31855")
-    sensor = Max31855()
-if(config.max31856):
+if config.max31856:
     print("thermocouple: adafruit max31856")
-    sensor = Max31856()
 
 print("SPI configured as:\n")
 print("    config.spi_sclk = %s BCM pin" % (config.spi_sclk))
@@ -58,10 +55,11 @@ print("    config.spi_miso = %s BCM pin" % (config.spi_miso))
 print("    config.spi_cs   = %s BCM pin\n" % (config.spi_cs))
 print("Degrees displayed in %s\n" % (config.temp_scale))
 
+oven_board = RealBoard()
 
-while(True):
+while True:
    time.sleep(1)
-   temp = sensor.temperature()
+   temp = oven_board.temp_sensor.temperature()
    scale = "C"
    if config.temp_scale == "f":
       scale ="F"
