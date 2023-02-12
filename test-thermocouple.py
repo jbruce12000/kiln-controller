@@ -32,8 +32,9 @@ except NotImplementedError:
 try:
     spi = busio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
 except ValueError as ex:
-    if config.max31855: #  Try spfware SPI
+    if config.max31855: #  Try software SPI
         spi = bitbangio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
+        print('Using software pins for SPI.')
     else:
         raise ex
 
