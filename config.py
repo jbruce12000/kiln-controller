@@ -53,7 +53,7 @@ try:
     spi_mosi  = board.D10 #spi Microcomputer Out Serial In (not connected on MAX315855, needed on MAX315856)
     spi_miso  = board.D9  #spi Microcomputer In Serial Out
 
-    spi_cs    = board.D5  #spi Chip Select
+    spi_cs    = board.D6  #spi Chip Select
     gpio_heat = board.D23 #output that controls relay
 except NotImplementedError:
     print("not running on blinka recognized board, probably a simulation")
