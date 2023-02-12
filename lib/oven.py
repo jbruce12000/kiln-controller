@@ -97,6 +97,7 @@ class TempSensor(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.daemon = True
+        self.name = 'TempSensor'
         self.time_step = config.sensor_time_wait
         self.status = ThermocoupleTracker()
 
@@ -156,6 +157,8 @@ class TempSensorReal(TempSensor):
 
     def run(self):
         while True:
+            log.debug('get_temperature run on thread' + threading.current_thread().name)
+
             temp = self.get_temperature()
             if temp:
                 self.temptracker.add(temp)
@@ -326,6 +329,7 @@ class Oven(threading.Thread):
        for either a real or simulated oven'''
     def __init__(self):
         threading.Thread.__init__(self)
+        self.name = 'Oven'
         self.daemon = True
         self.temperature = 0
         self.time_step = config.sensor_time_wait
