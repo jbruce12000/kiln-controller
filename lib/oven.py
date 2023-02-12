@@ -129,6 +129,7 @@ class TempSensorReal(TempSensor):
         except ValueError as ex:
             if config.max31855:
                 spi = bitbangio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
+                log.info('Using software SPI.')
             else:
                 raise ex
 

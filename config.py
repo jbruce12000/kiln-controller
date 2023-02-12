@@ -49,9 +49,9 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 # zero-cross solid-state-relay.
 try:
     import board
-    spi_sclk  = board.D11 #spi clock
+    spi_sclk  = board.D22 #spi clock
     spi_mosi  = board.D10 #spi Microcomputer Out Serial In (not connected on MAX315855, needed on MAX315856)
-    spi_miso  = board.D9  #spi Microcomputer In Serial Out
+    spi_miso  = board.D27  #spi Microcomputer In Serial Out
 
     spi_cs    = board.D6  #spi Chip Select
     gpio_heat = board.D23 #output that controls relay
