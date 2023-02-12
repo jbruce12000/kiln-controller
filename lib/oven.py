@@ -7,6 +7,7 @@ import config
 import os
 import digitalio
 import busio
+import adafruit_bitbangio as bitbangio
 import statistics
 
 log = logging.getLogger(__name__)
@@ -117,8 +118,20 @@ class TempSensorReal(TempSensor):
         TempSensor.__init__(self)
         self.sleeptime = self.time_step / float(config.temperature_average_samples)
         self.temptracker = TempTracker() 
-        self.spi = busio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
+        self.spi = self.spi_setup()
         self.cs = digitalio.DigitalInOut(config.spi_cs)
+
+    def spi_setup(self):
+        spi = None
+        try:
+            spi = busio.SPI(self.config.spi_sclk, self.config.spi_mosi, self.config.spi_miso)
+        except ValueError as ex:
+            if config.max31855:
+                spi = bitbangio.SPI(self.config.spi_sclk, self.config.spi_mosi, self.config.spi_miso)
+            else:
+                raise ex
+
+        return spi
 
     def get_temperature(self):
         '''read temp from tc and convert if needed'''
