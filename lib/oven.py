@@ -471,9 +471,14 @@ class Oven(threading.Thread):
 
         self.set_heat_rate(self.runtime,temp)
 
+        if config.real_time_display:
+            runtime = self.plot_runtime
+        else:
+            runtime = self.runtime
+
         state = {
             'cost': self.cost,
-            'runtime': self.plot_runtime,
+            'runtime': runtime,
             'temperature': temp,
             'target': self.target,
             'state': self.state,

@@ -17,31 +17,12 @@ except NotImplementedError:
 
 ########################################################################
 #
-# To test your thermocouple...
+# To test your thermocouple and the kiln-controller TempSensor code...
 #
-# Edit config.py and set the following in that file to match your
-# hardware setup: SPI_SCLK, SPI_MOSI, SPI_MISO, SPI_CS
-#
-# then run this script...
-# 
-# ./test-thermocouple.py
-#
-# It will output a temperature in degrees every second. Touch your
-# thermocouple to heat it up and make sure the value changes. Accuracy
-# of my thermocouple is .25C.
+# This code functions a lot like test-thermocouple.py but uses the
+# actual kiln-controller code instead of calling the Adafruit libraries directly.
 ########################################################################
 
-# try:
-#     spi = busio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
-# except ValueError as ex:
-#     if config.max31855: #  Try software SPI
-#         spi = bitbangio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
-#         print('Using software pins for SPI.')
-#     else:
-#         raise ex
-#
-# cs = DigitalInOut(config.spi_cs)
-# sensor = None
 
 print("\nboard: %s" % (board.board_id))
 if config.max31855:

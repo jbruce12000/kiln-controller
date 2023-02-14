@@ -95,7 +95,6 @@ seek_start = True
 # temperature_average_samples times during and the average value is used.
 sensor_time_wait = 2
 
-
 ########################################################################
 #
 #   PID parameters
@@ -133,7 +132,6 @@ sim_R_ho_air   = 0.05   # K/W  " with internal air circulation
 # set as high as 1000 to speed simulations up by 1000 times.
 sim_speedup_factor = 1
 
-
 ########################################################################
 #
 #   Time and Temperature parameters
@@ -155,6 +153,16 @@ emergency_shutoff_temp = 2264 #cone 7
 # delay the schedule until it does back inside. This allows for heating
 # and cooling as fast as possible and not continuing until temp is reached.
 kiln_must_catch_up = True
+
+
+#######################################################################
+# Real time display option
+#
+# If kiln_must_catch_up is true the schedule is delayed (as above) and the time displayed on the
+# graph is stopped. Setting real_time_display to True increments time on the graph normally, so
+# that the display shows the actual time/temperature curve of the kiln whether the schedule is
+# waiting or not.
+real_time_display = False
 
 # This setting is required. 
 # This setting defines the window within which PID control occurs.
