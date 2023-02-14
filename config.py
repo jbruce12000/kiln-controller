@@ -32,11 +32,14 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 # temperature data from the adafruit-31855 or adafruit-31856.
 # Blinka supports many different boards. I've only tested raspberry pi.
 #
-# SPI uses 3 or 4 pins. On the raspberry pi, you MUST use predefined
-# pins. In the case of the adafruit-31855, only 3 pins are used:
+# SPI uses 3 or 4 pins. Most supported boards have predefined "hardware" SPI pins.
+# Hardware pins for the Raspberry Pi are listed below. You MUST use predefined
+# hardware pins for the adafruit-31856. The adafruit-31855 also supports software pins via bitbangio.
+# Any GPIO pins can be used. We recommend using hardware pins as they are faster, but this should nake
+# little or difference for a thrermocouple. In the case of the adafruit-31855, only 3 pins are used:
 #
 #    SPI0_SCLK = BCM pin 11 = CLK on the adafruit-31855
-#    SPI0_MOSI = BCM pin 10 = not connected
+#    SPI0_MOSI = BCM pin 10 = Needed on the adafruit-31856, not used on the 31855
 #    SPI0_MISO = BCM pin 9  = D0 on the adafruit-31855
 #   
 # plus a GPIO output to connect to CS. You can use any GPIO pin you want.
@@ -49,11 +52,10 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 # zero-cross solid-state-relay.
 try:
     import board
-    spi_sclk  = board.D22 #spi clock
+    spi_sclk  = board.D11 #spi clock
     spi_mosi  = board.D10 #spi Microcomputer Out Serial In (not connected on MAX315855, needed on MAX315856)
-    spi_miso  = board.D27  #spi Microcomputer In Serial Out
-
-    spi_cs    = board.D6  #spi Chip Select
+    spi_miso  = board.D9  #spi Microcomputer In Serial Out
+    spi_cs    = board.D5  #spi Chip Select
     gpio_heat = board.D23 #output that controls relay
 except NotImplementedError:
     print("not running on blinka recognized board, probably a simulation")
