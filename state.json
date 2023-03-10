@@ -1,0 +1,13 @@
+{
+    "cost": 0,
+    "runtime": 0,
+    "temperature": 127.98878115134721,
+    "target": 0,
+    "state": "IDLE",
+    "heat": 0,
+    "totaltime": 0,
+    "kwh_rate": 0.9,
+    "currency_type": "",
+    "profile": null,
+    "pidstats": {}
+}

@@ -90,7 +90,7 @@ class Board(object):
 
     def create_temp_sensor(self):
         if config.simulate == True:
-            self.temp_sensor = TempSensorSimulate()
+            self.temp_sensor = TempSensorSimulated()
         else:
             self.temp_sensor = TempSensorReal()
 
@@ -213,6 +213,8 @@ class Oven(threading.Thread):
         self.target = 0
         self.heat = 0
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
+        self.on_first = True
+        self.switch_count = 0
 
     def run_profile(self, profile, startat=0):
         self.reset()
@@ -425,10 +427,10 @@ class SimulatedOven(Oven):
         self.start()
         log.info("SimulatedOven started")
 
-    def heating_energy(self,pid):
+    def heating_energy(self,heat_on):
         # using pid here simulates the element being on for
         # only part of the time_step
-        self.Q_h = self.p_heat * self.time_step * pid
+        self.Q_h = self.p_heat * heat_on
 
     def temp_changes(self):
         #temperature change of heat element by heating
@@ -452,9 +454,15 @@ class SimulatedOven(Oven):
                                self.board.temp_sensor.temperature +
                                config.thermocouple_offset)
         heat_on = float(self.time_step * pid)
-        heat_off = float(self.time_step * (1 - pid))
+        if not self.on_first and heat_on < 0.1 * self.time_step:
+            heat_on = 0
+        if self.on_first and heat_on > 0.9 * self.time_step:
+            heat_on = self.time_step
+        heat_off = self.time_step - heat_on
+        if (heat_off > 0 and heat_off < self.time_step) or (heat_on > 0 and heat_on < self.time_step):
+            self.switch_count += 1
 
-        self.heating_energy(pid)
+        self.heating_energy(heat_on)
         self.temp_changes()
 
         # self.heat is for the front end to display if the heat is on
@@ -469,9 +477,10 @@ class SimulatedOven(Oven):
             int(self.p_env)))
 
         time_left = self.totaltime - self.runtime
+        self.on_first = not self.on_first
 
         try:
-            log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
+            log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d, switch_count=%d" %
                 (self.pid.pidstats['ispoint'],
                 self.pid.pidstats['setpoint'],
                 self.pid.pidstats['err'],
@@ -483,7 +492,8 @@ class SimulatedOven(Oven):
                 heat_off,
                 self.runtime,
                 self.totaltime,
-                time_left))
+                time_left,
+                self.switch_count))
         except KeyError:
             pass
 
@@ -514,20 +524,35 @@ class RealOven(Oven):
                                self.board.temp_sensor.temperature +
                                config.thermocouple_offset)
         heat_on = float(self.time_step * pid)
-        heat_off = float(self.time_step * (1 - pid))
+        if not self.on_first and heat_on < 0.1 * self.time_step:
+            heat_on = 0
+        if self.on_first and heat_on > 0.9 * self.time_step:
+            heat_on = self.time_step
+        heat_off = self.time_step - heat_on
+        if (heat_off > 0 and heat_off < self.time_step) or (heat_on > 0 and heat_on < self.time_step):
+            self.switch_count += 1
 
         # self.heat is for the front end to display if the heat is on
         self.heat = 0.0
         if heat_on > 0:
-            self.heat = 1.0
+            self.heat = heat_on
 
-        if heat_on:
-            self.output.heat(heat_on)
-        if heat_off:
-            self.output.cool(heat_off)
+        if self.on_first:
+            if heat_on:
+                self.output.heat(heat_on)
+            if heat_off:
+                self.output.cool(heat_off)
+        else:
+            if heat_off:
+                self.output.cool(heat_off)
+            if heat_on:
+                self.output.heat(heat_on)
+        
         time_left = self.totaltime - self.runtime
+        self.on_first = not self.on_first
+
         try:
-            log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
+            log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d, switch_count=%d" %
                 (self.pid.pidstats['ispoint'],
                 self.pid.pidstats['setpoint'],
                 self.pid.pidstats['err'],
@@ -539,7 +564,8 @@ class RealOven(Oven):
                 heat_off,
                 self.runtime,
                 self.totaltime,
-                time_left))
+                time_left,
+                self.switch_count))
         except KeyError:
             pass
 
