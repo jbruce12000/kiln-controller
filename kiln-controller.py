@@ -32,6 +32,7 @@ profile_path = config.kiln_profiles_directory
 
 from oven import SimulatedOven, RealOven, Profile
 from ovenWatcher import OvenWatcher
+from ovenDisplay import OvenDisplay
 
 app = bottle.Bottle()
 
@@ -42,6 +43,9 @@ else:
     log.info("this is a real kiln")
     oven = RealOven()
 ovenWatcher = OvenWatcher(oven)
+ovenDisplay = OvenDisplay(oven, ovenWatcher)
+
+
 # this ovenwatcher is used in the oven class for restarts
 oven.set_ovenwatcher(ovenWatcher)
 

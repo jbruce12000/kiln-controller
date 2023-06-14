@@ -45,13 +45,19 @@ max31855 = 0
 max31856 = 1
 # see lib/max31856.py for other thermocouple_type, only applies to max31856
 # uncomment this if using MAX-31856
-thermocouple_type = MAX31856.MAX31856_S_TYPE
+#thermocouple_type = MAX31856.MAX31856_S_TYPE
+thermocouple_type = MAX31856.MAX31856_R_TYPE
 
 ### Thermocouple Connection (using bitbang interfaces)
-gpio_sensor_cs = 27
-gpio_sensor_clock = 22
-gpio_sensor_data = 17
-gpio_sensor_di = 10 # only used with max31856
+gpio_sensor_cs = 26
+gpio_sensor_clock = 18
+gpio_sensor_data = 14
+gpio_sensor_di = 15 # only used with max31856
+gpio_spi = 1
+
+### Thermocouple Connection (using hardware SPI)
+#spi_port = 0
+#spi_device = 0
 
 ########################################################################
 #
@@ -87,7 +93,8 @@ stop_integral_windup = True
 ########################################################################
 #
 #   Simulation parameters
-simulate = True
+#simulate = True
+simulate = False
 sim_t_env      = 60.0   # deg C
 sim_c_heat     = 500.0  # J/K  heat capacity of heat element
 sim_c_oven     = 5000.0 # J/K  heat capacity of oven
