@@ -119,7 +119,7 @@ class MAX31856(object):
         # Handle hardware SPI
         if hardware_spi is not None:
             self._logger.debug('Using hardware SPI')
-            self._spi = hardware_spi
+            self._spi = SPI.SpiDev(hardware_spi['port'], hardware_spi['device'])
         elif software_spi is not None:
             self._logger.debug('Using software SPI')
             # Default to platform GPIO if not provided.

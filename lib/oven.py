@@ -133,12 +133,22 @@ class TempSensorReal(TempSensor):
         if config.max31856:
             log.info("init MAX31856")
             from max31856 import MAX31856
-            software_spi = { 'cs': config.gpio_sensor_cs,
-                             'clk': config.gpio_sensor_clock,
-                             'do': config.gpio_sensor_data,
-                             'di': config.gpio_sensor_di }
+            if config.gpio_spi:
+                log.info("using software SPI")
+                software_spi = {'cs': config.gpio_sensor_cs,
+                                'clk': config.gpio_sensor_clock,
+                                'do': config.gpio_sensor_data,
+                                'di': config.gpio_sensor_di }
+                hardware_spi = None
+            else:
+                log.info("using hardware SPI")
+                software_spi = None
+                hardware_spi = {'port': config.spi_port, 
+                                'device': config.spi_device}
+
             self.thermocouple = MAX31856(tc_type=config.thermocouple_type,
                                          software_spi = software_spi,
+                                         hardware_spi = hardware_spi,
                                          units = config.temp_scale,
                                          ac_freq_50hz = config.ac_freq_50hz,
                                          )
