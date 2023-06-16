@@ -31,6 +31,7 @@ class OvenDisplay(threading.Thread):
         ovenWatcher.add_observer(self)
         # TODO - move to config
         self.sleep_time = 0.1
+        self.text("Initialising...", (25, 25), fnt25, (255,255,255))
         self.start()
 
     def run(self):
