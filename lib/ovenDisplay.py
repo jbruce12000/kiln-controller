@@ -59,7 +59,8 @@ class OvenDisplay(threading.Thread):
             time.sleep(self.sleep_time)
 
     def update_profiles(self, new_profiles):
-        log.info("New profiles ", new_profiles)
+        log.info("New profiles ")
+        log.info(new_profiles)
         self.profiles = new_profiles
 
     # {'cost': 0, 'runtime': 0, 'temperature': 23.176953125, 'target': 0, 'state': 'IDLE', 'heat': 0, 'totaltime': 0, 'kwh_rate': 0.33631, 'currency_type': '£', 'profile': None, 'pidstats': {}}
@@ -123,7 +124,7 @@ class OvenDisplay(threading.Thread):
         if (self.profile is None):
             log.error("No programme to start")
         else:
-            log.info("Starting run " + self.profile)
+            log.info("Starting run " + self.profile.name)
             self.oven.run_profile(self.profile)
 
     def prev_profile(self):
@@ -131,12 +132,14 @@ class OvenDisplay(threading.Thread):
         idx = self.find_profile_idx()
         new_idx = (idx - 1) % len(self.profiles)
         self.profile = self.profiles[new_idx]
+        self.update_display(self.oven.get_state())
 
     def next_profile(self):
         log.info("Next profile")
         idx = self.find_profile_idx()
         new_idx = (idx + 1) % len(self.profiles)
         self.profile = self.profiles[new_idx]
+        self.update_display(self.oven.get_state())
 
     def find_profile_idx(self):
         for idx, p in enumerate(self.profiles):
