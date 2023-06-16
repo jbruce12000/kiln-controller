@@ -1,5 +1,5 @@
 import threading,logging,json,time,datetime
-from oven import Oven
+from oven import Oven, Profile
 from displayhatmini import DisplayHATMini
 from PIL import Image, ImageDraw, ImageFont
 
@@ -125,7 +125,10 @@ class OvenDisplay(threading.Thread):
             log.error("No programme to start")
         else:
             log.info("Starting run " + self.profile['name'])
-            self.oven.run_profile(self.profile)
+
+            profile_json = json.dumps(self.profile)
+            oven_profile = Profile(profile_json)
+            self.oven.run_profile(oven_profile)
 
     def prev_profile(self):
         log.info("Prev profile")
