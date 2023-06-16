@@ -68,9 +68,12 @@ class OvenDisplay(threading.Thread):
         displayhatmini.display()
 
         if (state['state'] is None):
+            self.text("Initialising", (25, 175), fnt25, (255, 255, 255))
             displayhatmini.set_led(0.0, 0.0, 0.0)
         else:
-            if (state['state'] is None or state['state'] == 'IDLE'):
+            self.text(state['state'], (25, 175), fnt25, (255, 255, 255))
+            if (state['state'] == 'IDLE'):
+                self.text(state['state'], (25, 175), fnt25, (255, 255, 255))
                 displayhatmini.set_led(0.0, 0.2, 0.0)
             else:
                 self.text(state['state'], (25, 175), fnt25, (255, 255, 255))
@@ -78,7 +81,7 @@ class OvenDisplay(threading.Thread):
                     displayhatmini.set_led(1.0, 0.0, 0.0)
                 else:
                     displayhatmini.set_led(0.0, 0.0, 1.0)
-        
+    
 
     def send(self,oven_state):
         self.update_display(oven_state)
