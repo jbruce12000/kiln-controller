@@ -24,6 +24,8 @@ class OvenDisplay(threading.Thread):
         self.started = None
         self.recording = False
         self.observers = []
+        self.profiles = None
+        self.profile = None
         threading.Thread.__init__(self)
         self.daemon = True
         # oven setup
@@ -54,9 +56,11 @@ class OvenDisplay(threading.Thread):
                 self.prev_profile()
             if (b_pressed):
                 self.next_profile()
-
-
             time.sleep(self.sleep_time)
+
+    def update_profiles(self, new_profiles):
+        log.info("New profiles ", new_profiles)
+        self.profiles = new_profiles
 
     # {'cost': 0, 'runtime': 0, 'temperature': 23.176953125, 'target': 0, 'state': 'IDLE', 'heat': 0, 'totaltime': 0, 'kwh_rate': 0.33631, 'currency_type': '£', 'profile': None, 'pidstats': {}}
     # {'cost': 0.003923616666666667, 'runtime': 0.003829, 'temperature': 23.24140625, 'target': 100.00079770833334, 'state': 'RUNNING', 'heat': 1.0, 'totaltime': 3600, 'kwh_rate': 0.33631, 'currency_type': '£', 'profile': 'test-200-250', 'pidstats': {'time': 1686902305.0, 'timeDelta': 5.027144, 'setpoint': 100.00079770833334, 'ispoint': 23.253125, 'err': 76.74767270833334, 'errDelta': 0, 'p': 1918.6918177083335, 'i': 0, 'd': 0, 'kp': 25, 'ki': 10, 'kd': 200, 'pid': 0, 'out': 1}}
@@ -73,10 +77,16 @@ class OvenDisplay(threading.Thread):
         else:
             self.text("Target: ---°C", (25, 100), fnt25, (255, 255, 255))
 
+
         if (oven_state['profile'] is not None):
-            self.text(oven_state['profile'], (25, 150), fnt25, (255, 255, 255))
+            active_profile = oven_state['profile']
         else:
-            self.text("No Programme", (25, 150), fnt25, (255, 255, 255))
+            active_profile = self.profile
+
+        if (active_profile is not None):
+            self.text(active_profile.name, (25, 150), fnt25, (255, 255, 255))
+        else:
+            self.text('No Programme', (25, 150), fnt25, (255, 255, 255))
 
         if (oven_state['state'] is None):
             self.text("Initialising", (25, 175), fnt25, (255, 255, 255))
@@ -110,10 +120,26 @@ class OvenDisplay(threading.Thread):
         self.update_display(self.oven.get_state())
 
     def start_oven(self):
-        log.info("Starting run")
+        if (self.profile is None):
+            log.error("No programme to start")
+        else:
+            log.info("Starting run " + self.profile)
+            self.oven.run_profile(self.profile)
 
     def prev_profile(self):
         log.info("Prev profile")
+        idx = self.find_profile_idx()
+        new_idx = (idx - 1) % len(self.profiles)
+        self.profile = self.profiles[new_idx]
 
     def next_profile(self):
         log.info("Next profile")
+        idx = self.find_profile_idx()
+        new_idx = (idx + 1) % len(self.profiles)
+        self.profile = self.profiles[new_idx]
+
+    def find_profile_idx(self):
+        for idx, p in enumerate(self.profiles):
+            if (p == self.profile):
+                return idx
+        return 0
