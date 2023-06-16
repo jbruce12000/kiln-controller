@@ -10,10 +10,11 @@ width = DisplayHATMini.WIDTH
 height = DisplayHATMini.HEIGHT
 buffer = Image.new("RGB", (width, height))
 displayhatmini = DisplayHATMini(buffer)
-displayhatmini.set_led(0.0, 0.5, 0.0)
+displayhatmini.set_led(0.0, 0.2, 0.0)
 draw = ImageDraw.Draw(buffer)
-fnt50 = ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 50, encoding="unic")
 fnt25 = ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 25, encoding="unic")
+fnt50 = ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 50, encoding="unic")
+fnt75 = ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 75, encoding="unic")
 
 class OvenDisplay(threading.Thread):
     def __init__(self,oven,ovenWatcher):
@@ -45,15 +46,15 @@ class OvenDisplay(threading.Thread):
         log.info(oven_state_json)
         state = json.loads(oven_state_json)
         log.info(state)
-        self.text("{0:2.1f}".format(state['temperature'])+'ºC', (25, 25), fnt50, (255, 255, 255))
-        self.text("{0:2.1f}".format(state['target'])+'ºC', (25, 75), fnt25, (255, 255, 255))
+        self.text("Temp: {0:2.1f} °C".format(state['temperature']), (25, 25), fnt75, (255, 255, 255))
+        self.text("Target: {0:2.1f} °C".format(state['target']), (25, 100), fnt25, (255, 255, 255))
         if (state['profile'] is not None):
-            self.text(state['profile'], (25, 100), fnt25, (255, 255, 255))
+            self.text(state['profile'], (25, 175), fnt25, (255, 255, 255))
         else:
-            self.text("<NONE>", (25, 150), fnt25, (255, 255, 255))
+            self.text("No Programme", (25, 175), fnt25, (255, 255, 255))
         displayhatmini.display()
         if (state['state'] == 'IDLE'):
-            displayhatmini.set_led(0.0, 0.5, 0.0)
+            displayhatmini.set_led(0.0, 0.2, 0.0)
         else:
             if (state['heat'] == 1.0):
                 displayhatmini.set_led(1.0, 0.0, 0.0)
