@@ -48,12 +48,12 @@ class Output(object):
             self.active = False
 
     def heat(self,sleepfor):
-        self.GPIO.output(config.gpio_heat, self.GPIO.HIGH)
+        self.GPIO.output(config.gpio_heat, self.GPIO.LOW)
         time.sleep(sleepfor)
 
     def cool(self,sleepfor):
         '''no active cooling, so sleep'''
-        self.GPIO.output(config.gpio_heat, self.GPIO.LOW)
+        self.GPIO.output(config.gpio_heat, self.GPIO.HIGH)
         time.sleep(sleepfor)
 
 # FIX - Board class needs to be completely removed
