@@ -65,8 +65,6 @@ class OvenDisplay(threading.Thread):
         else:
             self.text("No Programme", (25, 150), fnt25, (255, 255, 255))
 
-        displayhatmini.display()
-
         if (state['state'] is None):
             self.text("Initialising", (25, 175), fnt25, (255, 255, 255))
             displayhatmini.set_led(0.0, 0.0, 0.0)
@@ -82,6 +80,7 @@ class OvenDisplay(threading.Thread):
                 else:
                     displayhatmini.set_led(0.0, 0.0, 1.0)
     
+        displayhatmini.display()
 
     def send(self,oven_state):
         self.update_display(oven_state)
