@@ -39,6 +39,7 @@ class OvenDisplay(threading.Thread):
             time.sleep(self.sleep_time)
 
     # {'cost': 0, 'runtime': 0, 'temperature': 23.176953125, 'target': 0, 'state': 'IDLE', 'heat': 0, 'totaltime': 0, 'kwh_rate': 0.33631, 'currency_type': '£', 'profile': None, 'pidstats': {}}
+    # {'cost': 0.003923616666666667, 'runtime': 0.003829, 'temperature': 23.24140625, 'target': 100.00079770833334, 'state': 'RUNNING', 'heat': 1.0, 'totaltime': 3600, 'kwh_rate': 0.33631, 'currency_type': '£', 'profile': 'test-200-250', 'pidstats': {'time': 1686902305.0, 'timeDelta': 5.027144, 'setpoint': 100.00079770833334, 'ispoint': 23.253125, 'err': 76.74767270833334, 'errDelta': 0, 'p': 1918.6918177083335, 'i': 0, 'd': 0, 'kp': 25, 'ki': 10, 'kd': 200, 'pid': 0, 'out': 1}}
     def update_display(self, oven_state):
         draw.rectangle((0, 0, width, height), (0, 0, 0))
         log.info(oven_state)
@@ -47,6 +48,14 @@ class OvenDisplay(threading.Thread):
         self.text("{0:2.1f}".format(state['temperature']), (25, 25), fnt50, (255, 255, 255))
         self.text("{0:2.1f}".format(state['target']), (25, 75), fnt25, (255, 255, 255))
         displayhatmini.display()
+        if (state['state'] == 'IDLE'):
+            displayhatmini.set_led(0.0, 1.0, 0.0)
+        else:
+            if (state['heat'] == 1.0):
+                displayhatmini.set_led(1.0, 0.0, 0.0)
+            else:
+                displayhatmini.set_led(0.0, 0.0, 1.0)
+        
 
     def send(self,oven_state):
         self.update_display(oven_state)
