@@ -124,7 +124,7 @@ class OvenDisplay(threading.Thread):
         if (self.profile is None):
             log.error("No programme to start")
         else:
-            log.info("Starting run " + self.profile.name)
+            log.info("Starting run " + self.profile['name'])
             self.oven.run_profile(self.profile)
 
     def prev_profile(self):
