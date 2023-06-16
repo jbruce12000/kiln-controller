@@ -49,9 +49,9 @@ class OvenDisplay(threading.Thread):
             #oven_state = self.oven.get_state()
             #update_display(oven_state)    
             if (x_pressed):
-                self.stop_oven()
-            if (y_pressed):
                 self.start_oven()
+            if (y_pressed):
+                self.stop_oven()
             if (a_pressed):
                 self.prev_profile()
             if (b_pressed):
