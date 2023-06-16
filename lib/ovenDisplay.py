@@ -65,7 +65,7 @@ class OvenDisplay(threading.Thread):
             self.text("No Programme", (25, 175), fnt25, (255, 255, 255))
 
         displayhatmini.display()
-        if (state['state'] == 'IDLE'):
+        if (state['state'] is None or state['state'] == 'IDLE'):
             displayhatmini.set_led(0.0, 0.2, 0.0)
         else:
             if (state['heat'] == 1.0):
