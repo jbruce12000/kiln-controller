@@ -31,7 +31,9 @@ class OvenDisplay(threading.Thread):
         ovenWatcher.add_observer(self)
         # TODO - move to config
         self.sleep_time = 0.1
+        draw.rectangle((0, 0, width, height), (0, 0, 0))
         self.text("Initialising...", (25, 25), fnt25, (255,255,255))
+        displayhatmini.display()
         self.start()
 
     def run(self):
@@ -47,12 +49,21 @@ class OvenDisplay(threading.Thread):
         log.info(oven_state_json)
         state = json.loads(oven_state_json)
         log.info(state)
-        self.text("{0:2.0f}°C".format(state['temperature']), (25, 25), fnt75, (255, 255, 255))
-        self.text("Target: {0:2.0f}°C".format(state['target']), (25, 100), fnt25, (255, 255, 255))
+        if (state['temperature'] is not None):
+            self.text("{0:2.0f}°C".format(state['temperature']), (25, 25), fnt75, (255, 255, 255))
+        else:
+            self.text("---°C", (25, 25), fnt75, (255, 255, 255))
+
+        if (state['target'] is not None):
+            self.text("Target: {0:2.0f}°C".format(state['target']), (25, 100), fnt25, (255, 255, 255))
+        else:
+            self.text("Target: ---°C", (25, 100), fnt25, (255, 255, 255))
+
         if (state['profile'] is not None):
             self.text(state['profile'], (25, 175), fnt25, (255, 255, 255))
         else:
             self.text("No Programme", (25, 175), fnt25, (255, 255, 255))
+
         displayhatmini.display()
         if (state['state'] == 'IDLE'):
             displayhatmini.set_led(0.0, 0.2, 0.0)
