@@ -47,9 +47,10 @@ class OvenDisplay(threading.Thread):
         log.info(state)
         self.text("{0:2.1f}".format(state['temperature']), (25, 25), fnt50, (255, 255, 255))
         self.text("{0:2.1f}".format(state['target']), (25, 75), fnt25, (255, 255, 255))
+        self.text(state['profile'], (25, 100), fnt25, (255, 255, 255))
         displayhatmini.display()
         if (state['state'] == 'IDLE'):
-            displayhatmini.set_led(0.0, 1.0, 0.0)
+            displayhatmini.set_led(0.0, 0.5, 0.0)
         else:
             if (state['heat'] == 1.0):
                 displayhatmini.set_led(1.0, 0.0, 0.0)
