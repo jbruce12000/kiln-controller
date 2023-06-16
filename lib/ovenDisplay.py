@@ -46,8 +46,8 @@ class OvenDisplay(threading.Thread):
         log.info(oven_state_json)
         state = json.loads(oven_state_json)
         log.info(state)
-        self.text("{0:2.1f} °C".format(state['temperature']), (25, 25), fnt75, (255, 255, 255))
-        self.text("Target: {0:2.1f} °C".format(state['target']), (25, 100), fnt25, (255, 255, 255))
+        self.text("{0:2.0f}°C".format(state['temperature']), (25, 25), fnt75, (255, 255, 255))
+        self.text("Target: {0:2.0f}°C".format(state['target']), (25, 100), fnt25, (255, 255, 255))
         if (state['profile'] is not None):
             self.text(state['profile'], (25, 175), fnt25, (255, 255, 255))
         else:
