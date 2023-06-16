@@ -47,10 +47,14 @@ class OvenDisplay(threading.Thread):
             #oven_state = self.oven.get_state()
             #update_display(oven_state)    
             if (x_pressed):
-                log.info("Aborting run")
-                self.oven.abort_run()
-                log.info("Updating state")
-                self.update_display(self.oven.get_state())
+                self.stop_oven()
+            if (y_pressed):
+                self.start_oven()
+            if (a_pressed):
+                self.prev_profile()
+            if (b_pressed):
+                self.next_profile()
+
 
             time.sleep(self.sleep_time)
 
@@ -100,4 +104,16 @@ class OvenDisplay(threading.Thread):
         #fnt = ImageFont.load_default()
         draw.text(position, text, font=fnt, fill=color)
 
-    
+    def stop_oven(self):
+        log.info("Aborting run")
+        self.oven.abort_run()
+        self.update_display(self.oven.get_state())
+
+    def start_oven(self):
+        log.info("Starting run")
+
+    def prev_profile(self):
+        log.info("Prev profile")
+
+    def next_profile(self):
+        log.info("Next profile")
