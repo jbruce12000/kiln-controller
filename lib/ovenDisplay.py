@@ -34,6 +34,7 @@ class OvenDisplay(threading.Thread):
         draw.rectangle((0, 0, width, height), (0, 0, 0))
         self.text("Initialising...", (25, 25), fnt25, (255,255,255))
         displayhatmini.display()
+        displayhatmini.set_led(0.0, 0.0, 0.0)
         self.start()
 
     def run(self):
@@ -65,13 +66,17 @@ class OvenDisplay(threading.Thread):
             self.text("No Programme", (25, 175), fnt25, (255, 255, 255))
 
         displayhatmini.display()
-        if (state['state'] is None or state['state'] == 'IDLE'):
-            displayhatmini.set_led(0.0, 0.2, 0.0)
+
+        if (state['state'] is None):
+            displayhatmini.set_led(0.0, 0.0, 0.0)
         else:
-            if (state['heat'] == 1.0):
-                displayhatmini.set_led(1.0, 0.0, 0.0)
+            if (state['state'] is None or state['state'] == 'IDLE'):
+                displayhatmini.set_led(0.0, 0.2, 0.0)
             else:
-                displayhatmini.set_led(0.0, 0.0, 1.0)
+                if (state['heat'] == 1.0):
+                    displayhatmini.set_led(1.0, 0.0, 0.0)
+                else:
+                    displayhatmini.set_led(0.0, 0.0, 1.0)
         
 
     def send(self,oven_state):
