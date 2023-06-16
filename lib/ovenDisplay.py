@@ -80,14 +80,14 @@ class OvenDisplay(threading.Thread):
 
 
         if (oven_state['profile'] is not None):
-            active_profile = oven_state['profile']
+            active_profile_name = oven_state['profile']
         else:
-            active_profile = self.profile
+            if (self.profile is not None):
+                active_profile_name = self.profile['name']
+            else:
+                active_profile_name = 'No Programme'
 
-        if (active_profile is not None):
-            self.text(active_profile.name, (25, 150), fnt25, (255, 255, 255))
-        else:
-            self.text('No Programme', (25, 150), fnt25, (255, 255, 255))
+        self.text(active_profile_name, (25, 150), fnt25, (255, 255, 255))
 
         if (oven_state['state'] is None):
             self.text("Initialising", (25, 175), fnt25, (255, 255, 255))
