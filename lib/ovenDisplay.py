@@ -12,6 +12,7 @@ buffer = Image.new("RGB", (width, height))
 displayhatmini = DisplayHATMini(buffer)
 displayhatmini.set_led(0.0, 0.2, 0.0)
 draw = ImageDraw.Draw(buffer)
+#TODO: externalise font path into config
 fnt25 = ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 25, encoding="unic")
 fnt50 = ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 50, encoding="unic")
 fnt75 = ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 75, encoding="unic")
@@ -39,8 +40,15 @@ class OvenDisplay(threading.Thread):
 
     def run(self):
         while True:
+            a_pressed = displayhatmini.read_button(displayhatmini.BUTTON_A)
+            b_pressed = displayhatmini.read_button(displayhatmini.BUTTON_B)
+            x_pressed = displayhatmini.read_button(displayhatmini.BUTTON_X)
+            y_pressed = displayhatmini.read_button(displayhatmini.BUTTON_Y)
             #oven_state = self.oven.get_state()
             #update_display(oven_state)    
+            if (x_pressed):
+                self.oven.abort_run()
+
             time.sleep(self.sleep_time)
 
     # {'cost': 0, 'runtime': 0, 'temperature': 23.176953125, 'target': 0, 'state': 'IDLE', 'heat': 0, 'totaltime': 0, 'kwh_rate': 0.33631, 'currency_type': '£', 'profile': None, 'pidstats': {}}
