@@ -6,7 +6,7 @@ log = logging.getLogger(__name__)
 try:
     from PIL import Image, ImageDraw, ImageFont
 except ImportError:
-    print("""This example requires PIL/Pillow, try:
+    print("""This requires PIL/Pillow, try:
 
 sudo apt install python3-pil
 
@@ -24,9 +24,9 @@ class OvenDisplay(threading.Thread):
         # display HAT setup
         self.width = DisplayHATMini.WIDTH
         self.height = DisplayHATMini.HEIGHT
-        self.buffer = Image.new("RGB", (width, height))
-        self.draw = ImageDraw.Draw(buffer)
-        self.displayhatmini = DisplayHATMini(buffer)
+        self.buffer = Image.new("RGB", (self.width, self.height))
+        self.draw = ImageDraw.Draw(self.buffer)
+        self.displayhatmini = DisplayHATMini(self.buffer)
         self.displayhatmini.set_led(0.05, 0.05, 0.05)
         # oven setup
         self.oven = oven
@@ -45,6 +45,7 @@ class OvenDisplay(threading.Thread):
     def update_display(self, oven_state):
         log.info(oven_state)
         self.text(oven_state, (25, 25), 15, (255, 255, 255))
+        self.displayhatmini.display()
 
 
     def send(self,oven_state):
