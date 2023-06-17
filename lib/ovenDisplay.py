@@ -86,13 +86,13 @@ class OvenDisplay(threading.Thread):
             else:
                 active_profile_name = 'No Programme'
 
-        self.text(active_profile_name, (10, 120), fnt25, (255, 255, 255))
+        self.text(active_profile_name, (10, 125), fnt25, (255, 255, 255))
 
         if (oven_state['state'] is None):
             self.text("Initialising", (10, 10), fnt25, (255, 255, 255))
             displayhatmini.set_led(0.0, 0.0, 0.0)
         else:
-            self.text(oven_state['state'], (10, 150), fnt25, (255, 255, 255))
+            self.text(oven_state['state'], (10, 160), fnt25, (255, 255, 255))
             if (oven_state['state'] == 'IDLE'):
                 if (self.profile is None):
                     # no light indicates we can't start a programme
@@ -101,19 +101,17 @@ class OvenDisplay(threading.Thread):
                     # green light indicates we can start a programme
                     displayhatmini.set_led(0.0, 0.5, 0.0)
             else:
-                self.text(oven_state['state'], (10, 150), fnt25, (255, 255, 255))
+                self.text(oven_state['state'], (10, 160), fnt25, (255, 255, 255))
                 if (oven_state['heat'] == 1.0):
                     displayhatmini.set_led(1.0, 0.0, 0.0)
                 else:
                     displayhatmini.set_led(0.0, 0.0, 1.0)
-                total_time = oven_state['totaltime']      
-                run_time = oven_state['runtime']  
-                time_left = total_time - run_time    
-                time_left_str = str(datetime.timedelta(seconds=round(time_left)))
-                # eta = new Date(left * 1000).toISOString().substr(11, 8);
-                self.text('Remaining: ' + time_left_str, (10, 185), fnt25, (255, 255, 255))
-
-
+                if (oven_state['totaltime'] is not None and oven_state['runtime'] is not None):
+                    total_time = oven_state['totaltime']      
+                    run_time = oven_state['runtime']  
+                    time_left = total_time - run_time    
+                    time_left_str = str(datetime.timedelta(seconds=round(time_left)))
+                    self.text('Remaining: ' + time_left_str, (10, 195), fnt25, (255, 255, 255))
         displayhatmini.display()
 
     def send(self,oven_state_json):
