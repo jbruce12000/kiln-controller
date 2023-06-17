@@ -43,7 +43,7 @@ else:
     log.info("this is a real kiln")
     oven = RealOven()
 ovenWatcher = OvenWatcher(oven)
-ovenDisplay = OvenDisplay(oven, ovenWatcher)
+ovenDisplay = OvenDisplay(oven, ovenWatcher, config.display_sleep_time)
 
 
 # this ovenwatcher is used in the oven class for restarts

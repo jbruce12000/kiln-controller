@@ -16,6 +16,10 @@ log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 listening_port = 8081
 
 ########################################################################
+# how long the display module waits between polls for key-presses (s)
+display_sleep_time=0.2
+
+########################################################################
 # Cost Information
 #
 # This is used to calculate a cost estimate before a run. It's also used

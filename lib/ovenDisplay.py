@@ -12,13 +12,14 @@ buffer = Image.new("RGB", (width, height))
 displayhatmini = DisplayHATMini(buffer)
 displayhatmini.set_led(0.0, 0.2, 0.0)
 draw = ImageDraw.Draw(buffer)
-#TODO: externalise font path into config
-fnt25 = ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 25, encoding="unic")
-fnt50 = ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 50, encoding="unic")
-fnt75 = ImageFont.truetype("/usr/share/fonts/truetype/freefont/FreeSans.ttf", 75, encoding="unic")
+# Font path on a Raspberry Pi running Raspbian
+font_path = "/usr/share/fonts/truetype/freefont/FreeSans.ttf"
+fnt25 = ImageFont.truetype(font_path, 25, encoding="unic")
+fnt50 = ImageFont.truetype(font_path, 50, encoding="unic")
+fnt75 = ImageFont.truetype(font_path, 75, encoding="unic")
 
 class OvenDisplay(threading.Thread):
-    def __init__(self,oven,ovenWatcher):
+    def __init__(self,oven,ovenWatcher,sleepTime):
         self.last_profile = None
         self.last_log = []
         self.started = None
@@ -32,8 +33,7 @@ class OvenDisplay(threading.Thread):
         self.oven = oven
         self.ovenWatcher = ovenWatcher
         ovenWatcher.add_observer(self)
-        # TODO - move to config
-        self.sleep_time = 0.1
+        self.sleep_time = sleepTime
         draw.rectangle((0, 0, width, height), (0, 0, 0))
         self.text("Initialising...", (25, 25), fnt25, (255,255,255))
         displayhatmini.display()
@@ -46,8 +46,6 @@ class OvenDisplay(threading.Thread):
             b_pressed = displayhatmini.read_button(displayhatmini.BUTTON_B)
             x_pressed = displayhatmini.read_button(displayhatmini.BUTTON_X)
             y_pressed = displayhatmini.read_button(displayhatmini.BUTTON_Y)
-            #oven_state = self.oven.get_state()
-            #update_display(oven_state)    
             if (x_pressed):
                 self.start_oven()
             if (y_pressed):
@@ -63,6 +61,7 @@ class OvenDisplay(threading.Thread):
         log.info(new_profiles)
         self.profiles = new_profiles
 
+    # Example contents of oven_state
     # {'cost': 0, 'runtime': 0, 'temperature': 23.176953125, 'target': 0, 'state': 'IDLE', 'heat': 0, 'totaltime': 0, 'kwh_rate': 0.33631, 'currency_type': '£', 'profile': None, 'pidstats': {}}
     # {'cost': 0.003923616666666667, 'runtime': 0.003829, 'temperature': 23.24140625, 'target': 100.00079770833334, 'state': 'RUNNING', 'heat': 1.0, 'totaltime': 3600, 'kwh_rate': 0.33631, 'currency_type': '£', 'profile': 'test-200-250', 'pidstats': {'time': 1686902305.0, 'timeDelta': 5.027144, 'setpoint': 100.00079770833334, 'ispoint': 23.253125, 'err': 76.74767270833334, 'errDelta': 0, 'p': 1918.6918177083335, 'i': 0, 'd': 0, 'kp': 25, 'ki': 10, 'kd': 200, 'pid': 0, 'out': 1}}
     def update_display(self, oven_state):
@@ -93,12 +92,16 @@ class OvenDisplay(threading.Thread):
             self.text("Initialising", (25, 175), fnt25, (255, 255, 255))
             displayhatmini.set_led(0.0, 0.0, 0.0)
         else:
-            self.text(oven_state['state'], (25, 175), fnt25, (255, 255, 255))
+            self.text(oven_state['state'], (25, 180), fnt25, (255, 255, 255))
             if (oven_state['state'] == 'IDLE'):
-                self.text(oven_state['state'], (25, 175), fnt25, (255, 255, 255))
-                displayhatmini.set_led(0.0, 0.2, 0.0)
+                if (self.profile is None):
+                    # no light indicates we can't start a programme
+                    displayhatmini.set_led(0.0, 0.0, 0.0)
+                else:
+                    # green light indicates we can start a programme
+                    displayhatmini.set_led(0.0, 0.5, 0.0)
             else:
-                self.text(oven_state['state'], (25, 175), fnt25, (255, 255, 255))
+                self.text(oven_state['state'], (25, 180), fnt25, (255, 255, 255))
                 if (oven_state['heat'] == 1.0):
                     displayhatmini.set_led(1.0, 0.0, 0.0)
                 else:
@@ -112,7 +115,6 @@ class OvenDisplay(threading.Thread):
         self.update_display(oven_state)
 
     def text(self, text, position, fnt, color):
-        #fnt = ImageFont.load_default()
         draw.text(position, text, font=fnt, fill=color)
 
     def stop_oven(self):
@@ -125,10 +127,10 @@ class OvenDisplay(threading.Thread):
             log.error("No programme to start")
         else:
             log.info("Starting run " + self.profile['name'])
-
             profile_json = json.dumps(self.profile)
             oven_profile = Profile(profile_json)
             self.oven.run_profile(oven_profile)
+            self.update_display(self.oven.get_state())
 
     def prev_profile(self):
         log.info("Prev profile")
