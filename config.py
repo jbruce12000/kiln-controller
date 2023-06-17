@@ -50,7 +50,8 @@ max31856 = 1
 # see lib/max31856.py for other thermocouple_type, only applies to max31856
 # uncomment this if using MAX-31856
 #thermocouple_type = MAX31856.MAX31856_S_TYPE
-thermocouple_type = MAX31856.MAX31856_R_TYPE
+#thermocouple_type = MAX31856.MAX31856_R_TYPE           # Sam's thermocouple
+thermocouple_type = MAX31856.MAX31856_K_TYPE            # test theromocouple
 
 ### Thermocouple Connection (using bitbang interfaces)
 gpio_sensor_cs = 26
@@ -70,7 +71,7 @@ gpio_spi = 1
 # Every N seconds a decision is made about switching the relay[s] 
 # on & off and for how long. The thermocouple is read 
 # temperature_average_samples times during and the average value is used.
-sensor_time_wait = 10
+sensor_time_wait = 5
 
 
 ########################################################################
