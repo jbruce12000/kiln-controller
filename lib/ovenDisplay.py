@@ -68,14 +68,14 @@ class OvenDisplay(threading.Thread):
         draw.rectangle((0, 0, width, height), (0, 0, 0))
         log.info(oven_state)
         if (oven_state['temperature'] is not None):
-            self.text("{0:2.0f}°C".format(oven_state['temperature']), (25, 25), fnt75, (255, 255, 255))
+            self.text("{0:2.0f}°C".format(oven_state['temperature']), (10, 10), fnt75, (255, 255, 255))
         else:
-            self.text("---°C", (25, 25), fnt75, (255, 255, 255))
+            self.text("---°C", (10, 10), fnt75, (255, 255, 255))
 
         if (oven_state['target'] is not None):
-            self.text("Target: {0:2.0f}°C".format(oven_state['target']), (25, 100), fnt25, (255, 255, 255))
+            self.text("Target: {0:2.0f}°C".format(oven_state['target']), (10, 90), fnt25, (255, 255, 255))
         else:
-            self.text("Target: ---°C", (25, 100), fnt25, (255, 255, 255))
+            self.text("Target: ---°C", (10, 90), fnt25, (255, 255, 255))
 
 
         if (oven_state['profile'] is not None):
@@ -86,13 +86,13 @@ class OvenDisplay(threading.Thread):
             else:
                 active_profile_name = 'No Programme'
 
-        self.text(active_profile_name, (25, 150), fnt25, (255, 255, 255))
+        self.text(active_profile_name, (10, 120), fnt25, (255, 255, 255))
 
         if (oven_state['state'] is None):
-            self.text("Initialising", (25, 175), fnt25, (255, 255, 255))
+            self.text("Initialising", (10, 10), fnt25, (255, 255, 255))
             displayhatmini.set_led(0.0, 0.0, 0.0)
         else:
-            self.text(oven_state['state'], (25, 180), fnt25, (255, 255, 255))
+            self.text(oven_state['state'], (10, 150), fnt25, (255, 255, 255))
             if (oven_state['state'] == 'IDLE'):
                 if (self.profile is None):
                     # no light indicates we can't start a programme
@@ -101,12 +101,19 @@ class OvenDisplay(threading.Thread):
                     # green light indicates we can start a programme
                     displayhatmini.set_led(0.0, 0.5, 0.0)
             else:
-                self.text(oven_state['state'], (25, 180), fnt25, (255, 255, 255))
+                self.text(oven_state['state'], (10, 150), fnt25, (255, 255, 255))
                 if (oven_state['heat'] == 1.0):
                     displayhatmini.set_led(1.0, 0.0, 0.0)
                 else:
                     displayhatmini.set_led(0.0, 0.0, 1.0)
-    
+                total_time = oven_state['totaltime']      
+                run_time = oven_state['runtime']  
+                time_left = total_time - run_time    
+                time_left_str = str(datetime.timedelta(seconds=round(time_left)))
+                # eta = new Date(left * 1000).toISOString().substr(11, 8);
+                self.text('Remaining: ' + time_left_str, (10, 185), fnt25, (255, 255, 255))
+
+
         displayhatmini.display()
 
     def send(self,oven_state_json):
