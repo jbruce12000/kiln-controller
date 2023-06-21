@@ -222,6 +222,7 @@ class Oven(threading.Thread):
         self.totaltime = 0
         self.target = 0
         self.heat = 0
+        self.status = ""
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
 
     def run_profile(self, profile, startat=0):
@@ -229,15 +230,19 @@ class Oven(threading.Thread):
 
         if self.board.temp_sensor.noConnection:
             log.info("Refusing to start profile - thermocouple not connected")
+            self.status = "Thermocouple not connected"
             return
         if self.board.temp_sensor.shortToGround:
             log.info("Refusing to start profile - thermocouple short to ground")
+            self.status = "Thermocouple short to ground"
             return
         if self.board.temp_sensor.shortToVCC:
             log.info("Refusing to start profile - thermocouple short to VCC")
+            self.status = "Thermocouple short to VCC"
             return
         if self.board.temp_sensor.unknownError:
             log.info("Refusing to start profile - thermocouple unknown error")
+            self.status = "Thermocouple unknown error"
             return
 
         self.startat = startat * 60
@@ -262,10 +267,12 @@ class Oven(threading.Thread):
             # kiln too cold, wait for it to heat up
             if self.target - temp > config.pid_control_window:
                 log.info("kiln must catch up, too cold, shifting schedule")
+                self.status = "Kiln must catch up, too cold, shifting schedule"
                 self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
             # kiln too hot, wait for it to cool down
             if temp - self.target > config.pid_control_window:
                 log.info("kiln must catch up, too hot, shifting schedule")
+                self.status = "Kiln must catch up, too hot, shifting schedule"
                 self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
 
     def update_runtime(self):
@@ -283,27 +290,32 @@ class Oven(threading.Thread):
         if (self.board.temp_sensor.temperature + config.thermocouple_offset >=
             config.emergency_shutoff_temp):
             log.info("emergency!!! temperature too high")
+            self.status = "Emergency! Temperature too high"
             if config.ignore_temp_too_high == False:
                 self.abort_run()
 
         if self.board.temp_sensor.noConnection:
             log.info("emergency!!! lost connection to thermocouple")
+            self.status = "Emergency! Lost connection to thermocouple"
             if config.ignore_lost_connection_tc == False:
                 self.abort_run()
 
         if self.board.temp_sensor.unknownError:
             log.info("emergency!!! unknown thermocouple error")
+            self.status = "Emergency! Unknown thermocouple error"
             if config.ignore_unknown_tc_error == False:
                 self.abort_run()
 
         if self.board.temp_sensor.bad_percent > 30:
             log.info("emergency!!! too many errors in a short period")
+            self.status = "Emergency! Too many errors in a short period"
             if config.ignore_too_many_tc_errors == False:
                 self.abort_run()
 
     def reset_if_schedule_ended(self):
         if self.runtime > self.totaltime:
             log.info("schedule ended, shutting down")
+            self.status = "Schedule ended, shutting down"
             log.info("total cost = %s%.2f" % (config.currency_type,self.cost))
             self.abort_run()
 
@@ -329,6 +341,7 @@ class Oven(threading.Thread):
             'temperature': temp,
             'target': self.target,
             'state': self.state,
+            'status': self.status,
             'heat': self.heat,
             'totaltime': self.totaltime,
             'kwh_rate': config.kwh_rate,

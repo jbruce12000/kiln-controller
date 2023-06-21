@@ -113,8 +113,8 @@ class OvenDisplay(threading.Thread):
                     time_left = total_time - run_time    
                     time_left_str = str(datetime.timedelta(seconds=round(time_left)))
                     message = 'Remaining: ' + time_left_str;
-                if (oven_state['pidstats'] is not None and oven_state['pidstats']['status'] is not None):
-                    message = 'ERROR: ' + oven_state['pidstats']['status']
+                if (oven_state['status'] is not None and oven_state['status'] != ""):
+                    message = oven_state['status']
                 self.text(message, (10, 195), fnt25, (255, 255, 255))
         displayhatmini.display()
 
