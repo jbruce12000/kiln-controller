@@ -106,16 +106,20 @@ class OvenDisplay(threading.Thread):
                     displayhatmini.set_led(1.0, 0.0, 0.0)
                 else:
                     displayhatmini.set_led(0.0, 0.0, 1.0)
+                message = ''
                 if (oven_state['totaltime'] is not None and oven_state['runtime'] is not None):
                     total_time = oven_state['totaltime']      
                     run_time = oven_state['runtime']  
                     time_left = total_time - run_time    
                     time_left_str = str(datetime.timedelta(seconds=round(time_left)))
-                    self.text('Remaining: ' + time_left_str, (10, 195), fnt25, (255, 255, 255))
+                    message = 'Remaining: ' + time_left_str;
+                if (oven_state['pidstats'] is not None and oven_state['pidstats']['status'] is not None):
+                    message = 'ERROR: ' + oven_state['pidstats']['status']
+                self.text(message, (10, 195), fnt25, (255, 255, 255))
         displayhatmini.display()
 
     def send(self,oven_state_json):
-        log.info(oven_state_json)
+        #log.info(oven_state_json)
         oven_state = json.loads(oven_state_json)
         self.update_display(oven_state)
 

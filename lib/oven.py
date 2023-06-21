@@ -269,7 +269,6 @@ class Oven(threading.Thread):
                 self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
 
     def update_runtime(self):
-
         runtime_delta = datetime.datetime.now() - self.start_time
         if runtime_delta.total_seconds() < 0:
             runtime_delta = datetime.timedelta(0)
@@ -578,6 +577,8 @@ class Profile():
         return (prev_point, next_point)
 
     def get_target_temperature(self, time):
+        #log.info("time = " + str(time))
+        #log.info("duration = " + str(self.get_duration()))
         if time > self.get_duration():
             return 0
 
@@ -620,12 +621,15 @@ class PID():
         output = 0
         out4logs = 0
         dErr = 0
+        status = ''
         if error < (-1 * config.pid_control_window):
+            status = "kiln outside pid control window, max cooling"
             log.info("kiln outside pid control window, max cooling")
             output = 0
             # it is possible to set self.iterm=0 here and also below
             # but I dont think its needed
         elif error > (1 * config.pid_control_window):
+            status = "kiln outside pid control window, max heating"
             log.info("kiln outside pid control window, max heating")
             output = 1
         else:
@@ -659,6 +663,7 @@ class PID():
             'kd': self.kd,
             'pid': out4logs,
             'out': output,
+            'status': status,
         }
 
         return output
