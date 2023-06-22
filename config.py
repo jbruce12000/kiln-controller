@@ -127,7 +127,7 @@ time_scale_profile  = "m" # s = Seconds | m = Minutes | h = Hours - Enter and vi
 # means your kiln receives full power until your house burns down.
 # this should not replace you watching your kiln or use of a kiln-sitter
 #emergency_shutoff_temp = 2264 #cone 7
-emergency_shutoff_temp = 1300     # TODO: check if the change of temp scale also changes interpretation of these constants
+emergency_shutoff_temp = 1400     
 
 # If the current temperature is outside the pid control window,
 # delay the schedule until it does back inside. This allows for heating
