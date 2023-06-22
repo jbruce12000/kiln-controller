@@ -35,6 +35,7 @@ class OvenDisplay(threading.Thread):
         self.ovenWatcher = ovenWatcher
         ovenWatcher.add_observer(self)
         self.sleep_time = sleepTime
+        self.count = 0
         with self.display_lock:
             draw.rectangle((0, 0, width, height), (0, 0, 0))
             self.text("Initialising...", (25, 25), fnt25, (255,255,255))
@@ -70,8 +71,10 @@ class OvenDisplay(threading.Thread):
     def update_display(self, oven_state):
         with self.display_lock:
             draw.rectangle((0, 0, width, height), (0, 0, 0))
+            self.count = self.count+1
             # TODO - remove this - will use up too much disk
-            log.info(oven_state)
+            if (self.count % 20 == 0):
+                log.info(oven_state)
             if (oven_state['temperature'] is not None):
                 self.text("{0:2.0f}°C".format(oven_state['temperature']), (10, 10), fnt75, (255, 255, 255))
             else:
@@ -108,8 +111,10 @@ class OvenDisplay(threading.Thread):
                 else:
                     self.text(oven_state['state'], (10, 160), fnt25, (255, 255, 255))
                     if (oven_state['heat'] == 1.0):
+                        # red light indicates heating
                         displayhatmini.set_led(1.0, 0.0, 0.0)
                     else:
+                        # blue light indicates coooling
                         displayhatmini.set_led(0.0, 0.0, 1.0)
                     message = ''
                     message_colour = (0,255,255)
@@ -126,7 +131,6 @@ class OvenDisplay(threading.Thread):
             displayhatmini.display()
 
     def send(self,oven_state_json):
-        #log.info(oven_state_json)
         oven_state = json.loads(oven_state_json)
         self.update_display(oven_state)
 
