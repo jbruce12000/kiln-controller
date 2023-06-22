@@ -636,13 +636,13 @@ class PID():
         dErr = 0
         status = ''
         if error < (-1 * config.pid_control_window):
-            status = "kiln outside pid control window, max cooling"
+            status = "Kiln outside pid control window, max cooling"
             log.info("kiln outside pid control window, max cooling")
             output = 0
             # it is possible to set self.iterm=0 here and also below
             # but I dont think its needed
         elif error > (1 * config.pid_control_window):
-            status = "kiln outside pid control window, max heating"
+            status = "Kiln outside pid control window, max heating"
             log.info("kiln outside pid control window, max heating")
             output = 1
         else:
