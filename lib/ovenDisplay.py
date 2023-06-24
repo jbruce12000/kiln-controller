@@ -73,7 +73,7 @@ class OvenDisplay(threading.Thread):
             draw.rectangle((0, 0, width, height), (0, 0, 0))
             self.count = self.count+1
             # TODO - remove this - will use up too much disk
-            if (self.count % 20 == 0):
+            if (self.count % 40 == 0):
                 log.info(oven_state)
             if (oven_state['temperature'] is not None):
                 self.text("{0:2.0f}°C".format(oven_state['temperature']), (10, 10), fnt75, (255, 255, 255))
@@ -94,7 +94,7 @@ class OvenDisplay(threading.Thread):
                 else:
                     active_profile_name = 'No Programme'
 
-            self.text(active_profile_name, (10, 125), fnt25, (100, 255, 255))
+            self.text(active_profile_name, (10, 125), fnt25, (255, 0, 255))
 
             if (oven_state['state'] is None):
                 self.text("Initialising", (10, 10), fnt25, (255, 255, 255))
@@ -107,7 +107,7 @@ class OvenDisplay(threading.Thread):
                         displayhatmini.set_led(0.0, 0.0, 0.0)
                     else:
                         # green light indicates we can start a programme
-                        displayhatmini.set_led(0.0, 0.5, 0.0)
+                        displayhatmini.set_led(0.0, 0.25, 0.0)
                 else:
                     self.text(oven_state['state'], (10, 160), fnt25, (255, 255, 255))
                     if (oven_state['heat'] == 1.0):
@@ -117,7 +117,7 @@ class OvenDisplay(threading.Thread):
                         # blue light indicates coooling
                         displayhatmini.set_led(0.0, 0.0, 1.0)
                     message = ''
-                    message_colour = (0,255,255)
+                    message_colour = (0,0,255)
                     if (oven_state['totaltime'] is not None and oven_state['runtime'] is not None):
                         total_time = oven_state['totaltime']      
                         run_time = oven_state['runtime']  
