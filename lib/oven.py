@@ -416,6 +416,7 @@ class Oven(threading.Thread):
                 time.sleep(1)
                 continue
             if self.state == "RUNNING":
+                self.status = ""
                 self.update_cost()
                 self.save_automatic_restart_state()
                 self.kiln_must_catch_up()

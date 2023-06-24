@@ -17,7 +17,7 @@ listening_port = 8081
 
 ########################################################################
 # how long the display module waits between polls for key-presses (s)
-display_sleep_time=0.2
+display_sleep_time=0.15
 
 ########################################################################
 # Cost Information
