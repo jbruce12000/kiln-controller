@@ -267,12 +267,12 @@ class Oven(threading.Thread):
             # kiln too cold, wait for it to heat up
             if self.target - temp > config.pid_control_window:
                 log.info("kiln must catch up, too cold, shifting schedule")
-                self.status = "Kiln must catch up, too cold, shifting schedule"
+                self.status = "Kiln must catch up, too cold"
                 self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
             # kiln too hot, wait for it to cool down
             if temp - self.target > config.pid_control_window:
                 log.info("kiln must catch up, too hot, shifting schedule")
-                self.status = "Kiln must catch up, too hot, shifting schedule"
+                self.status = "Kiln must catch up, too hot"
                 self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
 
     def update_runtime(self):
