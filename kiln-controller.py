@@ -56,14 +56,15 @@ def index():
 @app.get('/api/stats')
 def handle_api():
     log.info("/api/stats command received")
-    if hasattr(oven,'pid'):
-        if hasattr(oven.pid,'pidstats'):
-            log.info(oven.pid)
-            return json.dumps(oven.pid.pidstats)
-        else:
-            return "No pidstats"
-    else:
-        return "No pid"
+    return json.dumps(oven)
+    # if hasattr(oven,'pid'):
+    #     if hasattr(oven.pid,'pidstats'):
+    #         log.info(oven.pid)
+    #         return json.dumps(oven.pid.pidstats)
+    #     else:
+    #         return "No pidstats"
+    # else:
+    #     return "No pid"
 
 
 @app.post('/api')
