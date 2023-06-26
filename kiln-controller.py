@@ -56,7 +56,7 @@ def index():
 @app.get('/api/stats')
 def handle_api():
     log.info("/api/stats command received")
-    return json.dumps(oven)
+    return json.dumps(oven.get_state())
     # if hasattr(oven,'pid'):
     #     if hasattr(oven.pid,'pidstats'):
     #         log.info(oven.pid)
