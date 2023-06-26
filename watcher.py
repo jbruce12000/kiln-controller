@@ -27,6 +27,7 @@ class Watcher(object):
     def get_stats(self):
         try:
             r = requests.get(self.kiln_url,timeout=1)
+            log.info(r.json())
             return r.json()
         except requests.exceptions.Timeout:
             log.error("network timeout. check kiln_url and port.")
@@ -35,6 +36,7 @@ class Watcher(object):
             log.error("network connection error. check kiln_url and port.")
             return {}
         except:
+            log.error("Unknown error")
             return {}
 
     def send_alert(self,msg):
@@ -76,8 +78,8 @@ class Watcher(object):
 if __name__ == "__main__":
 
     watcher = Watcher(
-        kiln_url = "http://192.168.1.84:8081/api/stats",
-        slack_hook_url = "you must add this",
+        kiln_url = "http://192.168.1.176:8081/api/stats",
+        slack_hook_url = "https://hooks.slack.com/services/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",
         bad_check_limit = 6,
         temp_error_limit = 10,
         sleepfor = 10 )

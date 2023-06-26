@@ -58,14 +58,17 @@ def handle_api():
     log.info("/api/stats command received")
     if hasattr(oven,'pid'):
         if hasattr(oven.pid,'pidstats'):
+            log.info(oven.pid)
             return json.dumps(oven.pid.pidstats)
+        else:
+            return "No pidstats"
+    else:
+        return "No pid"
 
 
 @app.post('/api')
 def handle_api():
     log.info("/api is alive")
-
-
     # run a kiln schedule
     if bottle.request.json['cmd'] == 'run':
         wanted = bottle.request.json['profile']
