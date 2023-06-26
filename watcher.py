@@ -79,7 +79,7 @@ if __name__ == "__main__":
 
     watcher = Watcher(
         kiln_url = "http://192.168.1.176:8081/api/stats",
-        slack_hook_url = "https://hooks.slack.com/services/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",
+        slack_hook_url = "DO-NOT-COMMIT",
         bad_check_limit = 6,
         temp_error_limit = 10,
         sleepfor = 10 )
