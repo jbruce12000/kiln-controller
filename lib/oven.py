@@ -254,6 +254,26 @@ class Oven(threading.Thread):
         self.state = "RUNNING"
         log.info("Running schedule %s starting at %d minutes" % (profile.name,startat))
         log.info("Starting")
+        # See if we are already partway along the first ramp
+        temp = self.board.temp_sensor.temperature + config.thermocouple_offset
+        target = self.profile.get_target_temperature(self.runtime)
+        (prev_point, next_point) = self.profile.get_surrounding_points(self.runtime)
+        if (temp > target and next_point[1] > prev_point[1] and temp < next_point[1]):
+            # We are ramping up and the current temp is somewhere in the first ramp
+            while (temp > target):
+                self.runtime = self.runtime + 1
+                target = self.profile.get_target_temperature(self.runtime)
+            log.info(f"Ramp up already started, shifting runtime to {self.runtime} for temp={temp}")
+            self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
+            self.update_target_temp()
+        elif (temp < target and next_point[1] < prev_point[1] and temp > next_point[1]):
+            # We are ramping down and the current temp is somewhere in the first ramp
+            while (temp < target):
+                self.runtime = self.runtime + 1
+                target = self.profile.get_target_temperature(self.runtime)
+            log.info(f"Ramp down already started, shifting runtime to {self.runtime} for temp={temp}")
+            self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
+            self.update_target_temp()
 
     def abort_run(self):
         self.reset()
@@ -264,14 +284,14 @@ class Oven(threading.Thread):
         to wait for the kiln to catch up'''
         if config.kiln_must_catch_up == True:
             temp = self.board.temp_sensor.temperature + \
-                config.thermocouple_offset
+              config.thermocouple_offset
             # kiln too cold, wait for it to heat up
             if self.target - temp > config.pid_control_window:
-                log.info("kiln must catch up, too cold, shifting schedule")
+                log.info(f"kiln must catch up, too cold ({temp} vs {self.target}), shifting schedule")
                 self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
             # kiln too hot, wait for it to cool down
             if temp - self.target > config.pid_control_window:
-                log.info("kiln must catch up, too hot, shifting schedule")
+                log.info(f"kiln must catch up, too hot ({temp} vs {self.target}), shifting schedule")
                 self.start_time = datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
 
     def update_runtime(self):

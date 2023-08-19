@@ -7,3 +7,5 @@ RPi.GPIO
 Adafruit-MAX31855
 Adafruit-GPIO
 websocket-client
+adafruit-blinka
+adafruit-circuitpython-register
