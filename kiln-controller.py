@@ -23,6 +23,12 @@ except:
     exit(1)
 
 logging.basicConfig(level=config.log_level, format=config.log_format)
+logFormatter = logging.Formatter(config.log_format)
+rootLogger = logging.getLogger()
+fileHandler = logging.FileHandler(config.log_file)
+fileHandler.setFormatter(logFormatter)
+rootLogger.addHandler(fileHandler)
+
 log = logging.getLogger("kiln-controller")
 log.info("Starting kiln controller")
 

@@ -11,7 +11,7 @@ import os
 ### Logging
 log_level = logging.INFO
 log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
-
+log_file = '/home/hutz/Code/kiln-controller/kiln.log'
 ### Server
 listening_port = 8081
 
@@ -41,8 +41,10 @@ gpio_heat = 23  # Switches zero-cross solid-state-relay
 ### Thermocouple Adapter selection:
 #   max31855 - bitbang SPI interface
 #   max31856 - bitbang SPI interface. must specify thermocouple_type.
-max31855 = 1
+max31855 = 0
 max31856 = 0
+mcp9600 = 1
+
 # see lib/max31856.py for other thermocouple_type, only applies to max31856
 # uncomment this if using MAX-31856
 #thermocouple_type = MAX31856.MAX31856_S_TYPE
