@@ -11,7 +11,7 @@ import os
 ### Logging
 log_level = logging.INFO
 log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
-log_file = '/home/hutz/Code/kiln-controller/kiln.log'
+
 ### Server
 listening_port = 8081
 

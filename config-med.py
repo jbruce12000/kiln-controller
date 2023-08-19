@@ -11,7 +11,7 @@ import os
 ### Logging
 log_level = logging.INFO
 log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
-log_file = '/home/hutz/Code/kiln-controller/kiln.log'
+
 ### Server
 listening_port = 8081
 
@@ -87,16 +87,16 @@ sensor_time_wait = 15
 
 # med mode (top=off, middle=med, bottom=med, no peephole covers, 
 # lid cracked, thermocouple in middle
-# pid_kp = 8 # tuner gave -22 
-# pid_ki = 6
-# pid_kd = 834
-# kw_elements     = 3 # if the kiln elements are on, the wattage in kilowatts
+pid_kp = 8 # tuner gave -22 
+pid_ki = 6
+pid_kd = 834
+kw_elements     = 3 # if the kiln elements are on, the wattage in kilowatts
 
 # high mode (all=high, peephole covers in, lid closed, thermocouple in middle
-pid_kp = 17
-pid_ki = 6
-pid_kd = 800 # was 486
-kw_elements     = 9 # if the kiln elements are on, the wattage in kilowatts
+# pid_kp = 17
+# pid_ki = 6
+# pid_kd = 486
+# kw_elements     = 9 # if the kiln elements are on, the wattage in kilowatts
 
 ########################################################################
 #
