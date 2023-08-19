@@ -88,6 +88,16 @@ class Board(object):
                 msg = "max31856 config set, but import failed"
                 log.warning(msg)
 
+        if config.mcp9600:
+            try:
+                #from mcp9600 import OvenMCP9600, MCP9600Error
+                self.name='MCP9600'
+                self.active = True
+                log.info("import %s " % (self.name))
+            except ImportError:
+                msg = "mcp9600 config set, but import failed"
+                log.warning(msg)
+
     def create_temp_sensor(self):
         if config.simulate == True:
             self.temp_sensor = TempSensorSimulate()
@@ -143,6 +153,11 @@ class TempSensorReal(TempSensor):
                                          ac_freq_50hz = config.ac_freq_50hz,
                                          )
 
+        if config.mcp9600:
+            log.info("init mcp9600")
+            from mcp9600 import OvenMCP9600
+            self.thermocouple = OvenMCP9600(units = config.temp_scale)
+
     def run(self):
         '''use a moving average of config.temperature_average_samples across the time_step'''
         temps = []
@@ -179,6 +194,7 @@ class TempSensorReal(TempSensor):
 
             if len(temps):
                 self.temperature = self.get_avg_temp(temps)
+
             time.sleep(self.sleeptime)
 
     def get_avg_temp(self, temps, chop=25):
