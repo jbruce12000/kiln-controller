@@ -6,3 +6,6 @@
 .DStore/
 thumbs.db
 .idea/*
+.vs/kiln-controller/v17/.wsuo
+.vs/VSWorkspaceState.json
+kiln.log
