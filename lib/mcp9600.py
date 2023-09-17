@@ -39,13 +39,17 @@ class OvenMCP9600(object):
 
     def read(self):
         '''Reads temperature from thermocouple and code junction'''
-        # Save data
-        self.tempC = self.mcp.temperature
-        self.referenceTempC = self.mcp.ambient_temperature
+        try:
+            # Save data
+            self.tempC = self.mcp.temperature
+            self.referenceTempC = self.mcp.ambient_temperature
+            self.noConnection = False
+        except:
+            self.noConnection = True
 
     def checkErrors(self, data_32 = None):
         '''Checks error bits to see if there are any SCV, SCG, or OC faults'''
-        self.noConnection = self.shortToGround = self.shortToVCC = self.unknownError = False
+        self.shortToGround = self.shortToVCC = self.unknownError = False
 
     def data_to_rj_temperature(self, data_32 = None):
         '''Returns reference junction temperature in C.'''
