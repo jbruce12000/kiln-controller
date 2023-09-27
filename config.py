@@ -42,9 +42,9 @@ gpio_heat = 23  # Switches zero-cross solid-state-relay
 ### Thermocouple Adapter selection:
 #   max31855 - bitbang SPI interface
 #   max31856 - bitbang SPI interface. must specify thermocouple_type.
-max31855 = 0
+max31855 = 1
 max31856 = 0
-mcp9600 = 1
+mcp9600 = 0
 # see lib/max31856.py for other thermocouple_type, only applies to max31856
 # uncomment this if using MAX-31856
 #thermocouple_type = MAX31856.MAX31856_S_TYPE
@@ -185,7 +185,7 @@ ignore_too_many_tc_errors = False
 # errors at higher temperatures due to plasma forming in the kiln.
 # Set this to True to ignore these errors and assume the temperature 
 # reading was correct anyway
-ignore_tc_short_errors = False 
+ignore_tc_short_errors = True 
 
 ########################################################################
 # automatic restarts - if you have a power brown-out and the raspberry pi
