@@ -555,7 +555,7 @@ class RealOven(Oven):
         # self.heat is for the front end to display if the heat is on
         self.heat = 0.0
         if heat_on > 0:
-            self.heat = 1.0
+            self.heat = heat_on
 
         if heat_on:
             self.output.heat(heat_on)
