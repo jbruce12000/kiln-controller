@@ -793,6 +793,10 @@ class PID():
         elif error > (1 * config.pid_control_window):
             log.info("kiln outside pid control window, max heating")
             output = 1
+            if config.throttle_below_temp and config.throttle_percent:
+                if ispoint <= config.throttle_below_temp:
+                    output = config.throttle_percent/100
+                    log.info("max heating throttled at %d percent below %d degrees to prevent overshoot" % (config.throttle_percent,config.throttle_below_temp))
         else:
             icomp = (error * timeDelta * (1/self.ki))
             self.iterm += (error * timeDelta * (1/self.ki))
