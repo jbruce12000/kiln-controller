@@ -54,7 +54,7 @@ try:
     spi_miso  = board.D9  #spi Microcomputer In Serial Out
     spi_cs    = board.D5  #spi Chip Select
     gpio_heat = board.D23 #output that controls relay
-except NotImplementedError:
+except (NotImplementedError,AttributeError):
     print("not running on blinka recognized board, probably a simulation")
 
 ### Thermocouple Adapter selection:
@@ -128,7 +128,7 @@ sim_R_ho_air   = 0.05   # K/W  " with internal air circulation
 
 # if you want simulations to happen faster than real time, this can be
 # set as high as 1000 to speed simulations up by 1000 times.
-sim_speedup_factor = 1
+sim_speedup_factor = 10
 
 
 ########################################################################
