@@ -7,6 +7,7 @@ import config
 import os
 import digitalio
 import busio
+import adafruit_bitbangio as bitbangio
 import statistics
 
 log = logging.getLogger(__name__)
@@ -96,6 +97,7 @@ class TempSensor(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.daemon = True
+        self.name = 'TempSensor'
         self.time_step = config.sensor_time_wait
         self.status = ThermocoupleTracker()
 
@@ -117,8 +119,21 @@ class TempSensorReal(TempSensor):
         TempSensor.__init__(self)
         self.sleeptime = self.time_step / float(config.temperature_average_samples)
         self.temptracker = TempTracker() 
-        self.spi = busio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
+        self.spi = self.spi_setup()
         self.cs = digitalio.DigitalInOut(config.spi_cs)
+
+    def spi_setup(self):
+        spi = None
+        try:
+            spi = busio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
+        except ValueError as ex:
+            if config.max31855:
+                spi = bitbangio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
+                log.info('Using software SPI.')
+            else:
+                raise ex
+
+        return spi
 
     def get_temperature(self):
         '''read temp from tc and convert if needed'''
@@ -143,6 +158,8 @@ class TempSensorReal(TempSensor):
 
     def run(self):
         while True:
+            log.debug('get_temperature run on thread: ' + threading.current_thread().name)
+
             temp = self.get_temperature()
             if temp:
                 self.temptracker.add(temp)
@@ -313,6 +330,7 @@ class Oven(threading.Thread):
        for either a real or simulated oven'''
     def __init__(self):
         threading.Thread.__init__(self)
+        self.name = 'Oven'
         self.daemon = True
         self.temperature = 0
         self.time_step = config.sensor_time_wait
@@ -322,8 +340,10 @@ class Oven(threading.Thread):
         self.cost = 0
         self.state = "IDLE"
         self.profile = None
-        self.start_time = 0
+        self.start_time =  datetime.datetime.now()
+        self.original_start_time = self.start_time
         self.runtime = 0
+        self.plot_runtime = 0
         self.totaltime = 0
         self.target = 0
         self.heat = 0
@@ -360,7 +380,7 @@ class Oven(threading.Thread):
             self.heat_rate = ((temp2 - temp1) / (time2 - time1))*3600
 
     def run_profile(self, profile, startat=0, allow_seek=True):
-        log.debug('run_profile run on thread' + threading.current_thread().name)
+        log.debug('run_profile run on thread: ' + threading.current_thread().name)
         runtime = startat * 60
         if allow_seek:
             if self.state == 'IDLE':
@@ -401,12 +421,15 @@ class Oven(threading.Thread):
                 self.start_time = self.get_start_time()
 
     def update_runtime(self):
-
         runtime_delta = datetime.datetime.now() - self.start_time
+        plot_rt_delta = datetime.datetime.now() - self.original_start_time
         if runtime_delta.total_seconds() < 0:
             runtime_delta = datetime.timedelta(0)
+        if plot_rt_delta.total_seconds() < 0:
+            plot_rt_delta = datetime.timedelta(0)
 
         self.runtime = runtime_delta.total_seconds()
+        self.plot_runtime = plot_rt_delta.total_seconds()
 
     def update_target_temp(self):
         self.target = self.profile.get_target_temperature(self.runtime)
@@ -448,9 +471,14 @@ class Oven(threading.Thread):
 
         self.set_heat_rate(self.runtime,temp)
 
+        if config.real_time_display:
+            runtime = self.plot_runtime
+        else:
+            runtime = self.runtime
+
         state = {
             'cost': self.cost,
-            'runtime': self.runtime,
+            'runtime': runtime,
             'temperature': temp,
             'target': self.target,
             'state': self.state,
@@ -568,10 +596,14 @@ class SimulatedOven(Oven):
 
     def update_runtime(self):
         runtime_delta = datetime.datetime.now() - self.start_time
+        plot_rt_delta = datetime.datetime.now() - self.original_start_time
         if runtime_delta.total_seconds() < 0:
             runtime_delta = datetime.timedelta(0)
+        if plot_rt_delta.total_seconds() < 0:
+            plot_rt_delta = datetime.timedelta(0)
 
         self.runtime = runtime_delta.total_seconds() * self.speedup_factor
+        self.plot_runtime = plot_rt_delta.total_seconds() * self.speedup_factor
 
     def update_target_temp(self):
         self.target = self.profile.get_target_temperature(self.runtime)

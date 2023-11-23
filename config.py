@@ -32,11 +32,14 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 # temperature data from the adafruit-31855 or adafruit-31856.
 # Blinka supports many different boards. I've only tested raspberry pi.
 #
-# SPI uses 3 or 4 pins. On the raspberry pi, you MUST use predefined
-# pins. In the case of the adafruit-31855, only 3 pins are used:
+# SPI uses 3 or 4 pins. Most supported boards have predefined "hardware" SPI pins.
+# Hardware pins for the Raspberry Pi are listed below. You MUST use predefined
+# hardware pins for the adafruit-31856. The adafruit-31855 also supports software pins via bitbangio.
+# Any GPIO pins can be used. We recommend using hardware pins as they are faster, but this should nake
+# little or difference for a thrermocouple. In the case of the adafruit-31855, only 3 pins are used:
 #
 #    SPI0_SCLK = BCM pin 11 = CLK on the adafruit-31855
-#    SPI0_MOSI = BCM pin 10 = not connected
+#    SPI0_MOSI = BCM pin 10 = Needed on the adafruit-31856, not used on the 31855
 #    SPI0_MISO = BCM pin 9  = D0 on the adafruit-31855
 #   
 # plus a GPIO output to connect to CS. You can use any GPIO pin you want.
@@ -50,7 +53,7 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 try:
     import board
     spi_sclk  = board.D11 #spi clock
-    spi_mosi  = board.D10 #spi Microcomputer Out Serial In (not connected) 
+    spi_mosi  = board.D10 #spi Microcomputer Out Serial In (not connected on MAX315855, needed on MAX315856)
     spi_miso  = board.D9  #spi Microcomputer In Serial Out
     spi_cs    = board.D5  #spi Chip Select
     gpio_heat = board.D23 #output that controls relay
@@ -60,11 +63,11 @@ except (NotImplementedError,AttributeError):
 ### Thermocouple Adapter selection:
 #   max31855 - bitbang SPI interface
 #   max31856 - bitbang SPI interface. must specify thermocouple_type.
-max31855 = 0
-max31856 = 1
+max31855 = 1
+max31856 = 0
 # uncomment these two lines if using MAX-31856
-import adafruit_max31856
-thermocouple_type = adafruit_max31856.ThermocoupleType.K
+# import adafruit_max31856
+# thermocouple_type = adafruit_max31856.ThermocoupleType.K
 
 # here are the possible max-31856 thermocouple types
 #   ThermocoupleType.B
@@ -91,7 +94,6 @@ seek_start = True
 # on & off and for how long. The thermocouple is read 
 # temperature_average_samples times during and the average value is used.
 sensor_time_wait = 2
-
 
 ########################################################################
 #
@@ -130,7 +132,6 @@ sim_R_ho_air   = 0.05   # K/W  " with internal air circulation
 # set as high as 1000 to speed simulations up by 1000 times.
 sim_speedup_factor = 10
 
-
 ########################################################################
 #
 #   Time and Temperature parameters
@@ -152,6 +153,16 @@ emergency_shutoff_temp = 2264 #cone 7
 # delay the schedule until it does back inside. This allows for heating
 # and cooling as fast as possible and not continuing until temp is reached.
 kiln_must_catch_up = True
+
+
+#######################################################################
+# Real time display option
+#
+# If kiln_must_catch_up is true the schedule is delayed (as above) and the time displayed on the
+# graph is stopped. Setting real_time_display to True increments time on the graph normally, so
+# that the display shows the actual time/temperature curve of the kiln whether the schedule is
+# waiting or not.
+real_time_display = False
 
 # This setting is required. 
 # This setting defines the window within which PID control occurs.
