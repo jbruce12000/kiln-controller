@@ -28,7 +28,20 @@ except NotImplementedError:
 # of my thermocouple is .25C.
 ########################################################################
 
-spi = busio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
+spi = None
+if(hasattr(board,'SCLK') and
+    hasattr(board,'MOSI') and
+    hasattr(board,'MISO')):
+    if(board.SCLK == config.spi_sclk and
+        board.MOSI == config.spi_mosi and
+        board.MISO == config.spi_miso):
+        spi = board.SPI();
+        print("Hardware SPI selected for reading thermocouple")
+
+if spi is None:
+    spi = bitbangio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
+    print("Software SPI selected for reading thermocouple")
+
 cs = DigitalInOut(config.spi_cs)
 sensor = None
 

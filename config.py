@@ -32,8 +32,23 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 # temperature data from the adafruit-31855 or adafruit-31856.
 # Blinka supports many different boards. I've only tested raspberry pi.
 #
-# SPI uses 3 or 4 pins. On the raspberry pi, you MUST use predefined
-# pins. In the case of the adafruit-31855, only 3 pins are used:
+# First you must decide whether to use hardware spi or software spi.
+# 
+# Hardware SPI
+#
+# - faster
+# - requires 3 specific GPIO pins be used on rpis
+# 
+# Software SPI
+#
+# - slower (which will not matter for reading a thermocouple
+# - can use any GPIO pins
+
+#######################################
+# SPI pins if you choose hardware spi #
+#######################################
+# On the raspberry pi, you MUST use predefined
+# pins for HW SPI. In the case of the adafruit-31855, only 3 pins are used:
 #
 #    SPI0_SCLK = BCM pin 11 = CLK on the adafruit-31855
 #    SPI0_MOSI = BCM pin 10 = not connected
@@ -43,10 +58,27 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 # I chose gpio pin 5:
 #
 #    GPIO5    = BCM pin 5   = CS on the adafruit-31855
-#
-# To control the kiln, one gpio pin is used as an output. Pick any 
-# you like. I chose gpio pin 23. This output is used to control a
-# zero-cross solid-state-relay.
+
+#######################################
+# SPI pins if you choose software spi #
+#######################################
+# For software SPI, you can choose any GPIO pins you like.
+# You must connect clock, mosi, miso and cs each to a GPIO pin
+# and configure them below based on your connections.
+
+
+#######################################
+# SPI is Autoconfigured !!!
+#######################################
+# whether you choose HW or SW spi, it is autodetected. If you use the hw pins
+# HW spi is assumed.
+
+#######################################
+# Output to control the relay
+#######################################
+# A single GPIO pin is used to control a relay which controls the kiln.
+# I use GPIO pin 23.
+
 try:
     import board
     spi_sclk  = board.D11 #spi clock
@@ -57,11 +89,14 @@ try:
 except (NotImplementedError,AttributeError):
     print("not running on blinka recognized board, probably a simulation")
 
-### Thermocouple Adapter selection:
-#   max31855 - bitbang SPI interface
-#   max31856 - bitbang SPI interface. must specify thermocouple_type.
-max31855 = 0
-max31856 = 1
+#######################################
+### Thermocouple breakout boards
+#######################################
+# There are only two breakoutboards supported. 
+#   max31855 - only supports type K thermocouples
+#   max31856 - supports many thermocouples
+max31855 = 1
+max31856 = 0
 # uncomment these two lines if using MAX-31856
 import adafruit_max31856
 thermocouple_type = adafruit_max31856.ThermocoupleType.K
@@ -78,9 +113,9 @@ thermocouple_type = adafruit_max31856.ThermocoupleType.K
 
 ########################################################################
 #
-# If your kiln is above the scheduled starting temperature when you click the Start button this
-# feature will start the schedule at that temperature.
-#
+# If your kiln is above the starting temperature of the schedule when you 
+# click the Start button... skip ahead and begin at the first point in 
+# the schedule matching the current kiln temperature.
 seek_start = True
 
 ########################################################################
@@ -101,9 +136,9 @@ sensor_time_wait = 2
 # well with the simulated oven. You must tune them to work well with 
 # your specific kiln. Note that the integral pid_ki is
 # inverted so that a smaller number means more integral action.
-pid_kp = 25   # Proportional 25,200,200
-pid_ki = 10   # Integral
-pid_kd = 200  # Derivative
+pid_kp = 10   # Proportional 25,200,200
+pid_ki = 80   # Integral
+pid_kd = 220.83497910261562 # Derivative
 
 ########################################################################
 #
@@ -116,7 +151,7 @@ stop_integral_windup = True
 ########################################################################
 #
 #   Simulation parameters
-simulate = True
+simulate = False
 sim_t_env      = 65   # deg
 sim_c_heat     = 500.0  # J/K  heat capacity of heat element
 sim_c_oven     = 5000.0 # J/K  heat capacity of oven
@@ -204,7 +239,7 @@ ignore_tc_unknown_error = False
 
 # This overrides all possible thermocouple errors and prevents the 
 # process from exiting.
-ignore_tc_too_many_errors = False
+ignore_tc_too_many_errors = True
 
 ########################################################################
 # automatic restarts - if you have a power brown-out and the raspberry pi
