@@ -6,6 +6,11 @@ gevent-websocket
 websocket-client
 requests
 
+# for folks running raspberry pis
+# we have no proof of anyone using another board yet, but when that 
+# happens, you might want to comment this out.
+RPi.GPIO
+
 # List of all supported adafruit modules for thermocouples
 adafruit-circuitpython-max31855
 adafruit-circuitpython-max31856
