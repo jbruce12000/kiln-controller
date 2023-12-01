@@ -163,7 +163,7 @@ sim_R_ho_air   = 0.05   # K/W  " with internal air circulation
 
 # if you want simulations to happen faster than real time, this can be
 # set as high as 1000 to speed simulations up by 1000 times.
-sim_speedup_factor = 10
+sim_speedup_factor = 1
 
 
 ########################################################################
@@ -239,7 +239,7 @@ ignore_tc_unknown_error = False
 
 # This overrides all possible thermocouple errors and prevents the 
 # process from exiting.
-ignore_tc_too_many_errors = True
+ignore_tc_too_many_errors = False
 
 ########################################################################
 # automatic restarts - if you have a power brown-out and the raspberry pi
