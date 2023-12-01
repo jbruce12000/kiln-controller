@@ -3,7 +3,7 @@
 echo "----------------------------------------------"
 echo "| Writing all kiln logs to ./kiln.logs.gz... |"
 echo "----------------------------------------------"
-zgrep --no-filename -E "(INFO|WARN|ERROR) (oven|kiln-controller|gevent)" /var/log/* 2>/dev/null|strings|sort|uniq|gzip > kiln.logs.gz
+zcat -f /var/log/* 2>/dev/null|strings|grep -E "(INFO|WARN|ERROR) (oven|kiln-controller|gevent)"|sort|uniq|gzip > kiln.logs.gz
 
 ls -la kiln.logs.gz
 

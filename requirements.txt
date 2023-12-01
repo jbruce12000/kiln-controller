@@ -10,6 +10,9 @@ requests
 adafruit-circuitpython-max31855
 adafruit-circuitpython-max31856
 
+# for folks using sw spi (bit banging)
+adafruit-circuitpython-bitbangio
+
 # untested - for PT100 platinum thermocouples
 #adafruit-circuitpython-max31865
 

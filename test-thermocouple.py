@@ -4,6 +4,7 @@ from digitalio import DigitalInOut
 import time
 import datetime
 import busio
+import adafruit_bitbangio as bitbangio
 
 try:
     import board
@@ -43,6 +44,7 @@ if spi is None:
     print("Software SPI selected for reading thermocouple")
 
 cs = DigitalInOut(config.spi_cs)
+cs.switch_to_output(value=True)
 sensor = None
 
 print("\nboard: %s" % (board.board_id))
@@ -61,7 +63,6 @@ print("    config.spi_mosi = %s BCM pin" % (config.spi_mosi))
 print("    config.spi_miso = %s BCM pin" % (config.spi_miso))
 print("    config.spi_cs   = %s BCM pin\n" % (config.spi_cs))
 print("Degrees displayed in %s\n" % (config.temp_scale))
-
 
 while(True):
    time.sleep(1)

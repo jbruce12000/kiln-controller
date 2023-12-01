@@ -7,7 +7,7 @@ import config
 import os
 import digitalio
 import busio
-import bitbangio
+import adafruit_bitbangio as bitbangio
 import statistics
 
 log = logging.getLogger(__name__)
