@@ -64,11 +64,15 @@ print("    config.spi_miso = %s BCM pin" % (config.spi_miso))
 print("    config.spi_cs   = %s BCM pin\n" % (config.spi_cs))
 print("Degrees displayed in %s\n" % (config.temp_scale))
 
+temp = 0
 while(True):
-   time.sleep(1)
-   temp = sensor.temperature
-   scale = "C"
-   if config.temp_scale == "f":
-      temp = temp * (9/5) + 32 
-      scale ="F"
-   print("%s %0.2f%s" %(datetime.datetime.now(),temp,scale))
+    time.sleep(1)
+    try:
+        temp = sensor.temperature
+        scale = "C"
+        if config.temp_scale == "f":
+            temp = temp * (9/5) + 32 
+            scale ="F"
+        print("%s %0.2f%s" %(datetime.datetime.now(),temp,scale))
+    except Exception as error:
+        print("error: " , error)
