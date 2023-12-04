@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+import time
 import os
 import sys
 import logging
@@ -162,6 +163,7 @@ def handle_control():
                 elif msgdict.get("cmd") == "STOP":
                     log.info("Stop command received")
                     oven.abort_run()
+            time.sleep(1)
         except WebSocketError as e:
             log.error(e)
             break
@@ -209,6 +211,7 @@ def handle_storage():
 
                     wsock.send(json.dumps(msgdict))
                     wsock.send(get_profiles())
+            time.sleep(1) 
         except WebSocketError:
             break
     log.info("websocket (storage) closed")
@@ -224,6 +227,7 @@ def handle_config():
             wsock.send(get_config())
         except WebSocketError:
             break
+        time.sleep(1)
     log.info("websocket (config) closed")
 
 
@@ -238,6 +242,7 @@ def handle_status():
             wsock.send("Your message was: %r" % message)
         except WebSocketError:
             break
+        time.sleep(1)
     log.info("websocket (status) closed")
 
 
