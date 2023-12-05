@@ -47,7 +47,7 @@ The easiest way to convert from the old code to the new is to use software spi, 
   ./test-thermocouple.py
 ```
 
-  You should see that software spi is configured. You should see the pin configuration printed out. You should see the temperature reported every second.
+  You should see that **software spi** is configured. You should see the pin configuration printed out. You should see the temperature reported every second.
 
   4. test output
 
