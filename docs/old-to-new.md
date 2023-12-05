@@ -19,7 +19,9 @@ FIXME - need instructions on branch names to checkout etc.
 
   1. make a backup of config.py. You'll need it for the next step.
 
-  ```cp config.py config.py.bak```
+```
+  cp config.py config.py.bak
+```
 
   2. find these settings in config.py.bak and change them in config.py:
 
