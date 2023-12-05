@@ -1,4 +1,4 @@
-Old to New
+Migrating from Old to New kiln-controller Code
 ==========
 
 This describes how to migrate from the old version of the code to the new.
