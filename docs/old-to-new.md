@@ -21,33 +21,41 @@ The easiest way to convert from the old code to the new is to use software spi, 
 
   2. find these settings in config.py.bak and change them in config.py:
 
+```
   gpio_sensor_cs = 27
   gpio_sensor_clock = 22
   gpio_sensor_data = 17
   gpio_sensor_di = 10
   gpio_heat = 23
+```
 
   change them in config.py to look like so:
 
+```
   spi_cs = board.D27
   spi_sclk = board.D22
   spi_miso = board.D17
   spi_mosi = board.D10 #this one is not actually used, so set it or not
   gpio_heat = board.D23
+```
 
   3. test the thermocouple board and thermocouple
 
+```
   cd kiln-controller
   source venv/bin/activate
   ./test-thermocouple.py
+```
 
   You should see that software spi is configured. You should see the pin configuration printed out. You should see the temperature reported every second.
 
   4. test output
 
+```
   cd kiln-controller
   source venv/bin/activate
   ./test-output.py
+```
 
   Every 5 seconds, verify the output is flipped from on to off or vice versa.
 
