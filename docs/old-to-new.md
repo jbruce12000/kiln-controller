@@ -16,6 +16,7 @@ As of 2023 I stopped supporting and adding features to the old code. It still wo
 The easiest way to convert from the old code to the new is to use software spi, also known as bitbanging, to grab data from the thermocouple board. You will not have to make any wiring changes. You'll only need to change config.py and test it to make sure it works.
 
 FIXME - need instructions on branch names to checkout etc.
+FIXME - need source and pip install all the things
 
   1. make a backup of config.py. You'll need it for the next step.
 
