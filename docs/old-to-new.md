@@ -15,16 +15,29 @@ As of 2023 I stopped supporting and adding features to the old code. It still wo
 
 The easiest way to convert from the old code to the new is to use software spi, also known as bitbanging, to grab data from the thermocouple board. You will not have to make any wiring changes. You'll only need to change config.py and test it to make sure it works.
 
-FIXME - need instructions on branch names to checkout etc.
-FIXME - need source and pip install all the things
-
   1. make a backup of config.py. You'll need it for the next step.
 
 ```
   cp config.py config.py.bak
 ```
 
-  2. find these settings in config.py.bak and change them in config.py:
+  2. update to the new code
+```
+  git checkout master
+  git pull (maybe force here???)
+```
+FIXME - need instructions on branch names to checkout etc.
+
+
+  3. Install all the libraries that the new code uses
+
+```
+cd kiln-controller
+source venv/bin/activate
+pip install -r ./requirements.txt
+```
+
+  4. find these settings in config.py.bak and change them in config.py:
 
 ```
   gpio_sensor_cs = 27
@@ -44,11 +57,9 @@ FIXME - need source and pip install all the things
   gpio_heat = board.D23
 ```
 
-  3. test the thermocouple board and thermocouple
+  5. test the thermocouple board and thermocouple
 
 ```
-  cd kiln-controller
-  source venv/bin/activate
   ./test-thermocouple.py
 ```
 
@@ -57,8 +68,6 @@ FIXME - need source and pip install all the things
   4. test output
 
 ```
-  cd kiln-controller
-  source venv/bin/activate
   ./test-output.py
 ```
 
