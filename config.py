@@ -38,14 +38,16 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 #
 # - faster
 # - requires 3 specific GPIO pins be used on rpis
+# - no pins are listed in this config file 
 # 
 # Software SPI
 #
 # - slower (which will not matter for reading a thermocouple
 # - can use any GPIO pins
+# - pins must be specified in this config file
 
 #######################################
-# SPI pins if you choose hardware spi #
+# SPI pins if you choose Hardware SPI #
 #######################################
 # On the raspberry pi, you MUST use predefined
 # pins for HW SPI. In the case of the adafruit-31855, only 3 pins are used:
@@ -58,6 +60,8 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 # I chose gpio pin 5:
 #
 #    GPIO5    = BCM pin 5   = CS on the adafruit-31855
+#
+# Note that NO pins are configured in this file for hardware spi
 
 #######################################
 # SPI pins if you choose software spi #
@@ -66,12 +70,11 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 # You must connect clock, mosi, miso and cs each to a GPIO pin
 # and configure them below based on your connections.
 
-
 #######################################
 # SPI is Autoconfigured !!!
 #######################################
-# whether you choose HW or SW spi, it is autodetected. If you use the hw pins
-# HW spi is assumed.
+# whether you choose HW or SW spi, it is autodetected. If you list the PINs
+# below, software spi is assumed.
 
 #######################################
 # Output to control the relay
@@ -81,10 +84,10 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 
 try:
     import board
-    spi_sclk  = board.D11 #spi clock
+    spi_sclk  = board.D17 #spi clock
+    spi_miso  = board.D27  #spi Microcomputer In Serial Out
+    spi_cs    = board.D22  #spi Chip Select
     spi_mosi  = board.D10 #spi Microcomputer Out Serial In (not connected) 
-    spi_miso  = board.D9  #spi Microcomputer In Serial Out
-    spi_cs    = board.D5  #spi Chip Select
     gpio_heat = board.D23 #output that controls relay
 except (NotImplementedError,AttributeError):
     print("not running on blinka recognized board, probably a simulation")

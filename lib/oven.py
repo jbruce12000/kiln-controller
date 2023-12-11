@@ -121,25 +121,16 @@ class TempSensorReal(TempSensor):
         self.spi_setup()
         self.cs = digitalio.DigitalInOut(config.spi_cs)
 
-    def hw_spi(self):
-        import board
-        if(hasattr(board,'SCLK') and
-           hasattr(board,'MOSI') and 
-           hasattr(board,'MISO')):
-            if(board.SCLK == config.spi_sclk and
-               board.MOSI == config.spi_mosi and
-               board.MISO == config.spi_miso):
-               return board.SPI();
-        return None
-
     def spi_setup(self):
-        self.spi = self.hw_spi()
-        if self.spi is None:
+        if(hasattr(config,'spi_sclk') and
+           hasattr(config,'spi_mosi') and
+           hasattr(config,'spi_miso')):
             self.spi = bitbangio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
             log.info("Software SPI selected for reading thermocouple")
         else:
+            import board
+            self.spi = board.SPI();
             log.info("Hardware SPI selected for reading thermocouple")
-
 
     def get_temperature(self):
         '''read temp from tc and convert if needed'''

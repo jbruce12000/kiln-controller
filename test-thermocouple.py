@@ -30,18 +30,19 @@ except NotImplementedError:
 ########################################################################
 
 spi = None
-if(hasattr(board,'SCLK') and
-    hasattr(board,'MOSI') and
-    hasattr(board,'MISO')):
-    if(board.SCLK == config.spi_sclk and
-        board.MOSI == config.spi_mosi and
-        board.MISO == config.spi_miso):
-        spi = board.SPI();
-        print("Hardware SPI selected for reading thermocouple")
-
-if spi is None:
+if(hasattr(config,'spi_sclk') and
+   hasattr(config,'spi_mosi') and
+   hasattr(config,'spi_miso')):
     spi = bitbangio.SPI(config.spi_sclk, config.spi_mosi, config.spi_miso)
     print("Software SPI selected for reading thermocouple")
+    print("SPI configured as:\n")
+    print("    config.spi_sclk = %s BCM pin" % (config.spi_sclk))
+    print("    config.spi_mosi = %s BCM pin" % (config.spi_mosi))
+    print("    config.spi_miso = %s BCM pin" % (config.spi_miso))
+    print("    config.spi_cs   = %s BCM pin\n" % (config.spi_cs))
+else:
+    spi = board.SPI();
+    print("Hardware SPI selected for reading thermocouple")
 
 cs = DigitalInOut(config.spi_cs)
 cs.switch_to_output(value=True)
@@ -57,11 +58,6 @@ if(config.max31856):
     print("thermocouple: adafruit max31856")
     sensor = adafruit_max31856.MAX31856(spi, cs)
 
-print("SPI configured as:\n")
-print("    config.spi_sclk = %s BCM pin" % (config.spi_sclk))
-print("    config.spi_mosi = %s BCM pin" % (config.spi_mosi))
-print("    config.spi_miso = %s BCM pin" % (config.spi_miso))
-print("    config.spi_cs   = %s BCM pin\n" % (config.spi_cs))
 print("Degrees displayed in %s\n" % (config.temp_scale))
 
 temp = 0
