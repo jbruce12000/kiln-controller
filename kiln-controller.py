@@ -84,6 +84,14 @@ def handle_api():
         oven.run_profile(profile, startat=startat, allow_seek=allow_seek)
         ovenWatcher.record(profile)
 
+    if bottle.request.json['cmd'] == 'pause':
+        log.info("api pause command received")
+        oven.state = 'PAUSED'
+
+    if bottle.request.json['cmd'] == 'resume':
+        log.info("api resume command received")
+        oven.state = 'RUNNING'
+
     if bottle.request.json['cmd'] == 'stop':
         log.info("api stop command received")
         oven.abort_run()

@@ -541,6 +541,14 @@ class Oven(threading.Thread):
                     self.automatic_restart()
                 time.sleep(1)
                 continue
+            if self.state == "PAUSED":
+                self.start_time = self.get_start_time()
+                self.update_runtime()
+                self.update_target_temp()
+                self.heat_then_cool()
+                self.reset_if_emergency()
+                self.reset_if_schedule_ended()
+                continue
             if self.state == "RUNNING":
                 self.update_cost()
                 self.save_automatic_restart_state()
@@ -806,7 +814,7 @@ class PID():
             log.info("kiln outside pid control window, max heating")
             output = 1
             if config.throttle_below_temp and config.throttle_percent:
-                if ispoint <= config.throttle_below_temp:
+                if setpoint <= config.throttle_below_temp:
                     output = config.throttle_percent/100
                     log.info("max heating throttled at %d percent below %d degrees to prevent overshoot" % (config.throttle_percent,config.throttle_below_temp))
         else:

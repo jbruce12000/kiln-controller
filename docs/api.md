@@ -18,3 +18,11 @@ post a memo
 stats for currently running schedule
 
     curl -X GET http://0.0.0.0:8081/api/stats
+
+pause a run (maintain current temperature until resume)
+
+    curl -d '{"cmd":"pause"}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
+
+resume a paused run
+    
+    curl -d '{"cmd":"resume"}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api

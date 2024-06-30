@@ -502,9 +502,6 @@ $(document).ready(function()
 
         ws_status.onmessage = function(e)
         {
-            console.log("received status data")
-            console.log(e.data);
-
             x = JSON.parse(e.data);
             if (x.type == "backlog")
             {
@@ -528,11 +525,11 @@ $(document).ready(function()
             if(state!="EDIT")
             {
                 state = x.state;
-
                 if (state!=state_last)
                 {
-                    if(state_last == "RUNNING")
+                    if(state_last == "RUNNING" && state != "PAUSED" )
                     {
+			console.log(state);
                         $('#target_temp').html('---');
                         updateProgress(0);
                         $.bootstrapGrowl("<span class=\"glyphicon glyphicon-exclamation-sign\"></span> <b>Run completed</b>", {
@@ -579,7 +576,9 @@ $(document).ready(function()
                 if (heat_rate > 9999) { heat_rate = 9999; }
                 if (heat_rate < -9999) { heat_rate = -9999; }
                 $('#heat_rate').html(heat_rate);
-                $('#heat').html('<div class="bar" style="height:'+x.pidstats.out*70+'%;"></div>')
+                if (typeof x.pidstats !== 'undefined') {
+                    $('#heat').html('<div class="bar" style="height:'+x.pidstats.out*70+'%;"></div>')
+                    }
                 if (x.cool > 0.5) { $('#cool').addClass("ds-led-cool-active"); } else { $('#cool').removeClass("ds-led-cool-active"); }
                 if (x.air > 0.5) { $('#air').addClass("ds-led-air-active"); } else { $('#air').removeClass("ds-led-air-active"); }
                 if (x.temperature > hazardTemp()) { $('#hazard').addClass("ds-led-hazard-active"); } else { $('#hazard').removeClass("ds-led-hazard-active"); }
