@@ -263,10 +263,12 @@ def get_profiles():
     for filename in profile_files:
         with open(os.path.join(profile_path, filename), 'r') as f:
             profiles.append(json.load(f))
+    profiles = normalize_temp_units(profiles)
     return json.dumps(profiles)
 
 
 def save_profile(profile, force=False):
+    profile=add_temp_units(profile)
     profile_json = json.dumps(profile)
     filename = profile['name']+".json"
     filepath = os.path.join(profile_path, filename)
@@ -279,6 +281,46 @@ def save_profile(profile, force=False):
     log.info("Wrote %s" % filepath)
     return True
 
+def add_temp_units(profile):
+    """
+    always store the temperature in degrees c
+    this way folks can share profiles
+    """
+    if "temp_units" in profile:
+        return profile
+    profile['temp_units']="c"
+    if config.temp_scale=="c":
+        return profile
+    if config.temp_scale=="f":
+        profile=convert_to_c(profile);
+        return profile
+
+def convert_to_c(profile):
+    newdata=[]
+    for (secs,temp) in profile["data"]:
+        temp = (5/9)*(temp-32)
+        newdata.append((secs,temp))
+    profile["data"]=newdata
+    return profile
+
+def convert_to_f(profile):
+    newdata=[]
+    for (secs,temp) in profile["data"]:
+        temp = ((9/5)*temp)+32
+        newdata.append((secs,temp))
+    profile["data"]=newdata
+    return profile
+
+def normalize_temp_units(profiles):
+    normalized = []
+    for profile in profiles:
+        if "temp_units" in profile:
+            if config.temp_scale == "f" and profile["temp_units"] == "c": 
+                profile = convert_to_f(profile)
+                profile["temp_units"] = "f"
+        normalized.append(profile)
+    return normalized
+
 def delete_profile(profile):
     profile_json = json.dumps(profile)
     filename = profile['name']+".json"
@@ -287,14 +329,12 @@ def delete_profile(profile):
     log.info("Deleted %s" % filepath)
     return True
 
-
 def get_config():
     return json.dumps({"temp_scale": config.temp_scale,
         "time_scale_slope": config.time_scale_slope,
         "time_scale_profile": config.time_scale_profile,
         "kwh_rate": config.kwh_rate,
         "currency_type": config.currency_type})    
-
 
 def main():
     ip = "0.0.0.0"
