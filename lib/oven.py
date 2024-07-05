@@ -1,6 +1,8 @@
 import threading
 import time
 import random
+import os
+import fcntl
 import datetime
 import logging
 import json
@@ -495,6 +497,13 @@ class SimulatedOven(Oven):
 class RealOven(Oven):
 
     def __init__(self):
+        self.lockfd = os.open('/tmp/kiln.lock', os.O_TRUNC | os.O_CREAT | os.O_RDWR)
+        try:
+            fcntl.flock(self.lockfd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            print("Unable to start as another process is using the oven")
+            exit(1)
+
         self.board = Board()
         self.output = Output()
         self.reset()
