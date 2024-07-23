@@ -44,6 +44,10 @@ oven.set_ovenwatcher(ovenWatcher)
 def index():
     return bottle.redirect('/picoreflow/index.html')
 
+@app.route('/state')
+def state():
+    return bottle.redirect('/picoreflow/state.html')
+
 @app.get('/api/stats')
 def handle_api():
     log.info("/api/stats command received")

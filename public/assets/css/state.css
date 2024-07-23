@@ -1,0 +1,47 @@
+.container {
+  border-radius: 5px;
+  background: #888888;
+  //background: #CCCCCC;
+  padding: 2px;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  width: max-content;
+  font-family: sans-serif;
+  margin: 4px;
+}
+
+.stat {
+  padding: 2px;
+  border-radius: 5px;
+  font-size: 40pt;
+  color: #FFFFFF;
+  }
+
+.stattxt {
+  padding: 7px;
+  border-radius: 5px;
+  font-size: 40pt;
+  background: #BBBBBB;
+  //color: #FFFFFF;
+  color: #888888;
+  margin: 1px 2px 1px 2px;
+}
+
+.top {
+  border-radius: 5px 5px 0px 0px;
+  background: #0000CC;
+  padding: 4px;
+  color: #CCCCCC;
+  text-align: center;
+  font-size: 18pt;
+}
+
+.bottom {
+  border-radius: 0px 0px 5px 5px;
+  background: #BBBBBB;
+  padding: 4px;
+  text-align: center;
+  color: #0000CC;
+  font-size: 20pt;
+}
