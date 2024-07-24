@@ -585,6 +585,8 @@ class SimulatedOven(Oven):
 
         super().__init__()
 
+        self.start_time = self.get_start_time();
+
         # start thread
         self.start()
         log.info("SimulatedOven started")
