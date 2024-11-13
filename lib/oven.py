@@ -37,13 +37,20 @@ class Output(object):
     inputs
         config.gpio_heat
         config.gpio_heat_invert
+        config.gpio_emergency
     '''
     def __init__(self):
         self.active = False
         self.heater = digitalio.DigitalInOut(config.gpio_heat) 
         self.heater.direction = digitalio.Direction.OUTPUT 
+        self.emergency = digitalio.DigitalInOut(config.gpio_emergency) 
+        self.emergency.direction = digitalio.Direction.OUTPUT
         self.off = config.gpio_heat_invert
         self.on = not self.off
+
+    def emergency_set(self,state):
+        log.info("emergency relais = %s" %(state))
+        self.emergency.value = state
 
     def heat(self,sleepfor):
         self.heater.value = self.on
@@ -346,6 +353,7 @@ class Oven(threading.Thread):
         self.heat_rate_temps = []
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
         self.catching_up = False
+        self.emergency_trigger()
 
     @staticmethod
     def get_start_from_temperature(profile, temp):
@@ -392,11 +400,13 @@ class Oven(threading.Thread):
         self.totaltime = profile.get_duration()
         self.state = "RUNNING"
         log.info("Running schedule %s starting at %d minutes" % (profile.name,startat))
+        self.emergency_release()
         log.info("Starting")
 
     def abort_run(self):
         self.reset()
         self.save_automatic_restart_state()
+        self.emergency_trigger()
 
     def get_start_time(self):
         return datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
@@ -676,6 +686,11 @@ class SimulatedOven(Oven):
         # a simulation, so sleep.
         time.sleep(self.time_step / self.speedup_factor)
 
+    def emergency_trigger(self):
+        log.info("emergency triggered -> heating disabled.")
+
+    def emergency_release(self):
+        log.info("emergency released -> heating enabled.")
 
 class RealOven(Oven):
 
@@ -728,6 +743,14 @@ class RealOven(Oven):
                 time_left))
         except KeyError:
             pass
+
+    def emergency_trigger(self):
+        log.info("emergency triggered -> heating disabled.")
+        self.output.emergency_set(0)
+
+    def emergency_release(self):
+        log.info("emergency released -> heating enabled.")
+        self.output.emergency_set(1)
 
 class Profile():
     def __init__(self, json_data):
