@@ -108,8 +108,9 @@ function updateProfileTable()
     var slope = "";
     var color = "";
 
-    var html = '<h3>Schedule Points</h3><div class="table-responsive" style="scroll: none"><table class="table table-striped">';
-        html += '<tr><th style="width: 50px">#</th><th>Target Time in ' + time_scale_long+ '</th><th>Target Temperature in °'+temp_scale_display+'</th><th>Slope in &deg;'+temp_scale_display+'/'+time_scale_slope+'</th><th></th></tr>';
+    var html = '<h3>Schedule Points</h3><div class="table-responsive" style="scroll: none">'
+        html +='<table class="table table-striped">';
+        html += '<tr><th style="width: 50px">#</th><th>Step Duration in ' + time_scale_long+ '</th><th>Step Time in ' + time_scale_long+ '</th><th>Target Temperature in °'+temp_scale_display+'</th><th>Slope in &deg;'+temp_scale_display+'/'+time_scale_slope+'</th><th></th></tr>';
 
     for(var i=0; i<graph.profile.data.length;i++)
     {
@@ -120,9 +121,10 @@ function updateProfileTable()
         if (dps == 0) { slope = "right";  color="grey"; }
 
         html += '<tr><td><h4>' + (i+1) + '</h4></td>';
-        html += '<td><input type="text" class="form-control" id="profiletable-0-'+i+'" value="'+ timeProfileFormatter(graph.profile.data[i][0],true) + '" style="width: 60px" /></td>';
-        html += '<td><input type="text" class="form-control" id="profiletable-1-'+i+'" value="'+ graph.profile.data[i][1] + '" style="width: 60px" /></td>';
-        html += '<td><div class="input-group"><span class="glyphicon glyphicon-circle-arrow-' + slope + ' input-group-addon ds-trend" style="background: '+color+'"></span><input type="text" class="form-control ds-input" readonly value="' + formatDPS(dps) + '" style="width: 100px" /></div></td>';
+        html += '<td><input  type="' + (i === 0 ? 'hidden' : 'text') + '" class="form-control" id="profiletable-duration-'+i+'" value="'+ timeProfileFormatter(i === 0 ? 0 : graph.profile.data[i][0] - graph.profile.data[i-1][0],true) + '" style="width: 60px" /></td>';
+        html += '<td><input  type="' + (i === 0 ? 'hidden' : 'text') + '" class="form-control" id="profiletable-time-'+i+'" value="'+ timeProfileFormatter(graph.profile.data[i][0],true) + '" style="width: 60px" /></td>';
+        html += '<td><input type="text" class="form-control" id="profiletable-temperature-'+i+'" value="'+ graph.profile.data[i][1] + '" style="width: 60px" /></td>';
+        html += '<td><div class="input-group"><span class="glyphicon glyphicon-circle-arrow-' + slope + ' input-group-addon ds-trend" style="background: '+color+'"></span><input type="text" class="form-control ds-input" id="profiletable-slope-'+i+'" value="' + formatDPS(dps) + '" style="width: 100px" /></div></td>';
         html += '<td>&nbsp;</td></tr>';
     }
 
@@ -136,21 +138,24 @@ function updateProfileTable()
             var id = $(this)[0].id; //e.currentTarget.attributes.id
             var value = parseInt($(this)[0].value);
             var fields = id.split("-");
-            var col = parseInt(fields[1]);
             var row = parseInt(fields[2]);
 
-            if (graph.profile.data.length > 0) {
-            if (col == 0) {
-                graph.profile.data[row][col] = timeProfileFormatter(value,false);
-            }
-            else {
-                graph.profile.data[row][col] = value;
+            if (fields[1] === 'time') {
+                if (graph.profile.data.length > 0) {
+                    graph.profile.data[row][0] = timeProfileFormatter(value, false);
+                }
+            } else if (fields[1] === 'temperature') {
+                graph.profile.data[row][1] = value;
+            } else if (fields[1] === 'duration') {
+                graph.profile.data[row][0] = graph.profile.data[row-1][0] + timeProfileFormatter(value, false);
+            } else if (fields[1] === 'slope') {
+                console.log({value, formatted: formatDPS(value, true), start_temp: graph.profile.data[row-1][1], end_temp: graph.profile.data[row][1], start_time: graph.profile.data[row-1][0]})
+                graph.profile.data[row][0] = (graph.profile.data[row][1] - graph.profile.data[row-1][1]) / formatDPS(value, true) + graph.profile.data[row-1][0]
             }
 
             graph.plot = $.plot("#graph_container", [ graph.profile, graph.live ], getOptions());
-            }
-            updateProfileTable();
 
+            updateProfileTable();
         });
 }
 
@@ -158,24 +163,27 @@ function timeProfileFormatter(val, down) {
     var rval = val
     switch(time_scale_profile){
         case "m":
-            if (down) {rval = val / 60;} else {rval = val * 60;}
+            rval = down ? val / 60 : val * 60;
             break;
         case "h":
-            if (down) {rval = val / 3600;} else {rval = val * 3600;}
+            rval = down ? val / 3600 : val * 3600;
             break;
     }
     return Math.round(rval);
 }
 
-function formatDPS(val) {
+function formatDPS(val, down = false) {
     var tval = val;
-    if (time_scale_slope == "m") {
-        tval = val * 60;
+    switch(time_scale_slope){
+        case "m":
+        tval = down ? val / 60 : val * 60;
+        break;
+    case "h":
+        tval = down ? val / 60 / 60 : (val * 60) * 60;
+        break;
     }
-    if (time_scale_slope == "h") {
-        tval = (val * 60) * 60;
-    }
-    return Math.round(tval);
+
+    return down ? tval : Math.round(tval);
 }
 
 function hazardTemp(){
