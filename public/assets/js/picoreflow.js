@@ -442,7 +442,8 @@ function getOptions()
 	  color: 'rgba(216, 211, 197, 0.55)',
       borderWidth: 1,
       labelMargin: 10,
-      mouseActiveRadius: 50
+      mouseActiveRadius: 50,
+      hoverable: true
 	},
 
     legend:
@@ -486,6 +487,33 @@ $(document).ready(function()
 //            stackup_spacing: 10 // spacing between consecutively stacked growls.
 //            });
         };
+
+        $("<div id='tooltip'></div>").css({
+            position: "absolute",
+            display: "none",
+            border: "1px solid #fdd",
+            padding: "2px",
+            "background-color": "#fee",
+            opacity: 0.80
+        }).appendTo("body");
+
+        $("#graph_container").bind("plothover", function (event, pos, item) {
+            if (!pos.x || !pos.y) {
+                return;
+            }
+
+            if (item) {
+                const x = item.datapoint[0]
+                const y = item.datapoint[1].toFixed(0);
+
+                $("#tooltip").html(item.series.label + " at " +
+                    new Date(x * 1000).toISOString().substring(11, 16) + " = " + y + "º" + temp_scale_display)
+                    .css({top: item.pageY+5, left: item.pageX+5})
+                    .fadeIn(200);
+            } else {
+                $("#tooltip").stop().hide();
+            }
+        })
 
         ws_status.onclose = function()
         {
