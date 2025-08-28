@@ -87,7 +87,7 @@ try:
     spi_sclk  = board.D17    #spi clock
     spi_miso  = board.D27    #spi Microcomputer In Serial Out
     spi_cs    = board.D22    #spi Chip Select
-    spi_mosi  = board.D10    #spi Microcomputer Out Serial In (not connected) 
+    spi_mosi  = board.D10    #spi Microcomputer Out Serial In (not connected, however this is required for max31856 to work) 
     gpio_heat = board.D23    #output that controls relay
     gpio_heat_invert = False #invert the output state
 except (NotImplementedError,AttributeError):
