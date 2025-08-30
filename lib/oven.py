@@ -7,6 +7,8 @@ import json
 import config
 import os
 
+from lib.menu import OvenDisplay
+
 log = logging.getLogger(__name__)
 
 class DupFilter(object):
@@ -49,11 +51,23 @@ class Output(object):
 
     def heat(self,sleepfor):
         self.GPIO.output(config.gpio_heat, self.GPIO.HIGH)
+        log.info('Starting heat')
         time.sleep(sleepfor)
 
     def cool(self,sleepfor):
         '''no active cooling, so sleep'''
         self.GPIO.output(config.gpio_heat, self.GPIO.LOW)
+        log.info('Ending heat')
+        time.sleep(sleepfor)
+
+class OutputSimulated(object):
+    def __init__(self):
+        self.active = True
+
+    def heat(self,sleepfor):
+        time.sleep(sleepfor)
+
+    def cool(self,sleepfor):
         time.sleep(sleepfor)
 
 # FIX - Board class needs to be completely removed
@@ -199,9 +213,11 @@ class Oven(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
         self.daemon = True
-        self.temperature = 0
         self.time_step = config.sensor_time_wait
+        self.board = Board()
+        self.output = Output()
         self.reset()
+        self.display = OvenDisplay(self)
 
     def reset(self):
         self.cost = 0
@@ -213,10 +229,11 @@ class Oven(threading.Thread):
         self.target = 0
         self.heat = 0
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
-        self.on_first = True
         self.switch_count = 0
+        self.load = 0
 
     def run_profile(self, profile, startat=0):
+        log.info(profile)
         self.reset()
 
         if self.board.temp_sensor.noConnection:
@@ -240,6 +257,9 @@ class Oven(threading.Thread):
         self.state = "RUNNING"
         log.info("Running schedule %s starting at %d minutes" % (profile.name,startat))
         log.info("Starting")
+    
+    def run_json_profile(self, profile_json):
+        self.run_profile(Profile(profile_json))
 
     def abort_run(self):
         self.reset()
@@ -309,12 +329,12 @@ class Oven(threading.Thread):
 
     def get_state(self):
         temp = 0
-        try:
-            temp = self.board.temp_sensor.temperature + config.thermocouple_offset
-        except AttributeError as error:
+        #try:
+        temp = self.board.temp_sensor.temperature + config.thermocouple_offset
+        #except AttributeError as error:
             # this happens at start-up with a simulated oven
-            temp = 0
-            pass
+        #    temp = 0
+        #    pass
 
         state = {
             'cost': self.cost,
@@ -327,7 +347,8 @@ class Oven(threading.Thread):
             'kwh_rate': config.kwh_rate,
             'currency_type': config.currency_type,
             'profile': self.profile.name if self.profile else None,
-            'pidstats': self.pid.pidstats,
+            'switch_count': self.switch_count,
+            'pidstats': self.pid.pidstats
         }
         return state
 
@@ -388,6 +409,41 @@ class Oven(threading.Thread):
         log.info("ovenwatcher set in oven class")
         self.ovenwatcher = watcher
 
+    def set_heat(self):
+        pid = self.pid.compute(self.target,
+                               self.board.temp_sensor.temperature +
+                               config.thermocouple_offset)
+
+        if pid > 0:
+            self.output.heat(self.time_step)
+            if (self.heat != self.time_step):
+                self.switch_count += 1
+            self.heat = self.time_step
+        else:
+            self.output.cool(self.time_step)
+            if (self.heat != 0):
+                self.switch_count += 1
+            self.heat = 0
+        
+        time_left = self.totaltime - self.runtime
+
+        try:
+            log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat=%d, run_time=%d, total_time=%d, time_left=%d, switch_count=%d" %
+                (self.pid.pidstats['ispoint'],
+                self.pid.pidstats['setpoint'],
+                self.pid.pidstats['err'],
+                self.pid.pidstats['pid'],
+                self.pid.pidstats['p'],
+                self.pid.pidstats['i'],
+                self.pid.pidstats['d'],
+                self.heat,
+                self.runtime,
+                self.totaltime,
+                time_left,
+                self.switch_count))
+        except KeyError:
+            pass
+
     def run(self):
         while True:
             if self.state == "IDLE":
@@ -401,14 +457,19 @@ class Oven(threading.Thread):
                 self.kiln_must_catch_up()
                 self.update_runtime()
                 self.update_target_temp()
-                self.heat_then_cool()
+                self.set_heat()
                 self.reset_if_emergency()
                 self.reset_if_schedule_ended()
+            #self.display.update_display()
 
 class SimulatedOven(Oven):
 
     def __init__(self):
+        # call parent init
+        Oven.__init__(self)
+
         self.board = BoardSimulated()
+        #self.output = OutputSimulated()
         self.t_env = config.sim_t_env
         self.c_heat = config.sim_c_heat
         self.c_oven = config.sim_c_oven
@@ -420,8 +481,6 @@ class SimulatedOven(Oven):
         # set temps to the temp of the surrounding environment
         self.t = self.t_env # deg C temp of oven
         self.t_h = self.t_env #deg C temp of heating element
-
-        super().__init__()
 
         # start thread
         self.start()
@@ -446,69 +505,18 @@ class SimulatedOven(Oven):
         #temperature change of oven by cooling to environment
         self.p_env = (self.t - self.t_env) / self.R_o_nocool
         self.t -= self.p_env * self.time_step / self.c_oven
-        self.temperature = self.t
         self.board.temp_sensor.temperature = self.t
 
-    def heat_then_cool(self):
-        pid = self.pid.compute(self.target,
-                               self.board.temp_sensor.temperature +
-                               config.thermocouple_offset)
-        heat_on = float(self.time_step * pid)
-        if not self.on_first and heat_on < 0.1 * self.time_step:
-            heat_on = 0
-        if self.on_first and heat_on > 0.9 * self.time_step:
-            heat_on = self.time_step
-        heat_off = self.time_step - heat_on
-        if (heat_off > 0 and heat_off < self.time_step) or (heat_on > 0 and heat_on < self.time_step):
-            self.switch_count += 1
+    def set_heat(self):
+        Oven.set_heat(self)
 
-        self.heating_energy(heat_on)
+        self.heating_energy(self.heat)
         self.temp_changes()
-
-        # self.heat is for the front end to display if the heat is on
-        self.heat = 0.0
-        if heat_on > 0:
-            self.heat = heat_on
-
-        log.info("simulation: -> %dW heater: %.0f -> %dW oven: %.0f -> %dW env"            % (int(self.p_heat * pid),
-            self.t_h,
-            int(self.p_ho),
-            self.t,
-            int(self.p_env)))
-
-        time_left = self.totaltime - self.runtime
-        self.on_first = not self.on_first
-
-        try:
-            log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d, switch_count=%d" %
-                (self.pid.pidstats['ispoint'],
-                self.pid.pidstats['setpoint'],
-                self.pid.pidstats['err'],
-                self.pid.pidstats['pid'],
-                self.pid.pidstats['p'],
-                self.pid.pidstats['i'],
-                self.pid.pidstats['d'],
-                heat_on,
-                heat_off,
-                self.runtime,
-                self.totaltime,
-                time_left,
-                self.switch_count))
-        except KeyError:
-            pass
-
-        # we don't actually spend time heating & cooling during
-        # a simulation, so sleep.
-        time.sleep(self.time_step)
 
 
 class RealOven(Oven):
 
     def __init__(self):
-        self.board = Board()
-        self.output = Output()
-        self.reset()
-
         # call parent init
         Oven.__init__(self)
 
@@ -518,56 +526,7 @@ class RealOven(Oven):
     def reset(self):
         super().reset()
         self.output.cool(0)
-
-    def heat_then_cool(self):
-        pid = self.pid.compute(self.target,
-                               self.board.temp_sensor.temperature +
-                               config.thermocouple_offset)
-        heat_on = float(self.time_step * pid)
-        if not self.on_first and heat_on < 0.1 * self.time_step:
-            heat_on = 0
-        if self.on_first and heat_on > 0.9 * self.time_step:
-            heat_on = self.time_step
-        heat_off = self.time_step - heat_on
-        if (heat_off > 0 and heat_off < self.time_step) or (heat_on > 0 and heat_on < self.time_step):
-            self.switch_count += 1
-
-        # self.heat is for the front end to display if the heat is on
-        self.heat = 0.0
-        if heat_on > 0:
-            self.heat = heat_on
-
-        if self.on_first:
-            if heat_on:
-                self.output.heat(heat_on)
-            if heat_off:
-                self.output.cool(heat_off)
-        else:
-            if heat_off:
-                self.output.cool(heat_off)
-            if heat_on:
-                self.output.heat(heat_on)
-        
-        time_left = self.totaltime - self.runtime
-        self.on_first = not self.on_first
-
-        try:
-            log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d, switch_count=%d" %
-                (self.pid.pidstats['ispoint'],
-                self.pid.pidstats['setpoint'],
-                self.pid.pidstats['err'],
-                self.pid.pidstats['pid'],
-                self.pid.pidstats['p'],
-                self.pid.pidstats['i'],
-                self.pid.pidstats['d'],
-                heat_on,
-                heat_off,
-                self.runtime,
-                self.totaltime,
-                time_left,
-                self.switch_count))
-        except KeyError:
-            pass
+    
 
 class Profile():
     def __init__(self, json_data):
@@ -615,24 +574,15 @@ class PID():
         self.lastErr = 0
         self.pidstats = {}
 
-    # FIX - this was using a really small window where the PID control
-    # takes effect from -1 to 1. I changed this to various numbers and
-    # settled on -50 to 50 and then divide by 50 at the end. This results
-    # in a larger PID control window and much more accurate control...
-    # instead of what used to be binary on/off control.
     def compute(self, setpoint, ispoint):
         now = datetime.datetime.now()
         timeDelta = (now - self.lastNow).total_seconds()
-
-        window_size = 100
-
         error = float(setpoint - ispoint)
 
         # this removes the need for config.stop_integral_windup
         # it turns the controller into a binary on/off switch
         # any time it's outside the window defined by
         # config.pid_control_window
-        icomp = 0
         output = 0
         out4logs = 0
         dErr = 0
@@ -645,20 +595,14 @@ class PID():
             log.info("kiln outside pid control window, max heating")
             output = 1
         else:
-            icomp = (error * timeDelta * (1/self.ki))
             self.iterm += (error * timeDelta * (1/self.ki))
             dErr = (error - self.lastErr) / timeDelta
             output = self.kp * error + self.iterm + self.kd * dErr
-            output = sorted([-1 * window_size, output, window_size])[1]
             out4logs = output
-            output = float(output / window_size)
+            output = round(sorted([0, output, 1])[1])
             
         self.lastErr = error
         self.lastNow = now
-
-        # no active cooling
-        if output < 0:
-            output = 0
 
         self.pidstats = {
             'time': time.mktime(now.timetuple()),

@@ -41,8 +41,8 @@ gpio_heat = 23  # Switches zero-cross solid-state-relay
 ### Thermocouple Adapter selection:
 #   max31855 - bitbang SPI interface
 #   max31856 - bitbang SPI interface. must specify thermocouple_type.
-max31855 = 1
-max31856 = 0
+max31855 = 0
+max31856 = 1
 # see lib/max31856.py for other thermocouple_type, only applies to max31856
 # uncomment this if using MAX-31856
 thermocouple_type = MAX31856.MAX31856_S_TYPE
@@ -60,7 +60,7 @@ gpio_sensor_di = 10 # only used with max31856
 # Every N seconds a decision is made about switching the relay[s] 
 # on & off and for how long. The thermocouple is read 
 # temperature_average_samples times during and the average value is used.
-sensor_time_wait = 3
+sensor_time_wait = 5
 
 
 ########################################################################
@@ -71,9 +71,9 @@ sensor_time_wait = 3
 # well with the simulated oven. You must tune them to work well with 
 # your specific kiln. Note that the integral pid_ki is
 # inverted so that a smaller number means more integral action.
-pid_kp = 25   # Proportional 25,200,200
-pid_ki = 10   # Integral
-pid_kd = 200  # Derivative
+pid_kp = 20   # Proportional 25,200,200
+pid_ki = 100   # Integral
+pid_kd = 1000  # Derivative
 
 
 ########################################################################
@@ -87,7 +87,7 @@ stop_integral_windup = True
 ########################################################################
 #
 #   Simulation parameters
-simulate = True
+simulate = False
 sim_t_env      = 20.0   # deg C
 sim_c_heat     = 500.0  # J/K  heat capacity of heat element
 sim_c_oven     = 500.0 # J/K  heat capacity of oven
@@ -128,7 +128,7 @@ kiln_must_catch_up = True
 # or 100% off because the kiln is too hot. No integral builds up
 # outside the window. The bigger you make the window, the more
 # integral you will accumulate. This should be a positive integer.
-pid_control_window = 10 #degrees 
+pid_control_window = 15 #degrees 
 
 # thermocouple offset
 # If you put your thermocouple in ice water and it reads 36F, you can
@@ -143,7 +143,7 @@ thermocouple_offset=0
 temperature_average_samples = 40 
 
 # Thermocouple AC frequency filtering - set to True if in a 50Hz locale, else leave at False for 60Hz locale
-ac_freq_50hz = False
+ac_freq_50hz = True
 
 ########################################################################
 # Emergencies - or maybe not

@@ -502,10 +502,10 @@ $(document).ready(function()
 
         ws_status.onmessage = function(e)
         {
-            console.log("received status data")
             console.log(e.data);
 
             x = JSON.parse(e.data);
+            document.getElementById('json').innerHTML = JSON.stringify(x, undefined, 4);
             if (x.type == "backlog")
             {
                 if (x.profile)
@@ -562,7 +562,7 @@ $(document).ready(function()
                     updateProgress(parseFloat(x.runtime)/parseFloat(x.totaltime)*100);
                     $('#state').html('<span class="glyphicon glyphicon-time" style="font-size: 22px; font-weight: normal"></span><span style="font-family: Digi; font-size: 40px;">' + eta + '</span>');
                     $('#target_temp').html(parseInt(x.target));
-                    $('#cost').html(x.currency_type + parseFloat(x.cost).toFixed(2));
+                    $('#cost').html(x.currency_type + parseFloat(x.cost).toFixed(0));
                   
 
 
@@ -575,7 +575,8 @@ $(document).ready(function()
                 }
 
                 $('#act_temp').html(parseInt(x.temperature));
-                $('#heat').html('<div class="bar" style="height:'+x.pidstats.out*70+'%;"></div>')
+                //$('#heat').html('<div class="bar" style="height:'+x.pidstats.out*70+'%;"></div>')
+                if (x.heat > 0.5) { $('#heat').addClass("ds-led-heat-active"); } else { $('#heat').removeClass("ds-led-heat-active"); }
                 if (x.cool > 0.5) { $('#cool').addClass("ds-led-cool-active"); } else { $('#cool').removeClass("ds-led-cool-active"); }
                 if (x.air > 0.5) { $('#air').addClass("ds-led-air-active"); } else { $('#air').removeClass("ds-led-air-active"); }
                 if (x.temperature > hazardTemp()) { $('#hazard').addClass("ds-led-hazard-active"); } else { $('#hazard').removeClass("ds-led-hazard-active"); }
