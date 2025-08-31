@@ -99,8 +99,17 @@ except (NotImplementedError,AttributeError):
 # There are only two breakoutboards supported. 
 #   max31855 - only supports type K thermocouples
 #   max31856 - supports many thermocouples
-max31855 = 1
+max31855 = 0
 max31856 = 0
+modbus = 1
+
+modbus_port_name = "/dev/ttyUSB0"
+modbus_slave_address = 1
+modbus_baudrate = 38400
+modbus_registernumber = 12
+modbus_decimal = 1
+
+
 # uncomment these two lines if using MAX-31856
 import adafruit_max31856
 thermocouple_type = adafruit_max31856.ThermocoupleType.K

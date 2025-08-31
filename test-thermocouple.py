@@ -58,13 +58,30 @@ if(config.max31856):
     print("thermocouple: adafruit max31856")
     sensor = adafruit_max31856.MAX31856(spi, cs)
 
+
+
 print("Degrees displayed in %s\n" % (config.temp_scale))
 
 temp = 0
 while(True):
     time.sleep(1)
     try:
-        temp = sensor.temperature
+        if(config.modbus):
+            import minimalmodbus
+
+            port = config.modbus_port_name
+            slave = config.modbus_slave_address
+            baudrate = config.modbus_baudrate
+            register = config.modbus_registernumber
+            decimal = config.modbus_decimal
+
+            instrument = minimalmodbus.Instrument(port, slave)
+            instrument.serial.baudrate = baudrate
+
+            temp = instrument.read_register(register, decimal)
+        else:
+
+            temp = sensor.temperature
         scale = "C"
         if config.temp_scale == "f":
             temp = temp * (9/5) + 32 

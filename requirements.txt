@@ -18,6 +18,8 @@ adafruit-circuitpython-max31856
 # for folks using sw spi (bit banging)
 adafruit-circuitpython-bitbangio
 
+# for folks using modbud input modules
+minimalmodbus
 # untested - for PT100 platinum thermocouples
 #adafruit-circuitpython-max31865
 

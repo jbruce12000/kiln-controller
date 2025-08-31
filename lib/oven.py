@@ -83,6 +83,9 @@ class RealBoard(Board):
             return Max31855()
         if config.max31856:
             return Max31856()
+        if config.modbus:
+            return Modbus()
+
 
 class SimulatedBoard(Board):
     '''Simulated board used during simulations.
@@ -321,6 +324,40 @@ class Max31856(TempSensorReal):
         for k,v in self.thermocouple.fault.items():
             if v:
                 raise Max31856_Error(k)
+        return temp
+
+class Modbus(TempSensorReal):
+    '''each subclass expected to handle errors and get temperature'''
+    def __init__(self):
+        TempSensorReal.__init__(self)
+        log.info("thermocouple modbus")
+        import minimalmodbus
+
+        port = config.modbus_port_name
+        slave = config.modbus_slave_address
+        baudrate = config.modbus_baudrate
+        self.register = config.modbus_registernumber
+        self.decimal = config.modbus_decimal
+
+        self.instrument = minimalmodbus.Instrument(port, slave)
+        self.instrument.serial.baudrate = baudrate
+
+        """
+        if (config.ac_freq_50hz == True):
+            self.thermocouple.noise_rejection = 50
+        else:
+            self.thermocouple.noise_rejection = 60
+        """
+
+    def raw_temp(self):
+        # The underlying adafruit library does not throw exceptions
+        # for thermocouple errors. Instead, they are stored in
+        # dict named self.thermocouple.fault. Here we check that
+        # dict for errors and raise an exception.
+        # and raise Max31856_Error(message)
+
+        temp = self.instrument.read_register(self.register, self.decimal)
+
         return temp
 
 class Oven(threading.Thread):
