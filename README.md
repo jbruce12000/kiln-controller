@@ -75,6 +75,8 @@ Download [Raspberry PI OS](https://www.raspberrypi.org/software/). Use Rasberry 
     $ pip install -r requirements.txt
 
 *Note: The above steps work on ubuntu if you prefer*
+*Note: As of Feb 2026, the `RPi.GPIO` installed during the `pip install -r requirements.txt` step is only compatible with python 3.11 and (maybe) 3.12. 
+It is recommended you install Raspbian-Bookworm which still ships with 3.11.*
 
 ### Raspberry PI deployment
 
