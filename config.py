@@ -99,8 +99,8 @@ except (NotImplementedError,AttributeError):
 # There are only two breakoutboards supported. 
 #   max31855 - only supports type K thermocouples
 #   max31856 - supports many thermocouples
-max31855 = 1
-max31856 = 0
+max31855 = 0
+max31856 = 1
 # uncomment these two lines if using MAX-31856
 import adafruit_max31856
 thermocouple_type = adafruit_max31856.ThermocoupleType.K
