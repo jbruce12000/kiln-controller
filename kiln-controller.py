@@ -49,7 +49,7 @@ def state():
     return bottle.redirect('/picoreflow/state.html')
 
 @app.get('/api/stats')
-def handle_api():
+def handle_api_stats():
     log.info("/api/stats command received")
     if hasattr(oven,'pid'):
         if hasattr(oven.pid,'pidstats'):
@@ -159,8 +159,8 @@ def handle_control():
                     if profile_obj:
                         profile_json = json.dumps(profile_obj)
                         profile = Profile(profile_json)
-                    oven.run_profile(profile)
-                    ovenWatcher.record(profile)
+                        oven.run_profile(profile)
+                        ovenWatcher.record(profile)
                 elif msgdict.get("cmd") == "SIMULATE":
                     log.info("SIMULATE command received")
                     #profile_obj = msgdict.get('profile')
@@ -326,9 +326,11 @@ def normalize_temp_units(profiles):
     return normalized
 
 def delete_profile(profile):
-    profile_json = json.dumps(profile)
     filename = profile['name']+".json"
-    filepath = os.path.join(profile_path, filename)
+    filepath = os.path.realpath(os.path.join(profile_path, filename))
+    if not filepath.startswith(os.path.realpath(profile_path) + os.sep):
+        log.error("Rejected delete of %s: path traversal detected" % filepath)
+        return False
     os.remove(filepath)
     log.info("Deleted %s" % filepath)
     return True

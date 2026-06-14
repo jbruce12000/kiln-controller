@@ -159,7 +159,7 @@ class TempSensorReal(TempSensor):
     def run(self):
         while True:
             temp = self.get_temperature()
-            if temp:
+            if temp is not None:
                 self.temptracker.add(temp)
             time.sleep(self.sleeptime)
 
@@ -169,7 +169,7 @@ class TempTracker(object):
     '''
     def __init__(self):
         self.size = config.temperature_average_samples
-        self.temps = [0 for i in range(self.size)]
+        self.temps = []
   
     def add(self,temp):
         self.temps.append(temp)
@@ -177,10 +177,8 @@ class TempTracker(object):
             del self.temps[0]
 
     def get_avg_temp(self, chop=25):
-        '''
-        take the median of the given values. this used to take an avg
-        after getting rid of outliers. median works better.
-        '''
+        if not self.temps:
+            return 0
         return statistics.median(self.temps)
 
 class ThermocoupleTracker(object):
@@ -331,6 +329,7 @@ class Oven(threading.Thread):
         self.daemon = True
         self.temperature = 0
         self.time_step = config.sensor_time_wait
+        self.ovenwatcher = None
         self.reset()
 
     def reset(self):
@@ -537,11 +536,13 @@ class Oven(threading.Thread):
         self.run_profile(profile, startat=startat, allow_seek=False)  # We don't want a seek on an auto restart.
         self.cost = d["cost"]
         time.sleep(1)
-        self.ovenwatcher.record(profile)
+        if self.ovenwatcher:
+            self.ovenwatcher.record(profile)
 
     def set_ovenwatcher(self,watcher):
         log.info("ovenwatcher set in oven class")
         self.ovenwatcher = watcher
+
 
     def run(self):
         while True:
@@ -552,12 +553,9 @@ class Oven(threading.Thread):
                 time.sleep(1)
                 continue
             if self.state == "PAUSED":
-                self.start_time = self.get_start_time()
-                self.update_runtime()
-                self.update_target_temp()
-                self.heat_then_cool()
+                self.start_time = datetime.datetime.now() - datetime.timedelta(seconds=self.runtime)
                 self.reset_if_emergency()
-                self.reset_if_schedule_ended()
+                time.sleep(self.time_step)
                 continue
             if self.state == "RUNNING":
                 self.update_cost()
@@ -764,16 +762,14 @@ class Profile():
         if time > self.get_duration():
             return (None, None)
 
-        prev_point = None
-        next_point = None
-
         for i in range(len(self.data)):
-            if time < self.data[i][0]:
-                prev_point = self.data[i-1]
-                next_point = self.data[i]
-                break
+            if time <= self.data[i][0]:
+                if i == 0:
+                    return (self.data[0], self.data[1] if len(self.data) > 1 else self.data[0])
+                return (self.data[i - 1], self.data[i])
 
-        return (prev_point, next_point)
+        # time equals duration exactly — return last two points
+        return (self.data[-2], self.data[-1]) if len(self.data) >= 2 else (self.data[-1], self.data[-1])
 
     def get_target_temperature(self, time):
         if time > self.get_duration():
@@ -832,7 +828,7 @@ class PID():
         else:
             icomp = (error * timeDelta * (1/self.ki))
             self.iterm += (error * timeDelta * (1/self.ki))
-            dErr = (error - self.lastErr) / timeDelta
+            dErr = (error - self.lastErr) / timeDelta if timeDelta > 0 else 0
             output = self.kp * error + self.iterm + self.kd * dErr
             output = sorted([-1 * window_size, output, window_size])[1]
             out4logs = output

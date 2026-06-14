@@ -192,7 +192,7 @@ if __name__ == "__main__":
 
     csvfile = "tuning.csv"
     target = args.target_temp
-    if config.temp_scale.lower() == "c":
+    if config.temp_scale.lower() == "f":
         target = (target - 32)*5/9
     tangentdivisor = args.tangent_divisor 
 
