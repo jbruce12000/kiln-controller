@@ -859,14 +859,19 @@ function scheduleTime(entry) {
     return new Date(entry.start_time * 1000).toLocaleString();
 }
 
-function formatCountdown(secs) {
+function formatDuration(secs) {
     secs = Math.max(0, Math.floor(secs));
     var d = Math.floor(secs / 86400);
     var h = Math.floor((secs % 86400) / 3600);
     var m = Math.floor((secs % 3600) / 60);
     var s = secs % 60;
     function pad(n) { return (n < 10 ? '0' : '') + n; }
-    return d + ' ' + pad(h) + ':' + pad(m) + ':' + pad(s);
+    var hms = pad(h) + ':' + pad(m) + ':' + pad(s);
+    return d > 0 ? d + ' ' + hms : hms;
+}
+
+function formatCountdown(secs) {
+    return formatDuration(secs);
 }
 
 var pending_schedules = [];
@@ -934,7 +939,7 @@ function profileDuration(data) {
     if (data.length > 0) {
         secs = parseInt(data[data.length-1][0]);
     }
-    return new Date(secs * 1000).toISOString().substr(11, 8);
+    return formatDuration(secs);
 }
 
 function renderProfiles()
@@ -1417,7 +1422,7 @@ function init()
                 updateAxis();
 
                 var left = parseInt(x.totaltime-x.runtime);
-                var eta = new Date(left * 1000).toISOString().substr(11, 8);
+                var eta = formatDuration(left);
 
                 $('eta').innerHTML = eta;
             }
