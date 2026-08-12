@@ -6,12 +6,13 @@
 # 2022-04-07    typo
 """
 Read all GPIO
-This version for raspi-gpio debug tool
+This version for pinctrl debug tool
 """
 import sys, os, time
 import subprocess
 
 MODES=["IN", "OUT", "ALT5", "ALT4", "ALT0", "ALT1", "ALT2", "ALT3"]
+ALTFSEL = {0: 4, 1: 5, 2: 6, 3: 7, 4: 3, 5: 2}  # pinctrl a0-a5 -> fsel index
 HEADER = ('3.3v', '5v', 2, '5v', 3, 'GND', 4, 14, 'GND', 15, 17, 18, 27, 'GND', 22, 23, '3.3v', 24, 10, 'GND', 9, 25, 11, 8, 'GND', 7, 0, 1, 5, 'GND', 6, 12, 13, 'GND', 19, 16, 26, 20, 'GND', 21)
 
 # https://www.raspberrypi.com/documentation/computers/raspberry-pi.html#new-style-revision-codes
@@ -56,16 +57,37 @@ def pin_state(g):
     Return "state" of BCM g
     Return is tuple (name, mode, value)
     """
-    result = subprocess.run(['raspi-gpio', 'get', ascii(g)], stdout=subprocess.PIPE).stdout.decode('utf-8')
+    result = subprocess.run(['pinctrl', 'get', str(g)], stdout=subprocess.PIPE).stdout.decode('utf-8').strip()
 
-    D = {}  # Convert output of raspi-gpio get to dict for convenience
-    paras = result.split()
-    for par in paras[2:] :
-        p, v = par.split('=')
-        if (v.isdigit()):
-            D[p] = int(v)
+    D = {}
+
+    try:
+        main_part, comment = result.split('//')
+        left_side, level_str = main_part.split('|')
+        tokens = left_side.split()
+
+        mode_str = tokens[1]                           # e.g., 'ip', 'op', 'a0'
+        pull_str = tokens[2] if len(tokens) > 2 else '--' # e.g., 'pu', 'pd', '--'
+
+        D['level'] = 1 if level_str.strip() == 'hi' else 0
+        D['func'] = comment.split('=')[1].strip() if '=' in comment else comment.strip()
+
+        if mode_str == 'ip':
+            D['fsel'] = 0
+        elif mode_str == 'op':
+            D['fsel'] = 1
+        elif mode_str.startswith('a'):
+            D['fsel'] = ALTFSEL[int(mode_str[1])]  # a0->4 (ALT0), a1->5 (ALT1), ...
         else:
-            D[p] = v
+            D['fsel'] = 0
+
+        if pull_str == 'pu':
+            D['pull'] = 'UP'
+        elif pull_str == 'pd':
+            D['pull'] = 'DOWN'
+
+    except Exception:
+        D = {'level': 0, 'func': 'UNKNOWN', 'fsel': 0}
 
     if('fsel' in D):
         if(D['fsel'] < 2): # i.e. IN or OUT
