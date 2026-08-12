@@ -122,3 +122,12 @@ def test_running_eta_uses_day_aware_formatter():
     assert m, 'eta computation not found in %s' % JS_PATH
     assert 'formatDuration' in m.group(1)
     assert 'toISOString' not in m.group(1)
+
+
+def test_backlog_clears_storage_when_idle():
+    # when the server reports no run in progress on connect, the client
+    # must wipe stored details data left over from a previous firing
+    src = open(JS_PATH).read()
+    m = re.search(r'if \(!x\.run_started\)\s*\{(.{0,300}?)clear_persisted_all\(\);',
+                  src, re.S)
+    assert m, 'backlog handler must clear stored data when the server is idle'

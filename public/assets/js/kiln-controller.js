@@ -1366,6 +1366,13 @@ function init()
             // clearing stored data, so a page refresh mid-run is not lost.
             run_started = x.run_started || null;
 
+            if (!x.run_started)
+            {
+                // the server has no run in progress, so any stored details
+                // belong to a previous firing. wipe them.
+                clear_persisted_all();
+            }
+
             if (x.profile)
             {
                 backlog_profile_name = typeof x.profile == 'object' ? x.profile.name : x.profile;
