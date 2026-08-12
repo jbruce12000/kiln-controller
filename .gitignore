@@ -9,4 +9,5 @@ thumbs.db
 #config.py
 .idea/*
 state.json
+storage/schedules.json
 venv/*

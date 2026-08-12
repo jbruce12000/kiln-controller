@@ -1,5 +1,6 @@
 import threading,logging,json,time,datetime
 from oven import Oven
+from temp import display_profile_data
 log = logging.getLogger(__name__)
 
 class OvenWatcher(threading.Thread):
@@ -25,7 +26,15 @@ class OvenWatcher(threading.Thread):
     def run(self):
         while True:
             oven_state = self.oven.get_state()
-           
+
+            # stamp the run start time so clients can tell when a new run
+            # has begun (from the start button, a scheduled run, an api
+            # command, or an automatic restart)
+            if self.started:
+                oven_state['run_started'] = self.started.timestamp()
+            else:
+                oven_state['run_started'] = None
+
             # record state for any new clients that join
             if oven_state.get("state") == "RUNNING":
                 self.last_log.append(oven_state)
@@ -54,7 +63,7 @@ class OvenWatcher(threading.Thread):
         if self.last_profile:
             p = {
                 "name": self.last_profile.name,
-                "data": self.last_profile.data, 
+                "data": display_profile_data(self.last_profile.data),
                 "type" : "profile"
             }
         else:
@@ -64,7 +73,7 @@ class OvenWatcher(threading.Thread):
             'type': "backlog",
             'profile': p,
             'log': self.lastlog_subset(),
-            #'started': self.started
+            'run_started': self.started.timestamp() if self.started else None,
         }
         print(backlog)
         backlog_json = json.dumps(backlog)

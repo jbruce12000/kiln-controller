@@ -118,7 +118,7 @@ and you can use this script to examine each pin's state including input/output/v
 
 Run the [autotuner](https://github.com/jbruce12000/kiln-controller/blob/main/docs/ziegler_tuning.md). It will heat your kiln to 400F, pass that, and then once it cools back down to 400F, it will calculate PID values which you must copy into config.py. No tuning is perfect across a wide temperature range. Here is a [PID Tuning Guide](https://github.com/jbruce12000/kiln-controller/blob/main/docs/pid_tuning.md) if you end up having to manually tune.
 
-There is a state view that can help with tuning. It shows the P,I, and D parameters over time plus allows for a csv dump of data collected. It also shows lots of other details that might help with troubleshooting issues. Go to /state.
+There is a Details tab that can help with tuning. It shows the P, I, and D parameters over time plus allows for a csv dump of data collected. It also shows lots of other details that might help with troubleshooting issues. Go to http://127.0.0.1:9099/#details.
 
 ## Usage
 
@@ -142,7 +142,7 @@ In config.py, set **simulate=True**. Start the server and select a profile and c
 
 ### Scheduling a Kiln run
 
-If you want to schedule a kiln run to start in the future. Here are [examples](https://github.com/jbruce12000/kiln-controller/blob/main/docs/scheduling.md).
+You can schedule a firing to start at a specific date and time from the **Profiles** tab or the **Schedule** button next to Start on the Overview tab. Scheduled runs are saved to disk so they survive a reboot, and are fired by the running kiln-controller process. See the [api docs](https://github.com/jbruce12000/kiln-controller/blob/main/docs/api.md) for the api commands that power scheduling.
 
 ### Watcher
 

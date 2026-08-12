@@ -9,6 +9,7 @@ import digitalio
 import busio
 import adafruit_bitbangio as bitbangio
 import statistics
+from temp import to_c, to_display, delta_to_c, delta_to_display, display_pidstats
 
 log = logging.getLogger(__name__)
 
@@ -107,7 +108,7 @@ class TempSensorSimulated(TempSensor):
     '''Simulates a temperature sensor '''
     def __init__(self):
         TempSensor.__init__(self)
-        self.simulated_temperature = config.sim_t_env
+        self.simulated_temperature = to_c(config.sim_t_env)
     def temperature(self):
         return self.simulated_temperature
 
@@ -136,11 +137,11 @@ class TempSensorReal(TempSensor):
             log.info("Hardware SPI selected for reading thermocouple")
 
     def get_temperature(self):
-        '''read temp from tc and convert if needed'''
+        '''read temp from tc. thermocouple libs report celsius and the
+        server always works in celsius, so no conversion is done here.
+        conversion to the display scale happens at the api boundaries.'''
         try:
             temp = self.raw_temp() # raw_temp provided by subclasses
-            if config.temp_scale.lower() == "f":
-                temp = (temp*9/5)+32
             self.status.good()
             return temp
         except ThermocoupleError as tce:
@@ -352,7 +353,7 @@ class Oven(threading.Thread):
         target_temp = profile.get_target_temperature(0)
         if temp > target_temp + 5:
             startat = profile.find_next_time_from_temperature(temp)
-            log.info("seek_start is in effect, starting at: {} s, {} deg".format(round(startat), round(temp)))
+            log.info("seek_start is in effect, starting at: {} s, {} deg".format(round(startat), round(to_display(temp))))
         else:
             startat = 0
         return startat
@@ -406,15 +407,16 @@ class Oven(threading.Thread):
         to wait for the kiln to catch up'''
         if config.kiln_must_catch_up == True:
             temp = self.board.temp_sensor.temperature() + \
-                config.thermocouple_offset
+                delta_to_c(config.thermocouple_offset)
+            window = delta_to_c(config.pid_control_window)
             # kiln too cold, wait for it to heat up
-            if self.target - temp > config.pid_control_window:
+            if self.target - temp > window:
                 log.info("kiln must catch up, too cold, shifting schedule")
                 self.start_time = self.get_start_time()
                 self.catching_up = True;
                 return
             # kiln too hot, wait for it to cool down
-            if temp - self.target > config.pid_control_window:
+            if temp - self.target > window:
                 log.info("kiln must catch up, too hot, shifting schedule")
                 self.start_time = self.get_start_time()
                 self.catching_up = True;
@@ -434,8 +436,8 @@ class Oven(threading.Thread):
 
     def reset_if_emergency(self):
         '''reset if the temperature is way TOO HOT, or other critical errors detected'''
-        if (self.board.temp_sensor.temperature() + config.thermocouple_offset >=
-            config.emergency_shutoff_temp):
+        if (self.board.temp_sensor.temperature() + delta_to_c(config.thermocouple_offset) >=
+            to_c(config.emergency_shutoff_temp)):
             log.info("emergency!!! temperature too high")
             if config.ignore_temp_too_high == False:
                 self.abort_run()
@@ -461,7 +463,7 @@ class Oven(threading.Thread):
     def get_state(self):
         temp = 0
         try:
-            temp = self.board.temp_sensor.temperature() + config.thermocouple_offset
+            temp = self.board.temp_sensor.temperature() + delta_to_c(config.thermocouple_offset)
         except AttributeError as error:
             # this happens at start-up with a simulated oven
             temp = 0
@@ -472,19 +474,24 @@ class Oven(threading.Thread):
         state = {
             'cost': self.cost,
             'runtime': self.runtime,
-            'temperature': temp,
-            'target': self.target,
+            'temperature': to_display(temp),
+            'target': to_display(self.target),
             'state': self.state,
             'heat': self.heat,
-            'heat_rate': self.heat_rate,
+            'heat_rate': delta_to_display(self.heat_rate),
             'totaltime': self.totaltime,
             'kwh_rate': config.kwh_rate,
             'currency_type': config.currency_type,
             'profile': self.profile.name if self.profile else None,
-            'pidstats': self.pid.pidstats,
+            'pidstats': self.get_display_pidstats(),
             'catching_up': self.catching_up,
         }
         return state
+
+    def get_display_pidstats(self):
+        '''pid stats are kept in celsius internally; report them in the
+        display scale'''
+        return display_pidstats(self.pid.pidstats)
 
     def save_state(self):
         with open(config.automatic_restart_state_file, 'w', encoding='utf-8') as f:
@@ -568,12 +575,17 @@ class Oven(threading.Thread):
                 self.heat_then_cool()
                 self.reset_if_emergency()
                 self.reset_if_schedule_ended()
+                continue
+
+            # unrecognized state (e.g. "TUNING" while the autotuner is
+            # driving the oven directly): do nothing, just wait quietly
+            time.sleep(self.time_step)
 
 class SimulatedOven(Oven):
 
     def __init__(self):
         self.board = SimulatedBoard()
-        self.t_env = config.sim_t_env
+        self.t_env = to_c(config.sim_t_env)
         self.c_heat = config.sim_c_heat
         self.c_oven = config.sim_c_oven
         self.p_heat = config.sim_p_heat
@@ -583,8 +595,8 @@ class SimulatedOven(Oven):
         self.speedup_factor = config.sim_speedup_factor
 
         # set temps to the temp of the surrounding environment
-        self.t = config.sim_t_env  # deg C or F temp of oven
-        self.t_h = self.t_env #deg C temp of heating element
+        self.t = self.t_env  # deg C temp of oven (internal)
+        self.t_h = self.t_env # deg C temp of heating element
 
         super().__init__()
 
@@ -634,7 +646,7 @@ class SimulatedOven(Oven):
         now_simulator = self.start_time + datetime.timedelta(milliseconds = self.runtime * 1000)
         pid = self.pid.compute(self.target,
                                self.board.temp_sensor.temperature() +
-                               config.thermocouple_offset, now_simulator)
+                               delta_to_c(config.thermocouple_offset), now_simulator)
 
         heat_on = float(self.time_step * pid)
         heat_off = float(self.time_step * (1 - pid))
@@ -648,22 +660,23 @@ class SimulatedOven(Oven):
             self.heat = heat_on
 
         log.info("simulation: -> %dW heater: %.0f -> %dW oven: %.0f -> %dW env" % (int(self.p_heat * pid),
-            self.t_h,
+            to_display(self.t_h),
             int(self.p_ho),
-            self.t,
+            to_display(self.t),
             int(self.p_env)))
 
         time_left = self.totaltime - self.runtime
 
         try:
+            ps = self.get_display_pidstats()
             log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
-                (self.pid.pidstats['ispoint'],
-                self.pid.pidstats['setpoint'],
-                self.pid.pidstats['err'],
-                self.pid.pidstats['pid'],
-                self.pid.pidstats['p'],
-                self.pid.pidstats['i'],
-                self.pid.pidstats['d'],
+                (ps['ispoint'],
+                ps['setpoint'],
+                ps['err'],
+                ps['pid'],
+                ps['p'],
+                ps['i'],
+                ps['d'],
                 heat_on,
                 heat_off,
                 self.runtime,
@@ -697,7 +710,7 @@ class RealOven(Oven):
     def heat_then_cool(self):
         pid = self.pid.compute(self.target,
                                self.board.temp_sensor.temperature() +
-                               config.thermocouple_offset, datetime.datetime.now())
+                               delta_to_c(config.thermocouple_offset), datetime.datetime.now())
 
         heat_on = float(self.time_step * pid)
         heat_off = float(self.time_step * (1 - pid))
@@ -713,14 +726,15 @@ class RealOven(Oven):
             self.output.cool(heat_off)
         time_left = self.totaltime - self.runtime
         try:
+            ps = self.get_display_pidstats()
             log.info("temp=%.2f, target=%.2f, error=%.2f, pid=%.2f, p=%.2f, i=%.2f, d=%.2f, heat_on=%.2f, heat_off=%.2f, run_time=%d, total_time=%d, time_left=%d" %
-                (self.pid.pidstats['ispoint'],
-                self.pid.pidstats['setpoint'],
-                self.pid.pidstats['err'],
-                self.pid.pidstats['pid'],
-                self.pid.pidstats['p'],
-                self.pid.pidstats['i'],
-                self.pid.pidstats['d'],
+                (ps['ispoint'],
+                ps['setpoint'],
+                ps['err'],
+                ps['pid'],
+                ps['p'],
+                ps['i'],
+                ps['d'],
                 heat_on,
                 heat_off,
                 self.runtime,
@@ -817,16 +831,16 @@ class PID():
         output = 0
         out4logs = 0
         dErr = 0
-        if error < (-1 * config.pid_control_window):
+        if error < (-1 * delta_to_c(config.pid_control_window)):
             log.info("kiln outside pid control window, max cooling")
             output = 0
             # it is possible to set self.iterm=0 here and also below
             # but I dont think its needed
-        elif error > (1 * config.pid_control_window):
+        elif error > (1 * delta_to_c(config.pid_control_window)):
             log.info("kiln outside pid control window, max heating")
             output = 1
             if config.throttle_below_temp and config.throttle_percent:
-                if setpoint <= config.throttle_below_temp:
+                if setpoint <= to_c(config.throttle_below_temp):
                     output = config.throttle_percent/100
                     log.info("max heating throttled at %d percent below %d degrees to prevent overshoot" % (config.throttle_percent,config.throttle_below_temp))
         else:

@@ -12,7 +12,7 @@ log_level = logging.INFO
 log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
 
 ### Server
-listening_port = 8081
+listening_port = 9099
 
 ########################################################################
 # Cost Information
@@ -140,9 +140,14 @@ sensor_time_wait = 2
 # well with the simulated oven. You must tune them to work well with 
 # your specific kiln. Note that the integral pid_ki is
 # inverted so that a smaller number means more integral action.
-pid_kp = 10   # Proportional 25,200,200
-pid_ki = 80   # Integral
-pid_kd = 220.83497910261562 # Derivative
+#pid_kp = 10   # Proportional 25,200,200
+#pid_ki = 80   # Integral
+#pid_kd = 220.83497910261562 # Derivative
+
+pid_kp = 3.47
+pid_ki = 37.154
+pid_kd = 111.864
+
 
 ########################################################################
 #
@@ -176,6 +181,13 @@ sim_speedup_factor = 1
 #
 # If you change the temp_scale, all settings in this file are assumed to
 # be in that scale.
+#
+# The server always works internally in celsius. settings in this file
+# (temperatures and temperature deltas like emergency_shutoff_temp,
+# throttle_below_temp, pid_control_window, thermocouple_offset, sim_t_env)
+# are written in the display scale above and converted to celsius
+# internally. all values sent to clients via the api, websockets, or
+# logging are converted back to the display scale.
 temp_scale          = "f" # c = Celsius | f = Fahrenheit - Unit to display
 time_scale_slope    = "h" # s = Seconds | m = Minutes | h = Hours - Slope displayed in temp_scale per time_scale_slope
 time_scale_profile  = "m" # s = Seconds | m = Minutes | h = Hours - Enter and view target time in time_scale_profile
@@ -258,6 +270,14 @@ ignore_tc_too_many_errors = False
 automatic_restarts = True
 automatic_restart_window = 15 # max minutes since power outage
 automatic_restart_state_file = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'state.json'))
+
+########################################################################
+# scheduled runs - start a firing at a specific date and time.
+# schedules are persisted here so they survive a reboot.
+# The kiln-controller.py process must be running for a schedule
+# to fire. The scheduler checks every schedule_poll_interval seconds.
+schedule_state_file = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'storage','schedules.json'))
+schedule_poll_interval = 1 # seconds between schedule checks
 
 ########################################################################
 # load kiln profiles from this directory
