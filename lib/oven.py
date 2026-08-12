@@ -388,7 +388,9 @@ class Oven(threading.Thread):
         self.reset()
         self.startat = startat * 60
         self.runtime = runtime
-        self.start_time = datetime.datetime.now() - datetime.timedelta(seconds=self.startat)
+        # derive start_time from the (possibly seek-adjusted) runtime so
+        # update_runtime() preserves it instead of resetting to zero
+        self.start_time = self.get_start_time()
         self.profile = profile
         self.totaltime = profile.get_duration()
         self.state = "RUNNING"

@@ -238,6 +238,40 @@ def test_run_profile(no_auto_restarts):
     assert oven.profile is profile
 
 
+def test_run_profile_seek_start_time_matches_runtime(no_auto_restarts, monkeypatch):
+    '''seek offset must be reflected in start_time so update_runtime
+    preserves the sought position. previously start_time was derived from
+    startat alone and the seek silently reset to zero unless
+    kiln_must_catch_up happened to shift it back.'''
+    monkeypatch.setattr(config, 'kiln_must_catch_up', False)
+    oven = Oven()
+    oven.board = FakeBoard(250)  # kiln still hot from a previous run
+    oven.run_profile(get_profile(), startat=0, allow_seek=True)
+    # seek found 3800s into the profile for a 250c oven
+    assert oven.runtime == 3800
+    # start_time must be set back by the runtime, not just startat
+    offset = (datetime.datetime.now() - oven.start_time).total_seconds()
+    assert offset == pytest.approx(3800, abs=2)
+    # and update_runtime keeps the sought position instead of zeroing it
+    oven.update_runtime()
+    assert oven.runtime == pytest.approx(3800, abs=2)
+    oven.update_target_temp()
+    assert oven.target == pytest.approx(250.0)
+
+
+def test_run_profile_no_seek_start_time_matches_startat(no_auto_restarts):
+    oven = Oven()
+    oven.board = FakeBoard(250)
+    oven.run_profile(get_profile(), startat=10, allow_seek=False)
+    assert oven.runtime == 600
+    offset = (datetime.datetime.now() - oven.start_time).total_seconds()
+    assert offset == pytest.approx(600, abs=2)
+    oven.update_runtime()
+    assert oven.runtime == pytest.approx(600, abs=2)
+    oven.update_target_temp()
+    assert oven.target == pytest.approx(200.0)
+
+
 def test_get_state():
     oven = Oven()
     state = oven.get_state()

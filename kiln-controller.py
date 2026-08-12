@@ -136,14 +136,18 @@ def find_profile(wanted):
             return profile
     return None
 
-def start_run(wanted, startat=0):
+def start_run(wanted, startat=0, allow_seek=None):
     '''
     start a kiln run of the wanted profile. startat is in minutes.
+    allow_seek defaults to True unless startat is given. pass
+    allow_seek=False for scheduled runs so they always start from
+    the beginning regardless of the current kiln temperature.
     returns True if the run started, False if the profile was not found.
     '''
-    allow_seek = True
-    if startat > 0:
-        allow_seek = False
+    if allow_seek is None:
+        allow_seek = True
+        if startat > 0:
+            allow_seek = False
 
     # get the wanted profile/kiln schedule
     profile = find_profile(wanted)
@@ -225,7 +229,9 @@ def fire_scheduled_run(entry):
         log.warning("schedule %s (%s) skipped, oven state = %s" % (entry["id"], entry["profile"], oven.state))
         return False
     startat = entry.get("startat", 0) or 0
-    if not start_run(entry["profile"], startat):
+    # a scheduled run always starts from the beginning (or the requested
+    # startat) regardless of how hot the kiln is from a previous run.
+    if not start_run(entry["profile"], startat, allow_seek=False):
         log.error("schedule %s could not fire, profile %s not found" % (entry["id"], entry["profile"]))
         return False
     log.info("schedule %s fired, starting profile %s" % (entry["id"], entry["profile"]))
