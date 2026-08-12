@@ -6,8 +6,6 @@ import csv
 import time
 import argparse
 
-from temp import to_c, to_display, delta_to_c
-
 try:
         sys.dont_write_bytecode = True
         import config
@@ -17,6 +15,9 @@ except ImportError:
         print("Could not import config file.")
         print("Copy config.py.EXAMPLE to config.py and adapt it for your setup.")
         exit(1)
+
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'lib/'))
+from temp import to_c, to_display, delta_to_c
 
 
 ########################################################################
