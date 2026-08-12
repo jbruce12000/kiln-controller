@@ -131,3 +131,10 @@ def test_backlog_clears_storage_when_idle():
     m = re.search(r'if \(!x\.run_started\)\s*\{(.{0,300}?)clear_persisted_all\(\);',
                   src, re.S)
     assert m, 'backlog handler must clear stored data when the server is idle'
+
+
+def test_download_logs_uses_api_endpoint():
+    # the logs download button must hit the /api/logs endpoint so it is
+    # not shadowed by the static-file catch-all route
+    src = open(JS_PATH).read()
+    assert "'/api/logs'" in src or '"/api/logs"' in src

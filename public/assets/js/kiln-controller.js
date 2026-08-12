@@ -1275,6 +1275,15 @@ function csv_string() {
   table.download("csv", "kiln-state.csv");
 }
 
+function download_logs() {
+  var a = document.createElement('a');
+  a.href = '/api/logs';
+  a.download = 'kiln.logs.gz';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 /* ---------------------------------------------------------------------------
    Init
 --------------------------------------------------------------------------- */

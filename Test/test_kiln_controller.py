@@ -1,4 +1,5 @@
 import datetime
+import gzip
 import importlib.util
 import json
 import os
@@ -72,6 +73,27 @@ def test_state_redirects_to_details():
         controller.state()
     assert excinfo.value.status_code == 302
     assert excinfo.value.headers['Location'].endswith('/#details')
+
+
+def test_api_logs_returns_gzipped(monkeypatch):
+    monkeypatch.setattr(
+        controller.subprocess, 'check_output',
+        lambda *a, **k: b'2024-01-01 INFO oven: temp=100\n'
+                        b'2024-01-01 ERROR kiln-controller: boom\n')
+    resp = controller.api_logs()
+    assert resp.headers['Content-Type'] == 'application/gzip'
+    assert 'attachment' in resp.headers['Content-Disposition']
+    assert 'kiln.logs.gz' in resp.headers['Content-Disposition']
+    data = gzip.decompress(resp.body)
+    assert b'INFO oven: temp=100' in data
+    assert b'ERROR kiln-controller: boom' in data
+
+
+def test_api_logs_empty_still_valid_gzip(monkeypatch):
+    monkeypatch.setattr(controller.subprocess, 'check_output',
+                        lambda *a, **k: b'')
+    resp = controller.api_logs()
+    assert gzip.decompress(resp.body) == b''
 
 
 ########################################################################

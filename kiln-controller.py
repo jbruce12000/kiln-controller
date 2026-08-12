@@ -6,6 +6,9 @@ import sys
 import logging
 import json
 import datetime
+import gzip
+import io
+import subprocess
 
 import bottle
 import gevent
@@ -117,6 +120,34 @@ def handle_api():
                 return json.dumps(oven.get_display_pidstats())
 
     return { "success" : True }
+
+@app.get('/api/logs')
+def api_logs():
+    '''download all kiln log lines for the kiln-controller service,
+    compressed into a gzipped file.'''
+    out = io.BytesIO()
+    with gzip.GzipFile(fileobj=out, mode='wb') as f:
+        for line in gather_log_lines():
+            f.write(line.encode('utf-8', errors='replace') + b'\n')
+    out.seek(0)
+    return bottle.HTTPResponse(
+        out.getvalue(),
+        headers={
+            'Content-Type': 'application/gzip',
+            'Content-Disposition': 'attachment; filename="kiln.logs.gz"',
+        })
+
+def gather_log_lines():
+    '''gather the kiln log lines from the systemd journal for the
+    kiln-controller unit. returns a sorted, de-duplicated list of
+    lines.'''
+    try:
+        out = subprocess.check_output(
+            "timeout 60 journalctl -u kiln-controller --no-pager 2>/dev/null",
+            shell=True, stderr=subprocess.DEVNULL, timeout=70)
+    except Exception:
+        return []
+    return sorted(set(out.decode('utf-8', errors='replace').splitlines()))
 
 def find_profile(wanted):
     '''
