@@ -6,7 +6,7 @@ import sys
 import logging
 import json
 import datetime
-import gzip
+import tarfile
 import io
 import subprocess
 
@@ -121,23 +121,63 @@ def handle_api():
 
     return { "success" : True }
 
-@app.get('/api/logs')
-def api_logs():
-    '''download all kiln log lines for the kiln-controller service,
-    compressed into a gzipped file.'''
+@app.get('/api/dump')
+def api_dump():
+    '''download config, state, all profiles, and logs as a tar.gz
+    archive.'''
     out = io.BytesIO()
-    with gzip.GzipFile(fileobj=out, mode='wb') as f:
-        for line in gather_log_lines():
-            f.write(line.encode('utf-8', errors='replace') + b'\n')
+    with tarfile.open(fileobj=out, mode='w:gz') as tar:
+        _tar_add_path(tar, 'config.py', config.__file__)
+        _tar_add_path(tar, 'state.json', config.automatic_restart_state_file)
+        for filename in profile_files():
+            _tar_add_path(tar, os.path.join('profiles', filename),
+                          os.path.join(profile_path, filename))
+        _tar_add_bytes(tar, 'kiln.logs',
+                       '\n'.join(gather_log_lines()) + '\n')
     out.seek(0)
     return bottle.HTTPResponse(
         out.getvalue(),
         headers={
             'Content-Type': 'application/gzip',
-            'Content-Disposition': 'attachment; filename="kiln.logs.gz"',
+            'Content-Disposition': 'attachment; filename="kiln-config-dump.tar.gz"',
         })
 
+def profile_files():
+    '''list the stored profile filenames, or [] if the directory
+    cannot be read.'''
+    try:
+        return [f for f in os.listdir(profile_path)
+                if os.path.isfile(os.path.join(profile_path, f))]
+    except Exception:
+        return []
+
+def _tar_add_bytes(tar, arcname, text):
+    '''add an in-memory text file to a tar archive.'''
+    encoded = text.encode('utf-8', errors='replace')
+    info = tarfile.TarInfo(arcname)
+    info.size = len(encoded)
+    tar.addfile(info, io.BytesIO(encoded))
+
+def _tar_add_path(tar, arcname, path):
+    '''add a file from disk to a tar archive, skipping it if it
+    cannot be read.'''
+    try:
+        with open(path, 'r', encoding='utf-8', errors='replace') as f:
+            _tar_add_bytes(tar, arcname, f.read())
+    except Exception:
+        log.error("could not add %s to config dump" % path)
+
 def gather_log_lines():
+    '''gather the kiln log lines from the systemd journal for the
+    kiln-controller unit. returns a sorted, de-duplicated list of
+    lines.'''
+    try:
+        out = subprocess.check_output(
+            "timeout 60 journalctl -u kiln-controller --no-pager 2>/dev/null",
+            shell=True, stderr=subprocess.DEVNULL, timeout=70)
+    except Exception:
+        return []
+    return sorted(set(out.decode('utf-8', errors='replace').splitlines()))
     '''gather the kiln log lines from the systemd journal for the
     kiln-controller unit. returns a sorted, de-duplicated list of
     lines.'''

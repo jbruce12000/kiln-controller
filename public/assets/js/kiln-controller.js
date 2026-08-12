@@ -1275,10 +1275,10 @@ function csv_string() {
   table.download("csv", "kiln-state.csv");
 }
 
-function download_logs() {
+function download_dump() {
   var a = document.createElement('a');
-  a.href = '/api/logs';
-  a.download = 'kiln.logs.gz';
+  a.href = '/api/dump';
+  a.download = 'kiln-config-dump.tar.gz';
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

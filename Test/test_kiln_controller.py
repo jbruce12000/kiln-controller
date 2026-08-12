@@ -1,8 +1,9 @@
 import datetime
-import gzip
 import importlib.util
+import io
 import json
 import os
+import tarfile
 import time
 import types
 
@@ -75,25 +76,53 @@ def test_state_redirects_to_details():
     assert excinfo.value.headers['Location'].endswith('/#details')
 
 
-def test_api_logs_returns_gzipped(monkeypatch):
+def test_api_dump_returns_targz(monkeypatch, tmp_path):
     monkeypatch.setattr(
         controller.subprocess, 'check_output',
         lambda *a, **k: b'2024-01-01 INFO oven: temp=100\n'
                         b'2024-01-01 ERROR kiln-controller: boom\n')
-    resp = controller.api_logs()
+    state_file = tmp_path / 'state.json'
+    state_file.write_text('{"state": "RUNNING"}')
+    monkeypatch.setattr(config, 'automatic_restart_state_file', str(state_file))
+    profiles_dir = tmp_path / 'profiles'
+    profiles_dir.mkdir()
+    (profiles_dir / 'cone-05.json').write_text(
+        json.dumps({'name': 'cone-05', 'data': [[0, 200]]}))
+    (profiles_dir / 'bisque.json').write_text(
+        json.dumps({'name': 'bisque', 'data': [[0, 100]]}))
+    monkeypatch.setattr(controller, 'profile_path', str(profiles_dir))
+
+    resp = controller.api_dump()
     assert resp.headers['Content-Type'] == 'application/gzip'
     assert 'attachment' in resp.headers['Content-Disposition']
-    assert 'kiln.logs.gz' in resp.headers['Content-Disposition']
-    data = gzip.decompress(resp.body)
-    assert b'INFO oven: temp=100' in data
-    assert b'ERROR kiln-controller: boom' in data
+    assert 'kiln-config-dump.tar.gz' in resp.headers['Content-Disposition']
+
+    tar = tarfile.open(fileobj=io.BytesIO(resp.body), mode='r:gz')
+    assert set(tar.getnames()) == {
+        'config.py', 'state.json',
+        'profiles/cone-05.json', 'profiles/bisque.json',
+        'kiln.logs',
+    }
+    assert 'INFO oven: temp=100' in tar.extractfile('kiln.logs').read().decode()
+    assert '{"state": "RUNNING"}' in tar.extractfile('state.json').read().decode()
+    profile = json.loads(tar.extractfile('profiles/cone-05.json').read().decode())
+    assert profile == {'name': 'cone-05', 'data': [[0, 200]]}
+    # config.py must be the real repo config
+    assert 'emergency_shutoff_temp' in tar.extractfile('config.py').read().decode()
 
 
-def test_api_logs_empty_still_valid_gzip(monkeypatch):
+def test_api_dump_without_profiles(monkeypatch, tmp_path):
     monkeypatch.setattr(controller.subprocess, 'check_output',
                         lambda *a, **k: b'')
-    resp = controller.api_logs()
-    assert gzip.decompress(resp.body) == b''
+    state_file = tmp_path / 'state.json'
+    state_file.write_text('{}')
+    monkeypatch.setattr(config, 'automatic_restart_state_file', str(state_file))
+    profiles_dir = tmp_path / 'profiles'
+    profiles_dir.mkdir()
+    monkeypatch.setattr(controller, 'profile_path', str(profiles_dir))
+    resp = controller.api_dump()
+    tar = tarfile.open(fileobj=io.BytesIO(resp.body), mode='r:gz')
+    assert set(tar.getnames()) == {'config.py', 'state.json', 'kiln.logs'}
 
 
 ########################################################################
