@@ -957,7 +957,9 @@ function renderProfiles()
             + '<div class="profile-meta">' + p.data.length + ' points &middot; duration ' + profileDuration(p.data) + '</div>'
             + '</div>'
             + '<div class="btn-group">'
-            + '<button type="button" class="btn btn-success btn-sm" onclick="selectProfile(' + i + ', true)"><i class="bi bi-play-fill"></i> Run</button>'
+            + (running
+                ? '<button type="button" class="btn btn-danger btn-sm" onclick="abortTask()"><i class="bi bi-stop-fill"></i> Stop</button>'
+                : '<button type="button" class="btn btn-success btn-sm" onclick="selectProfile(' + i + ', true)"><i class="bi bi-play-fill"></i> Run</button>')
             + '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="scheduleProfile(' + i + ')"><i class="bi bi-calendar-plus"></i> Schedule</button>'
             + '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="editProfile(' + i + ')"><i class="bi bi-pencil"></i> Edit</button>'
             + '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="selectProfile(' + i + ', null)"><i class="bi bi-trash"></i> Delete</button>'
