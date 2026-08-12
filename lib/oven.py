@@ -345,6 +345,7 @@ class Oven(threading.Thread):
         self.heat = 0
         self.heat_rate = 0
         self.heat_rate_temps = []
+        self.emergency_heat_rate_temps = []
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
         self.catching_up = False
 
@@ -447,6 +448,61 @@ class Oven(threading.Thread):
         if self.board.temp_sensor.status.over_error_limit():
             log.info("emergency!!! too many errors in a short period")
             if config.ignore_tc_too_many_errors == False:
+                self.abort_run()
+
+        self.check_heat_rate_emergency()
+
+    def target_is_rising(self):
+        '''True if the profile currently demands the kiln heat up, i.e.
+        the target temperature is rising. the heat-rate emergency only
+        applies during heating segments so that holds and cooling
+        phases don't trip it.'''
+        if self.profile is None:
+            return False
+        return (self.profile.get_target_temperature(self.runtime + 1) >
+                self.profile.get_target_temperature(self.runtime))
+
+    def check_heat_rate_emergency(self):
+        '''abort the run if the kiln cannot heat at
+        config.emergency_heat_rate for config.emergency_heat_rate_window
+        minutes while the profile demands heating. this can mean a
+        failed heating element or a relay stuck open.'''
+        if not config.emergency_heat_rate or not config.emergency_heat_rate_window:
+            return
+
+        # only heating segments demand the kiln heat up; drop the window
+        # so a fresh heating segment doesn't inherit stale samples
+        if not self.target_is_rising():
+            self.emergency_heat_rate_temps = []
+            return
+
+        window = config.emergency_heat_rate_window * 60  # seconds
+
+        temp = self.board.temp_sensor.temperature() + \
+            delta_to_c(config.thermocouple_offset)
+        self.emergency_heat_rate_temps.append((self.runtime, temp))
+
+        # keep only the samples inside the rolling window
+        self.emergency_heat_rate_temps = [
+            (t, x) for (t, x) in self.emergency_heat_rate_temps
+            if t >= self.runtime - window]
+
+        if len(self.emergency_heat_rate_temps) < 2:
+            return
+
+        time1 = self.emergency_heat_rate_temps[0][0]
+        temp1 = self.emergency_heat_rate_temps[0][1]
+        time2 = self.emergency_heat_rate_temps[-1][0]
+        temp2 = self.emergency_heat_rate_temps[-1][1]
+
+        # wait for a full window of samples before trusting the rate
+        if time2 - time1 < window:
+            return
+
+        rate = ((temp2 - temp1) / (time2 - time1)) * 3600  # celsius/hour
+        if rate < delta_to_c(config.emergency_heat_rate):
+            log.info("emergency!!! heat rate too low: %0.1f deg/hour" % (delta_to_display(rate)))
+            if config.ignore_heat_rate_too_low == False:
                 self.abort_run()
 
     def reset_if_schedule_ended(self):

@@ -417,6 +417,119 @@ def test_reset_if_emergency_ignored_when_told_to(no_auto_restarts, monkeypatch):
     assert oven.state == 'RUNNING'
 
 
+def test_target_is_rising():
+    oven = Oven()
+    oven.profile = get_profile()
+    # 6000s is on the rising 200->2000c segment
+    oven.runtime = 6000
+    assert oven.target_is_rising() is True
+    # 15000s is on the flat 2250c hold
+    oven.runtime = 15000
+    assert oven.target_is_rising() is False
+    # 18000s is on the cooling 2250->700c segment
+    oven.runtime = 18000
+    assert oven.target_is_rising() is False
+    oven.profile = None
+    assert oven.target_is_rising() is False
+
+
+def _seed_heat_rate_window(oven, temp1):
+    window = config.emergency_heat_rate_window * 60
+    oven.emergency_heat_rate_temps = [(oven.runtime - window, temp1)]
+
+
+def test_reset_if_emergency_heat_rate_too_low(no_auto_restarts, monkeypatch):
+    monkeypatch.setattr(config, 'emergency_heat_rate', 23)
+    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    oven = Oven()
+    oven.profile = get_profile()
+    oven.runtime = 6000  # rising segment
+    oven.state = 'RUNNING'
+    _seed_heat_rate_window(oven, 0)
+    oven.board = FakeBoard(1)  # only 1c rise over the window
+    oven.reset_if_emergency()
+    assert oven.state == 'IDLE'
+
+
+def test_reset_if_emergency_heat_rate_fast_enough(no_auto_restarts, monkeypatch):
+    monkeypatch.setattr(config, 'emergency_heat_rate', 23)
+    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    oven = Oven()
+    oven.profile = get_profile()
+    oven.runtime = 6000  # rising segment
+    oven.state = 'RUNNING'
+    _seed_heat_rate_window(oven, 0)
+    oven.board = FakeBoard(100)  # 100c rise over the window
+    oven.reset_if_emergency()
+    assert oven.state == 'RUNNING'
+
+
+def test_reset_if_emergency_heat_rate_ignored_when_told_to(no_auto_restarts, monkeypatch):
+    monkeypatch.setattr(config, 'emergency_heat_rate', 23)
+    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    monkeypatch.setattr(config, 'ignore_heat_rate_too_low', True)
+    oven = Oven()
+    oven.profile = get_profile()
+    oven.runtime = 6000
+    oven.state = 'RUNNING'
+    _seed_heat_rate_window(oven, 0)
+    oven.board = FakeBoard(1)
+    oven.reset_if_emergency()
+    assert oven.state == 'RUNNING'
+
+
+def test_reset_if_emergency_heat_rate_disabled(no_auto_restarts, monkeypatch):
+    monkeypatch.setattr(config, 'emergency_heat_rate', 0)
+    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    oven = Oven()
+    oven.profile = get_profile()
+    oven.runtime = 6000
+    oven.state = 'RUNNING'
+    _seed_heat_rate_window(oven, 0)
+    oven.board = FakeBoard(1)
+    oven.reset_if_emergency()
+    assert oven.state == 'RUNNING'
+
+
+def test_reset_if_emergency_heat_rate_needs_full_window(no_auto_restarts, monkeypatch):
+    monkeypatch.setattr(config, 'emergency_heat_rate', 23)
+    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    oven = Oven()
+    oven.profile = get_profile()
+    oven.runtime = 6000
+    oven.state = 'RUNNING'
+    oven.emergency_heat_rate_temps = []
+    oven.board = FakeBoard(1)
+    oven.reset_if_emergency()
+    assert oven.state == 'RUNNING'
+
+
+def test_reset_if_emergency_heat_rate_skipped_on_flat_segment(no_auto_restarts, monkeypatch):
+    monkeypatch.setattr(config, 'emergency_heat_rate', 23)
+    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    oven = Oven()
+    oven.profile = get_profile()
+    oven.runtime = 15000  # flat 2250c hold
+    oven.state = 'RUNNING'
+    _seed_heat_rate_window(oven, 0)
+    oven.board = FakeBoard(1)
+    oven.reset_if_emergency()
+    assert oven.state == 'RUNNING'
+
+
+def test_reset_if_emergency_heat_rate_skipped_on_cooling_segment(no_auto_restarts, monkeypatch):
+    monkeypatch.setattr(config, 'emergency_heat_rate', 23)
+    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    oven = Oven()
+    oven.profile = get_profile()
+    oven.runtime = 18000  # cooling 2250->700c segment
+    oven.state = 'RUNNING'
+    _seed_heat_rate_window(oven, 0)
+    oven.board = FakeBoard(1)
+    oven.reset_if_emergency()
+    assert oven.state == 'RUNNING'
+
+
 def test_kiln_must_catch_up_too_cold(monkeypatch):
     monkeypatch.setattr(config, 'kiln_must_catch_up', True)
     monkeypatch.setattr(config, 'pid_control_window', 5)

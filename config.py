@@ -199,6 +199,16 @@ time_scale_profile  = "m" # s = Seconds | m = Minutes | h = Hours - Enter and vi
 # this should not replace you watching your kiln or use of a kiln-sitter
 emergency_shutoff_temp = 2264 #cone 7
 
+# emergency shutoff if the kiln cannot heat fast enough. if the target
+# temperature is rising but the kiln fails to heat at this rate over a
+# rolling window of emergency_heat_rate_window minutes, the profile is
+# aborted. this can mean a failed heating element or a relay stuck open.
+# it is only evaluated while the profile demands heating, so soaks and
+# cooling segments are ignored. rates are in display degrees per hour.
+# set emergency_heat_rate to 0 to disable this check.
+emergency_heat_rate = 23 # degrees per hour (display scale)
+emergency_heat_rate_window = 22.5 # minutes
+
 # If the current temperature is outside the pid control window,
 # delay the schedule until it does back inside. This allows for heating
 # and cooling as fast as possible and not continuing until temp is reached.
@@ -242,6 +252,7 @@ ac_freq_50hz = False
 # You should only set these to True if you experience a problem
 # and WANT to ignore it to complete a firing.
 ignore_temp_too_high = False
+ignore_heat_rate_too_low = False
 ignore_tc_lost_connection = False
 ignore_tc_cold_junction_range_error = False
 ignore_tc_range_error = False

@@ -32,6 +32,12 @@ def test_emergency_shutoff():
     assert config.ignore_temp_too_high is False
 
 
+def test_emergency_heat_rate():
+    assert config.emergency_heat_rate == 23
+    assert config.emergency_heat_rate_window == 22.5
+    assert config.ignore_heat_rate_too_low is False
+
+
 def test_temp_scale():
     assert config.temp_scale == "f"
 
