@@ -287,6 +287,16 @@ def test_get_profiles_c_scale_untouched(monkeypatch, tmp_path):
     assert profiles[0]['data'] == [[0, 0], [100, 100]]
 
 
+def test_get_profiles_sorted_by_name(tmp_path, monkeypatch):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    for name in ('zebra', 'alpha', 'mike'):
+        (tmp_path / (name + '.json')).write_text(
+            json.dumps({'name': name, 'data': [[0, 0]]}))
+
+    profiles = json.loads(controller.get_profiles())
+    assert [p['name'] for p in profiles] == ['alpha', 'mike', 'zebra']
+
+
 def test_find_profile(tmp_path, monkeypatch):
     monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
     (tmp_path / 'test-fast.json').write_text(
