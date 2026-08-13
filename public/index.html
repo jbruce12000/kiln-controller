@@ -58,7 +58,7 @@
     <div class="panel panel-default">
     <div class="panel-heading" id="overview_heading">
      <div id="profile_selector">
-      <select id="e2" class="form-select"><option value="">Select Profile</option></select>
+      <span class="info-value" id="selected_profile_label">Select Profile</span>
      </div>
      <span class="time-left"><span class="info-label">Time Left</span>&nbsp;<span class="info-value" id="eta">--:--:--</span></span>
      <div id="btn_controls">
@@ -66,7 +66,6 @@
         <button type="button" class="btn btn-outline-secondary" style="visibility: hidden;" onclick="runTaskSimulation();"><i class="bi bi-play-fill"></i> Simulate</button>
         <button type="button" class="btn btn-success" onclick="runTask()"><i class="bi bi-play-fill"></i> Start</button>
        </div>
-      <button id="nav_stop" type="button" class="btn btn-danger" onclick="abortTask()" style="display:none" ><i class="bi bi-stop-fill"></i> Stop</button>
      </div>
     </div>
      <div class="panel-body">

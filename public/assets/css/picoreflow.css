@@ -291,6 +291,12 @@ body {
     gap: 6px;
 }
 
+#profile_selector .info-value {
+    color: var(--panel-heading-fg);
+    font-size: 18px;
+    font-weight: 600;
+}
+
 #profile_selector .form-select {
     width: 190px;
     border-radius: 5px;

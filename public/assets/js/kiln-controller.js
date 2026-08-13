@@ -484,32 +484,39 @@ function setEditMode(on) {
    Overview profile operations
 --------------------------------------------------------------------------- */
 
-  function updateProfile(id)
-  {
-      selected_profile = id;
-      selected_profile_name = profiles[id].name;
-      graph.profile.data = profiles[id].data;
-      if (state != "RUNNING" && state != "PAUSED") {
-          graph.live.data = [];
-      }
-      syncChartData();
-      updateAxis();
-      updateProfileTable();
-      renderProfiles();
-  }
+   function updateProfile(id)
+   {
+       selected_profile = id;
+       selected_profile_name = profiles[id].name;
+       graph.profile.data = profiles[id].data;
+       if (state != "RUNNING" && state != "PAUSED") {
+           graph.live.data = [];
+       }
+       syncChartData();
+       updateAxis();
+       updateProfileTable();
+       renderProfiles();
+       updateSelectedProfileLabel();
+   }
 
-  function adoptProfile(name)
-  {
-      if (!name) { return; }
-      for (var i = 0; i < profiles.length; i++) {
-          if (profiles[i].name == name) {
-              selected_profile_name = name;
-              updateProfile(i);
-              if ($('e2')) { $('e2').value = String(i); }
-              return;
-          }
-      }
-  }
+   function updateSelectedProfileLabel()
+   {
+       var label = $('selected_profile_label');
+       if (!label) { return; }
+       label.innerHTML = running_profile_name || selected_profile_name || 'Select Profile';
+   }
+
+   function adoptProfile(name)
+   {
+       if (!name) { return; }
+       for (var i = 0; i < profiles.length; i++) {
+           if (profiles[i].name == name) {
+               selected_profile_name = name;
+               updateProfile(i);
+               return;
+           }
+       }
+   }
 
 function deleteProfile()
 {
@@ -523,7 +530,7 @@ function deleteProfile()
 
     state="IDLE";
     hide($('profile_editor'));
-    $('e2').value = String(0);
+    updateSelectedProfileLabel();
     setEditMode(false);
     syncChartData();
     updateAxis();
@@ -811,22 +818,6 @@ function overwriteProfile()
     saveProfile();
 }
 
-function populateProfileSelect()
-{
-    var sel = $('e2');
-    sel.innerHTML = '';
-    var placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.text = 'Select Profile';
-    sel.appendChild(placeholder);
-    for (var i = 0; i < profiles.length; i++) {
-        var opt = document.createElement('option');
-        opt.value = String(i);
-        opt.text = profiles[i].name;
-        sel.appendChild(opt);
-    }
-}
-
 /* ---------------------------------------------------------------------------
    Profiles tab
 --------------------------------------------------------------------------- */
@@ -1061,7 +1052,6 @@ function renderProfiles()
 function selectProfile(i, run)
 {
     selected_profile = i;
-    if ($('e2')) { $('e2').value = String(i); }
     updateProfile(i);
     renderProfiles();
     if (run === true) {
@@ -1401,14 +1391,6 @@ function init()
 
     $('window_slider').addEventListener('input', tune_window_change);
 
-    $('e2').addEventListener('change', function(e)
-    {
-        var val = this.value;
-        if (val !== '') {
-            updateProfile(parseInt(val));
-        }
-    });
-
     // link the schedule table back to the graph
     $('profile_table').addEventListener('change', function(e)
     {
@@ -1518,7 +1500,7 @@ function init()
             if(state=="RUNNING")
             {
                 hide($('nav_start'));
-                show($('nav_stop'));
+                updateSelectedProfileLabel();
 
                 graph.live.data.push([x.runtime, x.temperature]);
                 syncChartData();
@@ -1532,7 +1514,7 @@ function init()
             else
             {
                 show($('nav_start'));
-                hide($('nav_stop'));
+                updateSelectedProfileLabel();
                 $('eta').innerHTML = '--:--:--';
             }
 
@@ -1682,15 +1664,12 @@ function init()
           selected_profile_name = valid_profile_names[0];
         }
 
-        populateProfileSelect();
-
         var matched = false;
         for (var i=0; i<profiles.length; i++)
         {
             if (profiles[i].name == selected_profile_name)
             {
                 selected_profile = i;
-                $('e2').value = String(i);
                 updateProfile(i);
                 matched = true;
             }
@@ -1698,7 +1677,6 @@ function init()
 
         if (!matched && profiles.length > 0) {
             selected_profile = 0;
-            $('e2').value = String(0);
             updateProfile(0);
         }
 
