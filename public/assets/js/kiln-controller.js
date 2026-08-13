@@ -76,6 +76,24 @@ function clear_persisted_all() {
         drawall(windowed_data());
     }
 }
+function prune_persisted_all(cutoff) {
+    // keep only details recorded at or after the run start time, so a page
+    // that loads (or reconnects) mid-firing never shows artifacts from an
+    // earlier firing. entries are dropped from memory and localStorage but
+    // the current run's data is preserved.
+    all = all.filter(function(d) { return d.time >= cutoff; });
+    if (save_timer) {
+        clearTimeout(save_timer);
+        save_timer = null;
+    }
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(all.slice(-6000)));
+    } catch (e) {}
+    if (detailsInited && table) {
+        table.replaceData(latest(20));
+        drawall(windowed_data());
+    }
+}
 window.addEventListener('pagehide', flush_all);
 
 var TABS = ['overview', 'details', 'profiles', 'config'];
@@ -1430,6 +1448,7 @@ function init()
             // the backlog is the first message sent to a new client, so it
             // identifies the run already in progress. adopt it without
             // clearing stored data, so a page refresh mid-run is not lost.
+            var adopting_run = x.run_started && x.run_started !== run_started;
             run_started = x.run_started || null;
 
             if (!x.run_started)
@@ -1437,6 +1456,14 @@ function init()
                 // the server has no run in progress, so any stored details
                 // belong to a previous firing. wipe them.
                 clear_persisted_all();
+            }
+            else if (adopting_run)
+            {
+                // this client connected (or reconnected) into a firing that
+                // started while it was away. drop stored details older than
+                // the run start so the details page never shows artifacts
+                // from an earlier firing.
+                prune_persisted_all(x.run_started);
             }
 
             if (x.profile)

@@ -41,6 +41,8 @@ def js():
     context.eval(extract_function(src, 'schedule_reconnect'))
     context.eval(extract_function(src, 'updateSelectedProfileLabel'))
     context.eval(extract_function(src, 'toggleSimBadge'))
+    context.eval(extract_function(src, 'clear_persisted_all'))
+    context.eval(extract_function(src, 'prune_persisted_all'))
     return context
 ########################################################################
 # websocket auto-reconnect
@@ -182,6 +184,51 @@ def test_config_socket_updates_sim_badge():
     src = open(JS_PATH).read()
     assert 'simulate = x.simulate' in src
     assert 'toggleSimBadge(simulate)' in src
+
+
+########################################################################
+# persisted details pruning
+########################################################################
+
+def test_prune_persisted_all_drops_entries_older_than_cutoff(js):
+    js.eval('var STORAGE_KEY = "kiln-controller-all";')
+    js.eval('all = [{ time: 100, v: 1 }, { time: 200, v: 2 }, { time: 300, v: 3 }];')
+    js.eval('var stored = null;')
+    js.eval('localStorage = { setItem: function(k, v) { stored = v; }, removeItem: function(k) {} };')
+    js.eval('save_timer = null;')
+    js.eval('detailsInited = false;')
+    js.eval('function latest(n) { return []; }')
+    js.eval('function drawall(d) {}')
+    js.eval('function windowed_data() { return all; }')
+    js.eval('prune_persisted_all(200);')
+    assert js.eval('all.length') == 2
+    assert js.eval('all[0].time') == 200
+    assert js.eval('all[1].time') == 300
+    assert js.eval('JSON.parse(stored).length') == 2
+
+
+def test_prune_persisted_all_keeps_exact_cutoff(js):
+    js.eval('var STORAGE_KEY = "kiln-controller-all";')
+    js.eval('all = [{ time: 200, v: 1 }];')
+    js.eval('var stored = null;')
+    js.eval('localStorage = { setItem: function(k, v) { stored = v; }, removeItem: function(k) {} };')
+    js.eval('save_timer = null;')
+    js.eval('detailsInited = false;')
+    js.eval('function latest(n) { return []; }')
+    js.eval('function drawall(d) {}')
+    js.eval('function windowed_data() { return all; }')
+    js.eval('prune_persisted_all(200);')
+    assert js.eval('all.length') == 1
+
+
+def test_backlog_prunes_stale_details():
+    src = open(JS_PATH).read()
+    # a client connecting into a firing that started while it was away must
+    # drop persisted details older than the run start time
+    assert 'prune_persisted_all(x.run_started)' in src
+    # ...but a page that stays open and already knows the run must not
+    # prune its live data
+    assert 'adopting_run' in src
 
 
 ########################################################################
