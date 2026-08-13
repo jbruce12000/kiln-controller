@@ -25,13 +25,21 @@ Turns a Raspberry Pi into an inexpensive, web-enabled kiln controller.
   * easy scheduling of future kiln runs
 
 
-**Run Kiln Schedule**
+**Overview**
 
-![Image](https://github.com/jbruce12000/kiln-controller/blob/main/public/assets/images/kiln-running.png)
+![Image](https://github.com/jbruce12000/kiln-controller/blob/main/public/assets/images/tab-overview.png)
 
-**Edit Kiln Schedule**
+**Details**
 
-![Image](https://github.com/jbruce12000/kiln-controller/blob/main/public/assets/images/kiln-schedule.png)
+![Image](https://github.com/jbruce12000/kiln-controller/blob/main/public/assets/images/tab-details.png)
+
+**Schedules**
+
+![Image](https://github.com/jbruce12000/kiln-controller/blob/main/public/assets/images/tab-profiles.png)
+
+**Config**
+
+![Image](https://github.com/jbruce12000/kiln-controller/blob/main/public/assets/images/tab-config.png)
 
 ## Hardware
 
