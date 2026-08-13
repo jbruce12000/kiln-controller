@@ -392,7 +392,7 @@ def api_config_editor_save():
         log.info("process restart scheduled")
     return response
 
-@app.route('/:filename#.*#')
+@app.route('/<filename:path>')
 def send_static(filename):
     log.debug("serving %s" % filename)
     return bottle.static_file(filename, root=public_root)
@@ -595,7 +595,8 @@ def delete_profile(profile):
     return True
 
 def get_config():
-    return json.dumps({"temp_scale": config.temp_scale,
+    return json.dumps({"simulate": config.simulate,
+        "temp_scale": config.temp_scale,
         "time_scale_slope": config.time_scale_slope,
         "time_scale_profile": config.time_scale_profile,
         "kwh_rate": config.kwh_rate,

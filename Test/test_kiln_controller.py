@@ -131,9 +131,10 @@ def test_api_dump_without_profiles(monkeypatch, tmp_path):
 
 def test_get_config():
     d = json.loads(controller.get_config())
-    assert set(d) == {'temp_scale', 'time_scale_slope', 'time_scale_profile',
-                      'kwh_rate', 'currency_type'}
+    assert set(d) == {'simulate', 'temp_scale', 'time_scale_slope',
+                      'time_scale_profile', 'kwh_rate', 'currency_type'}
     assert d['kwh_rate'] == config.kwh_rate
+    assert d['simulate'] == config.simulate
 
 
 ########################################################################

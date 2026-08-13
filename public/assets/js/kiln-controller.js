@@ -18,6 +18,7 @@ var time_scale_long = "Seconds";
 var temp_scale_display = "C";
 var kwh_rate = 0.26;
 var currency_type = "EUR";
+var simulate = false;
 
 var PROFILE_DS = 0;
 var LIVE_DS = 1;
@@ -512,6 +513,13 @@ function setEditMode(on) {
        var label = $('selected_profile_label');
        if (!label) { return; }
        label.innerHTML = running_profile_name || selected_profile_name || 'Select Profile';
+   }
+
+   function toggleSimBadge(show)
+   {
+       var badge = document.getElementById('sim_badge');
+       if (!badge) { return; }
+       badge.style.display = show ? 'inline-flex' : 'none';
    }
 
    function adoptProfile(name)
@@ -1574,6 +1582,9 @@ function init()
         currency_type = x.currency_type;
 
         if (temp_scale == "c") {temp_scale_display = "C";} else {temp_scale_display = "F";}
+
+        simulate = x.simulate;
+        toggleSimBadge(simulate);
 
         switch(time_scale_profile){
             case "s":

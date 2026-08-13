@@ -1,0 +1,9 @@
+[tool.ruff]
+line-length = 100
+exclude = ["venv", ".git"]
+
+[tool.ruff.lint]
+select = ["F"]
+
+[tool.pytest.ini_options]
+testpaths = ["Test"]

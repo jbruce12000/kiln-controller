@@ -40,9 +40,8 @@ def js():
     context.eval(extract_function(src, 'make_socket'))
     context.eval(extract_function(src, 'schedule_reconnect'))
     context.eval(extract_function(src, 'updateSelectedProfileLabel'))
+    context.eval(extract_function(src, 'toggleSimBadge'))
     return context
-
-
 ########################################################################
 # websocket auto-reconnect
 ########################################################################
@@ -154,6 +153,35 @@ def test_label_placeholder_when_nothing_selected(js):
     js.eval('function $(id) { return id === "selected_profile_label" ? el : null; }')
     js.eval('updateSelectedProfileLabel();')
     assert js.eval('el.innerHTML') == 'Select Profile'
+
+
+########################################################################
+# simulation badge
+########################################################################
+
+def test_sim_badge_shown_in_simulation(js):
+    js.eval('var el = { style: { display: "" } };')
+    js.eval('document = { getElementById: function(id) { return id === "sim_badge" ? el : null; } };')
+    js.eval('toggleSimBadge(true);')
+    assert js.eval('el.style.display') == 'inline-flex'
+
+
+def test_sim_badge_hidden_when_real(js):
+    js.eval('var el = { style: { display: "inline-flex" } };')
+    js.eval('document = { getElementById: function(id) { return id === "sim_badge" ? el : null; } };')
+    js.eval('toggleSimBadge(false);')
+    assert js.eval('el.style.display') == 'none'
+
+
+def test_sim_badge_ignores_missing_element(js):
+    js.eval('document = { getElementById: function(id) { return null; } };')
+    assert js.eval('(function(){ try { toggleSimBadge(true); return "ok"; } catch (e) { return "throw"; } })()') == 'ok'
+
+
+def test_config_socket_updates_sim_badge():
+    src = open(JS_PATH).read()
+    assert 'simulate = x.simulate' in src
+    assert 'toggleSimBadge(simulate)' in src
 
 
 ########################################################################

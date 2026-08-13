@@ -313,6 +313,14 @@ body {
     font-size: 14px;
 }
 
+#profile_selector .sim-badge {
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    padding: 4px 8px;
+    white-space: nowrap;
+}
+
 #btn_controls {
     display: flex;
     align-items: center;
