@@ -1444,13 +1444,6 @@ function init()
                 backlog_profile_name = typeof x.profile == 'object' ? x.profile.name : x.profile;
                 adoptProfile(backlog_profile_name);
             }
-
-            for (var j = 0; j < x.log.length; j++) {
-                var v = x.log[j];
-                graph.live.data.push([v.runtime, v.temperature]);
-                syncChartData();
-                updateAxis();
-            }
         }
 
         // a new run_started means a fresh firing has begun, no matter

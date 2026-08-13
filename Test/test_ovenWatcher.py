@@ -27,9 +27,7 @@ def make_watcher(state="IDLE"):
     watcher = ovenWatcher.OvenWatcher.__new__(ovenWatcher.OvenWatcher)
     threading.Thread.__init__(watcher)
     watcher.last_profile = None
-    watcher.last_log = []
     watcher.started = None
-    watcher.recording = False
     watcher.observers = []
     watcher.daemon = True
     watcher.oven = FakeOven(state)
@@ -56,26 +54,8 @@ def test_record():
     watcher = make_watcher()
     profile = types.SimpleNamespace(name="test-fast", data=[[0, 200]])
     watcher.record(profile)
-    assert watcher.recording is True
     assert watcher.last_profile is profile
     assert watcher.started is not None
-    assert len(watcher.last_log) == 1
-
-
-def test_lastlog_subset_under_max():
-    watcher = make_watcher()
-    watcher.last_log = [{'runtime': i} for i in range(10)]
-    subset = watcher.lastlog_subset(maxpts=50)
-    assert subset == watcher.last_log
-
-
-def test_lastlog_subset_skips():
-    watcher = make_watcher()
-    watcher.last_log = [{'runtime': i} for i in range(100)]
-    subset = watcher.lastlog_subset(maxpts=10)
-    assert len(subset) == 10
-    assert subset[0]['runtime'] == 0
-    assert subset[-1]['runtime'] == 99
 
 
 def test_add_observer_sends_backlog():
@@ -92,6 +72,7 @@ def test_add_observer_sends_backlog():
     assert payload['profile']['name'] == 'test-fast'
     assert payload['profile']['data'][0][0] == 0
     assert payload['profile']['data'][0][1] == pytest.approx(392.0)  # 200c -> 392f
+    assert 'log' not in payload
 
 
 def test_backlog_profile_data_c_scale(monkeypatch):
@@ -197,6 +178,5 @@ def test_run_loop(monkeypatch):
     with pytest.raises(StopIteration):
         watcher.run()
 
-    assert len(watcher.last_log) == 2
     assert len(sock.sent) == 2
     assert json.loads(sock.sent[0])['state'] == 'RUNNING'
