@@ -91,6 +91,7 @@ var ws_storage = make_socket('storage');
 
 var reconnect_attempts = {};
 var reconnect_max_delay = 15000;
+var reconnect_pending = {};
 
 function make_socket(name) {
     var ws = new WebSocket(host + '/' + name);
@@ -99,6 +100,12 @@ function make_socket(name) {
 }
 
 function schedule_reconnect(name) {
+    // a single guard flag stops a close cascade from scheduling several
+    // reconnects: the onclose handlers of previously-created sockets are
+    // chained, so one close event can invoke schedule_reconnect more than
+    // once. the flag is cleared when the reconnect timer fires.
+    if (reconnect_pending[name]) { return; }
+    reconnect_pending[name] = true;
     var old = window['ws_' + name];
     var onopen = old.onopen;
     var onmessage = old.onmessage;
@@ -107,6 +114,7 @@ function schedule_reconnect(name) {
     reconnect_attempts[name] = attempts;
     var delay = Math.min(3000 * Math.pow(2, attempts - 1), reconnect_max_delay);
     setTimeout(function() {
+        reconnect_pending[name] = false;
         var ws = make_socket(name);
         ws.onopen = function() {
             if (name === 'status' && reconnect_attempts[name] > 0) {
