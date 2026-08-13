@@ -9,6 +9,7 @@ import datetime
 import tarfile
 import io
 import subprocess
+import importlib
 
 import bottle
 import gevent
@@ -311,6 +312,96 @@ def fire_scheduled_run(entry):
 # scheduled runs - fires future firings when their time arrives
 scheduler = Scheduler()
 scheduler.fire_callback = fire_scheduled_run
+
+def reload_config_module():
+    '''reload the config module so the running process picks up the
+    new values without a restart. the cached bytecode is removed first
+    so an mtime+size collision (two writes within the same second of
+    identical length) cannot load a stale .pyc.'''
+    cached = getattr(config, '__cached__', None)
+    if cached:
+        try:
+            os.remove(cached)
+        except OSError:
+            pass
+    importlib.reload(config)
+
+def save_config(text):
+    '''validate and write config.py, then reload the config module so
+    the running process uses the new values. if the reload fails the
+    previous config is restored and the reload is retried.'''
+    compile(text, 'config.py', 'exec')
+    with open(config.__file__, 'r') as f:
+        original = f.read()
+    with open(config.__file__, 'w') as f:
+        f.write(text)
+    try:
+        reload_config_module()
+    except Exception:
+        with open(config.__file__, 'w') as f:
+            f.write(original)
+        reload_config_module()
+        raise
+
+@app.get('/api/config/editor')
+def api_config_editor():
+    '''return the raw contents of config.py for editing.'''
+    try:
+        with open(config.__file__, 'r') as f:
+            text = f.read()
+    except Exception as e:
+        log.error("could not read config.py: %s" % e)
+        return bottle.HTTPResponse(str(e), status=500)
+    return bottle.HTTPResponse(text, headers={'Content-Type': 'text/plain'})
+
+@app.post('/api/config/editor')
+def api_config_editor_save():
+    '''save new config.py contents and reload the config module so the
+    running process uses the new values.'''
+    body = bottle.request.json
+    if not body or 'config' not in body:
+        log.error("config.py save rejected: no config in request")
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": "no config in request"}),
+                                   status=400,
+                                   headers={'Content-Type': 'application/json'})
+    try:
+        save_config(body['config'])
+    except SyntaxError as e:
+        log.error("config.py syntax error, save rejected: %s" % e)
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": "syntax error: %s" % e}),
+                                   status=400,
+                                   headers={'Content-Type': 'application/json'})
+    except Exception as e:
+        log.error("config.py save/reload failed: %s" % e)
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": str(e)}),
+                                   status=400,
+                                   headers={'Content-Type': 'application/json'})
+    log.info("config.py saved and reloaded via web ui")
+    # a full restart is required for settings only read at startup (PID
+    # constants, sensor timing, board selection, simulate flag). if the
+    # config reload above succeeded, we know the new config is good, so
+    # schedule the restart. any active firing resumes from the automatic
+    # restart state file when the process comes back up.
+    response = {"success": True, "restart_scheduled": True}
+    if oven.state == "RUNNING" and not config.automatic_restarts:
+        response["restart_scheduled"] = False
+        response["warning"] = ("config saved and reloaded in-process, but the full restart was skipped "
+                               "because a firing is active and automatic_restarts is False, so the run "
+                               "would be lost. startup-only settings (PID, sensor timing, board) still "
+                               "need a restart.")
+        log.warning(response["warning"])
+    else:
+        def _do_restart():
+            # give the http response a moment to flush to the browser first
+            gevent.sleep(1)
+            log.info("restarting process now")
+            sys.stdout.flush()
+            sys.stderr.flush()
+            logging.shutdown()
+            os.execv(sys.executable, [sys.executable] + sys.argv)
+        gevent.spawn(_do_restart)
+        log.info("process restart scheduled")
+    return response
 
 @app.route('/:filename#.*#')
 def send_static(filename):

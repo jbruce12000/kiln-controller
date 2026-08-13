@@ -39,6 +39,9 @@
     <li class="nav-item">
      <a class="nav-link" data-tab="profiles" href="#profiles"><i class="bi bi-collection-play"></i>&nbsp; Schedules</a>
     </li>
+    <li class="nav-item">
+     <a class="nav-link" data-tab="config" href="#config"><i class="bi bi-gear"></i>&nbsp; Config</a>
+    </li>
    </ul>
   </div>
  </nav>
@@ -117,7 +120,26 @@
     </div>
    </div>
 
-  </section>
+   </section>
+
+   <!-- ================================================================ -->
+   <!-- CONFIG                                                          -->
+   <!-- ================================================================ -->
+   <section id="tab-config" class="tab-pane" style="display:none">
+
+    <div class="panel panel-default">
+     <div class="panel-heading">
+      <strong>config.py</strong>
+      <button id="btn_save_config" type="button" class="btn btn-success btn-sm" onclick="saveConfig();"><i class="bi bi-check-lg"></i>&nbsp; Save &amp; Restart</button>
+     </div>
+     <div class="panel-body">
+      <div class="alert alert-danger" role="alert"><strong>Warning:</strong> Changes you make here and save could be breaking changes. Be careful.</div>
+      <textarea id="config_editor" class="form-control font-monospace" rows="25" style="font-size: 12px; font-family: monospace;" spellcheck="false"></textarea>
+      <p class="text-muted mt-2 mb-0">Changes are validated before being written, then the controller restarts to load every setting. The page reconnects automatically. An active firing resumes.</p>
+     </div>
+    </div>
+
+   </section>
 
   <!-- ================================================================ -->
   <!-- TUNING                                                          -->

@@ -77,17 +77,51 @@ function clear_persisted_all() {
 }
 window.addEventListener('pagehide', flush_all);
 
-var TABS = ['overview', 'details', 'profiles'];
+var TABS = ['overview', 'details', 'profiles', 'config'];
 
 var protocol = 'ws:';
 if (window.location.protocol == 'https:') {
     protocol = 'wss:';
 }
 var host = "" + protocol + "//" + window.location.hostname + ":" + window.location.port;
-var ws_status = new WebSocket(host+"/status");
-var ws_control = new WebSocket(host+"/control");
-var ws_config = new WebSocket(host+"/config");
-var ws_storage = new WebSocket(host+"/storage");
+var ws_status = make_socket('status');
+var ws_control = make_socket('control');
+var ws_config = make_socket('config');
+var ws_storage = make_socket('storage');
+
+var reconnect_attempts = {};
+var reconnect_max_delay = 15000;
+
+function make_socket(name) {
+    var ws = new WebSocket(host + '/' + name);
+    window['ws_' + name] = ws;
+    return ws;
+}
+
+function schedule_reconnect(name) {
+    var old = window['ws_' + name];
+    var onopen = old.onopen;
+    var onmessage = old.onmessage;
+    var onclose = old.onclose;
+    var attempts = (reconnect_attempts[name] || 0) + 1;
+    reconnect_attempts[name] = attempts;
+    var delay = Math.min(3000 * Math.pow(2, attempts - 1), reconnect_max_delay);
+    setTimeout(function() {
+        var ws = make_socket(name);
+        ws.onopen = function() {
+            if (name === 'status' && reconnect_attempts[name] > 0) {
+                reconnect_attempts[name] = 0;
+                showGrowl('Reconnected to controller.', 'success', 5000);
+            }
+            if (onopen) onopen.call(ws);
+        };
+        ws.onmessage = onmessage;
+        ws.onclose = function() {
+            if (onclose) onclose();
+            schedule_reconnect(name);
+        };
+    }, delay);
+}
 
 var socket_states = {
     status: false,
@@ -182,6 +216,8 @@ function showTab(name) {
         initDetails();
     } else if (name === 'profiles') {
         renderProfiles();
+    } else if (name === 'config') {
+        loadConfigEditor();
     } else if (name === 'overview' && chart) {
         chart.resize();
     }
@@ -812,6 +848,53 @@ function pad2(n) {
     return n < 10 ? '0' + n : '' + n;
 }
 
+function saveConfig() {
+    var btn = $('btn_save_config');
+    btn.disabled = true;
+    fetch('/api/config/editor', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ config: $('config_editor').value })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+        if (resp.success) {
+            if (resp.restart_scheduled) {
+                showGrowl('config.py saved. Restarting controller to load all settings... the page will reconnect in a few seconds.', 'success', 8000);
+            } else {
+                showGrowl('config.py saved and reloaded.', 'success', 5000);
+                if (resp.warning) {
+                    showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> ' + resp.warning, 'error', 8000);
+                }
+            }
+        } else {
+            showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> <b>ERROR 96:</b><br/>' + (resp.error || 'Could not save config.py.'), 'error', 8000);
+        }
+    })
+    .catch(function(err) {
+        showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> <b>ERROR 97:</b><br/>' + err, 'error', 8000);
+    })
+    .then(function() {
+        btn.disabled = false;
+    });
+}
+
+function loadConfigEditor() {
+    fetch('/api/config/editor')
+    .then(function(r) {
+        if (!r.ok) {
+            throw new Error('HTTP ' + r.status);
+        }
+        return r.text();
+    })
+    .then(function(text) {
+        $('config_editor').value = text;
+    })
+    .catch(function(err) {
+        showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> <b>ERROR 95:</b><br/>Could not load config.py: ' + err, 'error', 5000);
+    });
+}
+
 function isoLocal(d) {
     return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + 'T' +
         pad2(d.getHours()) + ':' + pad2(d.getMinutes());
@@ -1360,8 +1443,12 @@ function init()
 
     ws_status.onclose = function()
     {
-        showGrowl("<i class=\"bi bi-exclamation-triangle-fill\"></i> <b>ERROR 1:</b><br/>Status Websocket not available", 'error', 5000);
+        if (!window.status_socket_was_lost) {
+            window.status_socket_was_lost = true;
+            showGrowl("<i class=\"bi bi-exclamation-triangle-fill\"></i> <b>ERROR 1:</b><br/>Status Websocket not available", 'error', 5000);
+        }
         socket_closed('status');
+        schedule_reconnect('status');
     };
 
     ws_status.onmessage = function(e)
@@ -1494,6 +1581,7 @@ function init()
     ws_config.onclose = function()
     {
         socket_closed('config');
+        schedule_reconnect('config');
     };
 
     ws_config.onmessage = function(e)
@@ -1531,6 +1619,7 @@ function init()
     ws_control.onclose = function()
     {
         socket_closed('control');
+        schedule_reconnect('control');
     };
 
     ws_control.onmessage = function(e)
@@ -1552,6 +1641,7 @@ function init()
     ws_storage.onclose = function()
     {
         socket_closed('storage');
+        schedule_reconnect('storage');
     };
 
     ws_storage.onmessage = function(e)
