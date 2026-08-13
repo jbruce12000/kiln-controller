@@ -643,24 +643,6 @@ function runTask()
 
 }
 
-function runTaskSimulation()
-{
-    var cmd =
-    {
-        "cmd": "SIMULATE",
-        "profile": profiles[selected_profile]
-    }
-
-    graph.live.data = [];
-    syncChartData();
-    updateAxis();
-
-    clear_persisted_all();
-
-    ws_control.send(JSON.stringify(cmd));
-
-}
-
 function abortTask()
 {
     var cmd = {"cmd": "STOP"};
@@ -1505,7 +1487,6 @@ function init()
 
             if(state=="RUNNING")
             {
-                hide($('nav_start'));
                 updateSelectedProfileLabel();
 
                 graph.live.data.push([x.runtime, x.temperature]);
@@ -1519,7 +1500,6 @@ function init()
             }
             else
             {
-                show($('nav_start'));
                 updateSelectedProfileLabel();
                 $('eta').innerHTML = '--:--:--';
             }

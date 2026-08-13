@@ -321,13 +321,6 @@ body {
     white-space: nowrap;
 }
 
-#btn_controls {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 6px;
-}
-
 .time-left {
     display: inline-flex;
     align-items: baseline;
