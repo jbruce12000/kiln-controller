@@ -66,7 +66,7 @@ def test_save_creates_missing_directory(tmp_path):
 ########################################################################
 
 def test_pending_only_due_and_unfired(scheduler):
-    future = scheduler.add('a', time.time() + 3600)
+    scheduler.add('a', time.time() + 3600)
     past = scheduler.add('b', time.time() - 10)
     assert [e['id'] for e in scheduler.pending()] == [past['id']]
 

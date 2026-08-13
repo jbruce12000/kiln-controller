@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import config
-import adafruit_max31855
 import digitalio
 import time
 import datetime

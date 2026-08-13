@@ -8,7 +8,6 @@
 Read all GPIO
 This version for pinctrl debug tool
 """
-import sys, os, time
 import subprocess
 
 MODES=["IN", "OUT", "ALT5", "ALT4", "ALT0", "ALT1", "ALT2", "ALT3"]

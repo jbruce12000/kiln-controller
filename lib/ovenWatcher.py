@@ -1,5 +1,4 @@
 import threading,logging,json,time,datetime
-from oven import Oven
 from temp import display_profile_data
 log = logging.getLogger(__name__)
 

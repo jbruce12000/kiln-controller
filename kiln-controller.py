@@ -13,7 +13,6 @@ import importlib
 
 import bottle
 import gevent
-import geventwebsocket
 #from bottle import post, get
 from gevent.pywsgi import WSGIServer
 from geventwebsocket.handler import WebSocketHandler
@@ -30,7 +29,7 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, script_dir + '/lib/')
 profile_path = config.kiln_profiles_directory
 
-from temp import f_to_c, c_to_f, display_profile_data, display_pidstats
+from temp import f_to_c, c_to_f
 from oven import SimulatedOven, RealOven, Profile
 from ovenWatcher import OvenWatcher
 from scheduler import Scheduler
@@ -58,7 +57,7 @@ def state():
     return bottle.redirect('/#details')
 
 @app.get('/api/stats')
-def handle_api():
+def handle_stats():
     log.info("/api/stats command received")
     if hasattr(oven,'pid'):
         if hasattr(oven.pid,'pidstats'):
@@ -169,16 +168,6 @@ def _tar_add_path(tar, arcname, path):
         log.error("could not add %s to config dump" % path)
 
 def gather_log_lines():
-    '''gather the kiln log lines from the systemd journal for the
-    kiln-controller unit. returns a sorted, de-duplicated list of
-    lines.'''
-    try:
-        out = subprocess.check_output(
-            "timeout 60 journalctl -u kiln-controller --no-pager 2>/dev/null",
-            shell=True, stderr=subprocess.DEVNULL, timeout=70)
-    except Exception:
-        return []
-    return sorted(set(out.decode('utf-8', errors='replace').splitlines()))
     '''gather the kiln log lines from the systemd journal for the
     kiln-controller unit. returns a sorted, de-duplicated list of
     lines.'''
@@ -413,7 +402,7 @@ def get_websocket_from_request():
     env = bottle.request.environ
     wsock = env.get('wsgi.websocket')
     if not wsock:
-        abort(400, 'Expected WebSocket request.')
+        bottle.abort(400, 'Expected WebSocket request.')
     return wsock
 
 
@@ -512,7 +501,7 @@ def handle_config():
     log.info("websocket (config) opened")
     while True:
         try:
-            message = wsock.receive()
+            wsock.receive()
             wsock.send(get_config())
         except WebSocketError:
             break
@@ -599,7 +588,6 @@ def normalize_temp_units(profiles):
     return normalized
 
 def delete_profile(profile):
-    profile_json = json.dumps(profile)
     filename = profile['name']+".json"
     filepath = os.path.join(profile_path, filename)
     os.remove(filepath)

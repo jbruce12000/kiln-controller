@@ -1,7 +1,5 @@
 import io
 
-import pytest
-
 import gpioreadall
 
 

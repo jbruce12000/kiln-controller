@@ -6,7 +6,6 @@ import json
 import config
 import os
 import digitalio
-import busio
 import adafruit_bitbangio as bitbangio
 import statistics
 from temp import to_c, to_display, delta_to_c, delta_to_display, display_pidstats
@@ -522,7 +521,7 @@ class Oven(threading.Thread):
         temp = 0
         try:
             temp = self.board.temp_sensor.temperature() + delta_to_c(config.thermocouple_offset)
-        except AttributeError as error:
+        except AttributeError:
             # this happens at start-up with a simulated oven
             temp = 0
             pass
@@ -885,7 +884,6 @@ class PID():
         # it turns the controller into a binary on/off switch
         # any time it's outside the window defined by
         # config.pid_control_window
-        icomp = 0
         output = 0
         out4logs = 0
         dErr = 0
@@ -902,7 +900,6 @@ class PID():
                     output = config.throttle_percent/100
                     log.info("max heating throttled at %d percent below %d degrees to prevent overshoot" % (config.throttle_percent,config.throttle_below_temp))
         else:
-            icomp = (error * timeDelta * (1/self.ki))
             self.iterm += (error * timeDelta * (1/self.ki))
             dErr = (error - self.lastErr) / timeDelta
             output = self.kp * error + self.iterm + self.kd * dErr

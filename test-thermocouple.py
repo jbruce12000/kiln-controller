@@ -3,7 +3,6 @@ import config
 from digitalio import DigitalInOut
 import time
 import datetime
-import busio
 import adafruit_bitbangio as bitbangio
 
 try:

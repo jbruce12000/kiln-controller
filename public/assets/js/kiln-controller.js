@@ -606,16 +606,6 @@ function formatDPS(val) {
     return Math.round(tval);
 }
 
-function hazardTemp(){
-
-    if (temp_scale == "f") {
-        return (1500 * 9 / 5) + 32
-    }
-    else {
-        return 1500
-    }
-}
-
 function timeTickFormatter(val) {
     var max = this.max;
     if(max>3600) {

@@ -1,7 +1,5 @@
 import logging
 import os
-from digitalio import DigitalInOut
-import busio
 
 ########################################################################
 #
