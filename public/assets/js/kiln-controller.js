@@ -526,11 +526,22 @@ function setEditMode(on) {
        updateSelectedProfileLabel();
    }
 
+   function profileDescription(name)
+   {
+       if (typeof profiles === 'undefined') { return ''; }
+       for (var i = 0; i < profiles.length; i++) {
+           if (profiles[i].name === name) { return profiles[i].description || ''; }
+       }
+       return '';
+   }
+
    function updateSelectedProfileLabel()
    {
        var label = $('selected_profile_label');
        if (!label) { return; }
-       label.innerHTML = running_profile_name || selected_profile_name || 'Select Profile';
+       var name = running_profile_name || selected_profile_name;
+       label.innerHTML = name || 'Select Profile';
+       label.title = profileDescription(name);
    }
 
    function toggleSimBadge(show)
@@ -673,6 +684,7 @@ function enterNewMode()
     show($('profile_editor'));
     $('form_profile_name').value = '';
     $('form_profile_name').setAttribute('placeholder', 'Please enter a name');
+    $('form_profile_description').value = '';
     graph.profile.data = [];
     syncChartData();
     updateAxis();
@@ -689,6 +701,7 @@ function enterEditMode(i)
     state="EDIT";
     show($('profile_editor'));
     $('form_profile_name').value = prof.name;
+    $('form_profile_description').value = prof.description || '';
     graph.profile.data = prof.data;
     syncChartData();
     updateAxis();
@@ -811,7 +824,7 @@ function saveProfile()
         last = p[0];
     }
 
-    var profile = { "type": "profile", "data": data, "name": name }
+    var profile = { "type": "profile", "data": data, "name": name, "description": $('form_profile_description').value }
     var put = { "cmd": "PUT", "profile": profile }
 
     ws_storage.send(JSON.stringify(put));

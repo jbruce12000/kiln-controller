@@ -335,6 +335,26 @@ def test_save_profile(tmp_path, monkeypatch):
     assert saved['temp_units'] == 'c'
 
 
+def test_save_profile_persists_description(tmp_path, monkeypatch):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    profile = {'name': 'foo', 'data': [[0, 200], [3600, 2000]],
+               'description': 'Bisque to cone 05'}
+
+    assert controller.save_profile(dict(profile)) is True
+    saved = json.loads((tmp_path / 'foo.json').read_text())
+    assert saved['description'] == 'Bisque to cone 05'
+
+
+def test_get_profiles_returns_description(tmp_path, monkeypatch):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    (tmp_path / 'a.json').write_text(
+        json.dumps({'name': 'a', 'data': [[0, 0]],
+                    'description': 'my bisque schedule'}))
+
+    profiles = json.loads(controller.get_profiles())
+    assert profiles[0]['description'] == 'my bisque schedule'
+
+
 def test_delete_profile(tmp_path, monkeypatch):
     monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
     (tmp_path / 'bar.json').write_text(

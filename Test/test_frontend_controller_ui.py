@@ -40,6 +40,7 @@ def js():
     context.eval(extract_function(src, 'make_socket'))
     context.eval(extract_function(src, 'schedule_reconnect'))
     context.eval(extract_function(src, 'updateSelectedProfileLabel'))
+    context.eval(extract_function(src, 'profileDescription'))
     context.eval(extract_function(src, 'toggleSimBadge'))
     context.eval(extract_function(src, 'clear_persisted_all'))
     context.eval(extract_function(src, 'prune_persisted_all'))
@@ -155,6 +156,65 @@ def test_label_placeholder_when_nothing_selected(js):
     js.eval('function $(id) { return id === "selected_profile_label" ? el : null; }')
     js.eval('updateSelectedProfileLabel();')
     assert js.eval('el.innerHTML') == 'Select Profile'
+
+
+########################################################################
+# schedule description hover in the overview tab
+########################################################################
+
+def test_label_title_shows_running_profile_description(js):
+    js.eval('var profiles = [{ name: "cone-05", description: "Bisque to cone 05" }];')
+    js.eval('var running_profile_name = "cone-05";')
+    js.eval('var selected_profile_name = "bisque-06";')
+    js.eval('var el = { innerHTML: "", title: "" };')
+    js.eval('function $(id) { return id === "selected_profile_label" ? el : null; }')
+    js.eval('updateSelectedProfileLabel();')
+    assert js.eval('el.title') == 'Bisque to cone 05'
+
+
+def test_label_title_shows_selected_profile_description(js):
+    js.eval('var profiles = [{ name: "bisque-06", description: "Ware bisque" }];')
+    js.eval('var running_profile_name = null;')
+    js.eval('var selected_profile_name = "bisque-06";')
+    js.eval('var el = { innerHTML: "", title: "" };')
+    js.eval('function $(id) { return id === "selected_profile_label" ? el : null; }')
+    js.eval('updateSelectedProfileLabel();')
+    assert js.eval('el.title') == 'Ware bisque'
+
+
+def test_label_title_empty_without_description(js):
+    js.eval('var profiles = [{ name: "legacy" }];')
+    js.eval('var running_profile_name = null;')
+    js.eval('var selected_profile_name = "legacy";')
+    js.eval('var el = { innerHTML: "", title: "stale" };')
+    js.eval('function $(id) { return id === "selected_profile_label" ? el : null; }')
+    js.eval('updateSelectedProfileLabel();')
+    assert js.eval('el.title') == ''
+
+
+def test_profile_description_lookup(js):
+    js.eval('var profiles = [{ name: "a", description: "first" }, { name: "b" }];')
+    assert js.eval('profileDescription("a")') == 'first'
+    assert js.eval('profileDescription("b")') == ''
+    assert js.eval('profileDescription("missing")') == ''
+    js.eval('profiles = undefined;')
+    assert js.eval('profileDescription("a")') == ''
+
+
+def test_profile_editor_has_description_field():
+    # the edit page in the schedules tab must offer a description input
+    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
+                                             'public', 'index.html'))).read()
+    assert re.search(r'id="form_profile_description"', html)
+    assert re.search(r'Description', html)
+
+
+def test_edit_mode_populates_and_save_sends_description():
+    src = open(JS_PATH).read()
+    assert "$('form_profile_description').value = prof.description || '';" in src, \
+        'enterEditMode must load the profile description'
+    assert '"description": $(\'form_profile_description\').value' in src, \
+        'saveProfile must include the description in the PUT payload'
 
 
 ########################################################################
