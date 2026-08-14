@@ -485,3 +485,37 @@ def test_fire_scheduled_run_with_startat(monkeypatch):
     entry = {'id': 'abc', 'profile': 'cone-05-long-bisque', 'startat': 60}
     assert controller.fire_scheduled_run(entry) is True
     assert calls == [('cone-05-long-bisque', 60, False)]
+
+
+def test_start_run_converts_legacy_fahrenheit_profile(monkeypatch):
+    # legacy profiles predate temp_units and are stored in fahrenheit.
+    # start_run must convert them to celsius before running, otherwise a
+    # scheduled run targets 212f for a profile that says 100f.
+    started = []
+    def fake_run_profile(profile, startat=0, allow_seek=True):
+        started.append(profile.get_target_temperature(0))
+    monkeypatch.setattr(controller, 'find_profile',
+                        lambda name: {'name': 'test-200-250',
+                                      'data': [[0, 100], [480, 200],
+                                               [2000, 200], [2300, 250],
+                                               [3600, 250]]})
+    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
+    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
+
+    assert controller.start_run('test-200-250') is True
+    assert started[0] == pytest.approx((100 - 32) * 5 / 9)  # 100f, not 100c
+
+
+def test_start_run_keeps_celsius_profile_untouched(monkeypatch):
+    started = []
+    def fake_run_profile(profile, startat=0, allow_seek=True):
+        started.append(profile.get_target_temperature(0))
+    monkeypatch.setattr(controller, 'find_profile',
+                        lambda name: {'name': 'cone-05-long-bisque',
+                                      'temp_units': 'c',
+                                      'data': [[0, 100], [3600, 100]]})
+    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
+    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
+
+    assert controller.start_run('cone-05-long-bisque') is True
+    assert started[0] == 100

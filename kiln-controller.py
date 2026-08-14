@@ -216,6 +216,13 @@ def start_run(wanted, startat=0, allow_seek=None):
         log.error("profile %s not found" % wanted)
         return False
 
+    # disk profiles tagged temp_units "c" are already internal celsius.
+    # legacy profiles predate temp_units and are stored in fahrenheit.
+    # convert those to celsius before running, the same way the ui does.
+    if profile.get("temp_units") != "c":
+        profile = convert_to_c(profile)
+        profile["temp_units"] = "c"
+
     # FIXME juggling of json should happen in the Profile class
     profile_json = json.dumps(profile)
     profile = Profile(profile_json)
