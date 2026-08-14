@@ -1528,13 +1528,16 @@ function init()
 
                 var left = parseInt(x.totaltime-x.runtime);
                 var eta = formatDuration(left);
+                var elapsed = formatDuration(parseInt(x.runtime));
 
                 $('eta').innerHTML = eta;
+                $('elapsed').innerHTML = elapsed;
             }
             else
             {
                 updateSelectedProfileLabel();
                 $('eta').innerHTML = '--:--:--';
+                $('elapsed').innerHTML = '--:--:--';
             }
 
             state_last = state;

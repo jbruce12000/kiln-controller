@@ -124,6 +124,28 @@ def test_running_eta_uses_day_aware_formatter():
     assert 'toISOString' not in m.group(1)
 
 
+def test_running_elapsed_uses_day_aware_formatter():
+    # elapsed time since the run started must also use the day-aware
+    # formatter so it does not wrap past 24h
+    src = open(JS_PATH).read()
+    m = re.search(r'var elapsed = ([^;]+);', src)
+    assert m, 'elapsed computation not found in %s' % JS_PATH
+    assert 'formatDuration' in m.group(1)
+    assert 'x.runtime' in m.group(1)
+
+
+def test_overview_has_elapsed_display():
+    # the overview tab shows elapsed time to the right of Time Left and
+    # resets it when there is no run in progress
+    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
+                                             'public', 'index.html'))).read()
+    assert re.search(r'id="elapsed"', html)
+    assert re.search(r'Elapsed', html)
+    src = open(JS_PATH).read()
+    assert "$('elapsed').innerHTML = elapsed;" in src
+    assert "$('elapsed').innerHTML = '--:--:--';" in src
+
+
 def test_backlog_clears_storage_when_idle():
     # when the server reports no run in progress on connect, the client
     # must wipe stored details data left over from a previous firing

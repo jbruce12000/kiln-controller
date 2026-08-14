@@ -341,6 +341,13 @@ body {
     margin-right: 0;
 }
 
+#overview_heading .heading-times {
+    justify-self: center;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 20px;
+}
+
 .panel-heading .time-left .info-label {
     color: var(--heading-time-label);
 }
@@ -783,11 +790,12 @@ body {
         justify-content: space-between;
     }
 
-    #overview_heading .time-left {
+    #overview_heading .heading-times {
         order: 3;
         width: 100%;
         justify-content: center;
         margin: 4px 0 0;
+        flex-wrap: wrap;
     }
 
     #profile_selector {
