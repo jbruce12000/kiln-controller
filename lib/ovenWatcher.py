@@ -1,5 +1,6 @@
 import threading,logging,json,time,datetime
 from temp import display_profile_data
+from mqttout import enabled as mqtt_enabled, MqttOut
 log = logging.getLogger(__name__)
 
 class OvenWatcher(threading.Thread):
@@ -10,6 +11,7 @@ class OvenWatcher(threading.Thread):
         threading.Thread.__init__(self)
         self.daemon = True
         self.oven = oven
+        self.mqtt = MqttOut() if mqtt_enabled() else None
         self.start()
 
 # FIXME - need to save runs of schedules in near-real-time
@@ -31,6 +33,9 @@ class OvenWatcher(threading.Thread):
                 oven_state['run_started'] = self.started.timestamp()
             else:
                 oven_state['run_started'] = None
+
+            if self.mqtt:
+                self.mqtt.publish(oven_state)
 
             self.notify_all(oven_state)
             time.sleep(self.oven.time_step)

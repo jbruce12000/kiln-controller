@@ -296,3 +296,16 @@ kiln_profiles_directory = os.path.abspath(os.path.join(os.path.dirname( __file__
 # To prevent throttling, set throttle_percent to 100.
 throttle_below_temp = 300
 throttle_percent = 20
+
+########################################################################
+# mqtt telemetry - publish the oven state to an mqtt broker on every
+# sensor read. Leave all of these commented out to disable mqtt.
+# Uncomment and set mqtt_enable to True to turn it on.
+# Requires paho-mqtt (listed in requirements.txt).
+#mqtt_enable = False
+#mqtt_host = "localhost"
+#mqtt_port = 1883
+#mqtt_user = None
+#mqtt_pass = None
+#mqtt_topic = "kiln/sensor"
+#mqtt_kiln_name = "my-kiln"

@@ -29,6 +29,7 @@ def make_watcher(state="IDLE"):
     watcher.last_profile = None
     watcher.started = None
     watcher.observers = []
+    watcher.mqtt = None
     watcher.daemon = True
     watcher.oven = FakeOven(state)
     return watcher
@@ -180,3 +181,95 @@ def test_run_loop(monkeypatch):
 
     assert len(sock.sent) == 2
     assert json.loads(sock.sent[0])['state'] == 'RUNNING'
+
+
+class FakeMqttOut:
+    def __init__(self):
+        self.published = []
+
+    def publish(self, state):
+        self.published.append(state)
+
+
+def test_run_loop_publishes_to_mqtt_when_enabled(monkeypatch):
+    watcher = make_watcher(state="RUNNING")
+    profile = types.SimpleNamespace(name="test-fast", data=[[0, 200]])
+    watcher.record(profile)
+    mqtt = FakeMqttOut()
+    watcher.mqtt = mqtt
+    sock = FakeSocket()
+    watcher.observers.append(sock)
+
+    sleeps = [0]
+
+    def fake_sleep(secs):
+        sleeps[0] += 1
+        if sleeps[0] >= 2:
+            raise StopIteration
+
+    monkeypatch.setattr(ovenWatcher.time, 'sleep', fake_sleep)
+
+    with pytest.raises(StopIteration):
+        watcher.run()
+
+    assert len(mqtt.published) == 2
+    assert mqtt.published[0]['state'] == 'RUNNING'
+    assert mqtt.published[0]['run_started'] == watcher.started.timestamp()
+
+
+def test_run_loop_skips_mqtt_when_disabled(monkeypatch):
+    watcher = make_watcher(state="RUNNING")
+    sock = FakeSocket()
+    watcher.observers.append(sock)
+
+    sleeps = [0]
+
+    def fake_sleep(secs):
+        sleeps[0] += 1
+        if sleeps[0] >= 2:
+            raise StopIteration
+
+    monkeypatch.setattr(ovenWatcher.time, 'sleep', fake_sleep)
+
+    with pytest.raises(StopIteration):
+        watcher.run()
+
+    assert len(sock.sent) == 2
+
+
+def test_watcher_init_creates_mqtt_only_when_enabled(monkeypatch):
+    monkeypatch.setattr(ovenWatcher.OvenWatcher, 'start', lambda self: None)
+    monkeypatch.setattr(ovenWatcher, 'mqtt_enabled', lambda: False)
+    instances = []
+
+    def fake_mqttout():
+        obj = object()
+        instances.append(obj)
+        return obj
+
+    monkeypatch.setattr(ovenWatcher, 'MqttOut', fake_mqttout)
+
+    watcher = make_watcher(state="IDLE")
+    ovenWatcher.OvenWatcher.__init__(watcher, watcher.oven)
+
+    assert instances == []
+    assert watcher.mqtt is None
+
+
+def test_watcher_init_creates_mqtt_when_enabled(monkeypatch):
+    monkeypatch.setattr(ovenWatcher.OvenWatcher, 'start', lambda self: None)
+    monkeypatch.setattr(ovenWatcher, 'mqtt_enabled', lambda: True)
+    instances = []
+
+    def fake_mqttout():
+        obj = object()
+        instances.append(obj)
+        return obj
+
+    monkeypatch.setattr(ovenWatcher, 'MqttOut', fake_mqttout)
+
+    watcher = make_watcher(state="IDLE")
+    ovenWatcher.OvenWatcher.__init__(watcher, watcher.oven)
+
+    assert len(instances) == 1
+    assert watcher.mqtt is instances[0]

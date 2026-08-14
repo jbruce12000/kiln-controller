@@ -26,3 +26,6 @@ adafruit-circuitpython-bitbangio
 
 # untested - for mcp9600 and mcp9601
 #adafruit-circuitpython-mcp9600
+
+# mqtt telemetry (optional - only used when mqtt_enable is set in config.py)
+paho-mqtt
