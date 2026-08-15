@@ -313,7 +313,8 @@ body {
     font-size: 14px;
 }
 
-#profile_selector .sim-badge {
+#profile_selector .sim-badge,
+#profile_selector .overview-status {
     font-size: 12px;
     font-weight: 600;
     line-height: 1;

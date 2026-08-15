@@ -551,6 +551,19 @@ function setEditMode(on) {
        badge.style.display = show ? 'inline-flex' : 'none';
    }
 
+   function updateOverviewStatus()
+   {
+       var badge = document.getElementById('overview_status');
+       if (!badge) { return; }
+       var status = {
+           IDLE:    { label: 'Idle',    color: 'secondary' },
+           RUNNING: { label: 'Running', color: 'success' },
+           PAUSED:  { label: 'Paused',  color: 'warning' }
+       }[state] || { label: state || 'Idle', color: 'secondary' };
+       badge.className = 'badge overview-status text-bg-' + status.color;
+       badge.innerHTML = status.label;
+   }
+
    function adoptProfile(name)
    {
        if (!name) { return; }
@@ -1510,6 +1523,7 @@ function init()
         if(state!="EDIT")
         {
             state = x.state;
+            updateOverviewStatus();
             if (state!=state_last)
             {
                 if(state_last == "RUNNING" && state != "PAUSED" )

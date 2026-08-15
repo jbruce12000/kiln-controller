@@ -42,6 +42,7 @@ def js():
     context.eval(extract_function(src, 'updateSelectedProfileLabel'))
     context.eval(extract_function(src, 'profileDescription'))
     context.eval(extract_function(src, 'toggleSimBadge'))
+    context.eval(extract_function(src, 'updateOverviewStatus'))
     context.eval(extract_function(src, 'clear_persisted_all'))
     context.eval(extract_function(src, 'prune_persisted_all'))
     return context
@@ -238,6 +239,59 @@ def test_sim_badge_hidden_when_real(js):
 def test_sim_badge_ignores_missing_element(js):
     js.eval('document = { getElementById: function(id) { return null; } };')
     assert js.eval('(function(){ try { toggleSimBadge(true); return "ok"; } catch (e) { return "throw"; } })()') == 'ok'
+
+
+########################################################################
+# overview status badge
+########################################################################
+
+def test_status_badge_running(js):
+    js.eval('state = "RUNNING";')
+    js.eval('var el = { className: "", innerHTML: "" };')
+    js.eval('document = { getElementById: function(id) { return id === "overview_status" ? el : null; } };')
+    js.eval('updateOverviewStatus();')
+    assert js.eval('el.innerHTML') == 'Running'
+    assert js.eval('el.className') == 'badge overview-status text-bg-success'
+
+
+def test_status_badge_idle(js):
+    js.eval('state = "IDLE";')
+    js.eval('var el = { className: "", innerHTML: "" };')
+    js.eval('document = { getElementById: function(id) { return id === "overview_status" ? el : null; } };')
+    js.eval('updateOverviewStatus();')
+    assert js.eval('el.innerHTML') == 'Idle'
+    assert js.eval('el.className') == 'badge overview-status text-bg-secondary'
+
+
+def test_status_badge_paused(js):
+    js.eval('state = "PAUSED";')
+    js.eval('var el = { className: "", innerHTML: "" };')
+    js.eval('document = { getElementById: function(id) { return id === "overview_status" ? el : null; } };')
+    js.eval('updateOverviewStatus();')
+    assert js.eval('el.innerHTML') == 'Paused'
+    assert js.eval('el.className') == 'badge overview-status text-bg-warning'
+
+
+def test_status_badge_unknown_state(js):
+    js.eval('state = "WARPED";')
+    js.eval('var el = { className: "", innerHTML: "" };')
+    js.eval('document = { getElementById: function(id) { return id === "overview_status" ? el : null; } };')
+    js.eval('updateOverviewStatus();')
+    assert js.eval('el.innerHTML') == 'WARPED'
+    assert js.eval('el.className') == 'badge overview-status text-bg-secondary'
+
+
+def test_status_badge_ignores_missing_element(js):
+    js.eval('state = "IDLE";')
+    js.eval('document = { getElementById: function(id) { return null; } };')
+    assert js.eval('(function(){ try { updateOverviewStatus(); return "ok"; } catch (e) { return "throw"; } })()') == 'ok'
+
+
+def test_overview_heading_orders_status_between_name_and_sim():
+    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
+                                             'public', 'index.html'))).read()
+    m = re.search(r'selected_profile_label.*?overview_status.*?sim_badge', html, re.S)
+    assert m, 'status badge must sit between the schedule name and the simulation badge'
 
 
 def test_config_socket_updates_sim_badge():
