@@ -277,6 +277,10 @@ automatic_restart_state_file = os.path.abspath(os.path.join(os.path.dirname( __f
 # to fire. The scheduler checks every schedule_poll_interval seconds.
 schedule_state_file = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'storage','schedules.json'))
 schedule_poll_interval = 1 # seconds between schedule checks
+# a firing chained after another starts this many seconds after the
+# firing it follows actually ends (not its nominal end, since catch-up
+# can stretch a run past its profile duration).
+schedule_chain_buffer = 60 # seconds
 
 ########################################################################
 # load kiln profiles from this directory

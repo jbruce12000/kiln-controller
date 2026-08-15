@@ -272,6 +272,36 @@ def test_run_profile_no_seek_start_time_matches_startat(no_auto_restarts):
     assert oven.target == pytest.approx(200.0)
 
 
+def test_run_sequence_increments_and_run_id_in_status(no_auto_restarts):
+    # each firing gets a fresh run_id so a scheduled firing can chain
+    # after the specific run that is in progress.
+    oven = Oven()
+    oven.board = FakeBoard(250)
+    oven.run_profile(get_profile(), startat=0, allow_seek=False)
+    assert oven.run_sequence == 1
+    assert oven.get_state()['run_id'] == 1
+    oven.run_profile(get_profile(), startat=0, allow_seek=False)
+    assert oven.run_sequence == 2
+    assert oven.get_state()['run_id'] == 2
+
+
+def test_abort_run_tracks_ended_sequence_and_idle_since(no_auto_restarts):
+    import time as _time
+    oven = Oven()
+    oven.board = FakeBoard(250)
+    oven.run_profile(get_profile(), startat=0, allow_seek=False)
+    seq = oven.run_sequence
+    oven.abort_run()
+    assert oven.ended_run_sequence == seq
+    assert oven.idle_since == pytest.approx(_time.time(), abs=5)
+    assert oven.state == "IDLE"
+    # a new firing gets a higher sequence; the ended sequence only
+    # advances when that firing actually ends
+    oven.run_profile(get_profile(), startat=0, allow_seek=False)
+    assert oven.run_sequence == seq + 1
+    assert oven.ended_run_sequence == seq
+
+
 def test_get_state():
     oven = Oven()
     state = oven.get_state()

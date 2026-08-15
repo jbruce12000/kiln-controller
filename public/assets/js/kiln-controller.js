@@ -4,6 +4,7 @@ var run_started = null;
 var running_profile_name = null;
 var running_profile_name_last = null;
 var backlog_profile_name = null;
+var oven_status = null;
 var graph = {
     profile: { label: "Profile", data: [], color: "#75890c", draggable: false, visible: true },
     live: { label: "Live", data: [], color: "#ffffff", draggable: false, visible: true }
@@ -1113,12 +1114,15 @@ function scheduleProfile(i) {
     selected_profile = i;
     $('schedule_profile_name').innerHTML = profiles[i].name;
     $('schedule_datetime').value = isoLocal(new Date(Date.now() + 60 * 60 * 1000));
+    clearScheduleChain();
+    renderScheduleAfterList();
     var modal = new bootstrap.Modal($('scheduleModal'));
     modal.show();
 }
 
 function setScheduleOffset(minutes) {
     $('schedule_datetime').value = isoLocal(new Date(Date.now() + minutes * 60 * 1000));
+    clearScheduleChain();
 }
 
 function submitSchedule() {
@@ -1127,11 +1131,14 @@ function submitSchedule() {
         showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> <b>ERROR 90:</b><br/>Please pick a date and time.', 'error', 5000);
         return;
     }
-    apiPost({
+    var body = {
         cmd: 'schedule',
         profile: profiles[selected_profile].name,
         start_time: dt
-    }, function(resp) {
+    };
+    var chain = $('schedule_chain_after') ? $('schedule_chain_after').value : '';
+    if (chain) { body.chain_after = chain; }
+    apiPost(body, function(resp) {
         if (resp.success) {
             showGrowl('Firing scheduled for <b>' + new Date(resp.start_time * 1000).toLocaleString() + '</b>', 'success', 5000);
             var modal = bootstrap.Modal.getInstance($('scheduleModal'));
@@ -1145,6 +1152,111 @@ function submitSchedule() {
 
 function scheduleTime(entry) {
     return new Date(entry.start_time * 1000).toLocaleString();
+}
+
+// a firing chained after another starts this many seconds after the firing
+// it follows actually ends. the backend applies this; the field below only
+// shows the estimate (the real end may move when the kiln catches up).
+var SCHEDULE_CHAIN_BUFFER = 60;
+
+function profileDurationSeconds(name) {
+    for (var i = 0; i < profiles.length; i++) {
+        if (profiles[i].name === name && profiles[i].data && profiles[i].data.length > 0) {
+            return parseInt(profiles[i].data[profiles[i].data.length - 1][0]);
+        }
+    }
+    return 0;
+}
+
+function scheduleAfter(epoch, chain) {
+    var el = $('schedule_datetime');
+    if (!el) { return; }
+    el.value = isoLocal(new Date(epoch * 1000));
+    var hidden = $('schedule_chain_after');
+    var note = $('schedule_chain_note');
+    if (hidden) { hidden.value = chain || ''; }
+    if (note) { note.style.display = chain ? '' : 'none'; }
+}
+
+function clearScheduleChain() {
+    var hidden = $('schedule_chain_after');
+    var note = $('schedule_chain_note');
+    if (hidden) { hidden.value = ''; }
+    if (note) { note.style.display = 'none'; }
+}
+
+function renderScheduleAfterList() {
+    var container = $('schedule_after');
+    var list = $('schedule_after_list');
+    if (!container || !list) { return; }
+
+    var now = Date.now() / 1000;
+    var items = [];
+
+    // the firing currently in progress, if any. runtime advances with the
+    // wall clock, so the finish epoch captured now stays accurate even if
+    // the dialog sits open for a while. this is only the estimate; the
+    // actual start is governed by the backend once the run really ends.
+    var st = oven_status;
+    if (st && (st.state === "RUNNING" || st.state === "PAUSED") && st.profile) {
+        var finish_in = Math.max(0, (st.totaltime || 0) - (st.runtime || 0));
+        items.push({
+            name: typeof st.profile == 'object' ? st.profile.name : st.profile,
+            badge: st.state === "PAUSED" ? 'paused' : 'running',
+            finish_epoch: now + finish_in,
+            finish_in: finish_in,
+            chain_after: 'run:' + (st.run_id || 0)
+        });
+    }
+
+    apiPost({ cmd: 'list_schedules' }, function(resp) {
+        var runs = (resp && resp.schedules) ? resp.schedules.filter(function(r) {
+            return !r.fired && r.start_time > now;
+        }) : [];
+        for (var i = 0; i < runs.length; i++) {
+            var dur = profileDurationSeconds(runs[i].profile);
+            if (dur <= 0) { continue; }
+            var consumed = Math.max(0, dur - (runs[i].startat || 0) * 60);
+            var finish_epoch = runs[i].start_time + consumed;
+            items.push({
+                name: runs[i].profile,
+                badge: 'scheduled',
+                finish_epoch: finish_epoch,
+                finish_in: finish_epoch - now,
+                chain_after: 'sched:' + runs[i].id
+            });
+        }
+
+        items.sort(function(a, b) { return a.finish_epoch - b.finish_epoch; });
+
+        if (items.length === 0) {
+            container.style.display = 'none';
+            list.innerHTML = '';
+            return;
+        }
+
+        var html = '';
+        for (var j = 0; j < items.length; j++) {
+            var it = items[j];
+            var badgeClass = it.badge === 'running' ? 'text-bg-danger'
+                : it.badge === 'paused' ? 'text-bg-warning' : 'text-bg-secondary';
+            var when = new Date(it.finish_epoch * 1000).toLocaleString();
+            html += '<div class="profile-row">'
+                + '<div class="profile-info">'
+                + '<div class="profile-name">' + escHtml(it.name)
+                + ' <span class="badge ' + badgeClass + '">' + it.badge + '</span></div>'
+                + '<div class="profile-meta">finishes in ~' + formatDuration(it.finish_in)
+                + ' &middot; ' + when + ' (est.)</div>'
+                + '</div>'
+                + '<div class="btn-group">'
+                + '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="scheduleAfter('
+                + (it.finish_epoch + SCHEDULE_CHAIN_BUFFER) + ', \'' + it.chain_after + '\')">After this</button>'
+                + '</div>'
+                + '</div>';
+        }
+        list.innerHTML = html;
+        container.style.display = '';
+    });
 }
 
 function formatDuration(secs) {
@@ -1650,6 +1762,10 @@ function init()
     ws_status.onmessage = function(e)
     {
         var x = JSON.parse(e.data);
+
+        // keep the latest oven state around so the schedule dialog can
+        // offer to chain a firing after the one in progress.
+        if (x.state) { oven_status = x; }
 
         if (x.type == "backlog")
         {

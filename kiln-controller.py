@@ -271,7 +271,20 @@ def api_schedule(json_body):
     except ValueError as e:
         return { "success" : False, "error" : str(e) }
     startat = json_body.get('startat', 0) or 0
-    entry = scheduler.add(wanted, epoch, startat=startat)
+    chain_after = json_body.get('chain_after')
+    if chain_after:
+        if isinstance(chain_after, str) and chain_after.startswith('sched:'):
+            anchor = chain_after[len('sched:'):]
+            if not any(e['id'] == anchor for e in scheduler.list()):
+                return { "success" : False, "error" : "chain_after schedule %s not found" % anchor }
+        elif isinstance(chain_after, str) and chain_after.startswith('run:'):
+            try:
+                int(chain_after[len('run:'):])
+            except ValueError:
+                return { "success" : False, "error" : "invalid chain_after %s" % chain_after }
+        else:
+            return { "success" : False, "error" : "invalid chain_after %s" % chain_after }
+    entry = scheduler.add(wanted, epoch, startat=startat, chain_after=chain_after)
     log.info("api scheduled profile %s at %s" % (wanted, epoch))
     return { "success" : True, "id" : entry["id"], "profile" : wanted, "start_time" : epoch }
 
@@ -292,12 +305,42 @@ def api_list_schedules():
     '''
     return { "success" : True, "schedules" : scheduler.list() }
 
+def chain_anchor_ready(chain_after):
+    '''True when the firing a scheduled run is chained after has actually
+    ended. a run: anchor is satisfied once the oven has finished any firing
+    whose sequence is at least the one it was created against (catch-up can
+    stretch a firing, so the real end is when the oven stops being busy, not
+    the nominal profile end). a sched: anchor is satisfied once that
+    schedule has fired (started or was skipped).'''
+    if chain_after.startswith('run:'):
+        try:
+            return oven.ended_run_sequence >= int(chain_after[len('run:'):])
+        except (TypeError, ValueError):
+            return False
+    if chain_after.startswith('sched:'):
+        anchor = chain_after[len('sched:'):]
+        for entry in scheduler.list():
+            if entry['id'] == anchor:
+                return bool(entry.get('fired'))
+        return False
+    return False
+
 def fire_scheduled_run(entry):
     '''
     callback used by the scheduler to start a scheduled kiln run.
     returns True if the run started.
     '''
-    if oven.state != "IDLE":
+    chain_after = entry.get("chain_after")
+    if chain_after:
+        # a chained firing starts shortly after the firing it follows
+        # really ends, not at its estimated start_time.
+        if not chain_anchor_ready(chain_after):
+            return False
+        if oven.state != "IDLE":
+            return False
+        if time.time() < oven.idle_since + config.schedule_chain_buffer:
+            return False
+    elif oven.state != "IDLE":
         log.warning("schedule %s (%s) skipped, oven state = %s" % (entry["id"], entry["profile"], oven.state))
         return False
     startat = entry.get("startat", 0) or 0

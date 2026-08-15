@@ -54,6 +54,14 @@ def js():
     context.eval(extract_function(src, 'escHtml'))
     context.eval(extract_function(src, 'remoteFilterMatches'))
     context.eval(extract_function(src, 'renderRemoteProfiles'))
+    context.eval(extract_function(src, 'isoLocal'))
+    context.eval(extract_function(src, 'pad2'))
+    context.eval(extract_function(src, 'formatDuration'))
+    context.eval(extract_function(src, 'profileDurationSeconds'))
+    context.eval(extract_function(src, 'scheduleAfter'))
+    context.eval(extract_function(src, 'clearScheduleChain'))
+    context.eval(extract_function(src, 'renderScheduleAfterList'))
+    context.eval('var SCHEDULE_CHAIN_BUFFER = 60;')
     return context
 ########################################################################
 # websocket auto-reconnect
@@ -676,3 +684,115 @@ def test_import_remote_profile_posts_and_refreshes(js):
     assert js.eval('sent') == 'GET'
     assert js.eval('reloaded') is True   # force a reload to update installed state
     assert js.eval('rerendered') is True
+
+
+########################################################################
+# scheduling a firing after the current one finishes
+########################################################################
+
+def test_profile_duration_seconds(js):
+    js.eval('profiles = [{ name: "candling", data: [[0, 65], [2040, 150], [45240, 150]] }];')
+    assert js.eval('profileDurationSeconds("candling")') == 45240
+    assert js.eval('profileDurationSeconds("nope")') == 0
+
+
+def test_schedule_after_sets_datetime(js):
+    js.eval('var el = { value: "" };')
+    js.eval('var hidden = { value: "" };')
+    js.eval('var note = { style: { display: "none" } };')
+    js.eval('function $(id) {'
+            '  if (id === "schedule_datetime") return el;'
+            '  if (id === "schedule_chain_after") return hidden;'
+            '  if (id === "schedule_chain_note") return note;'
+            '  return null; }')
+    js.eval('scheduleAfter(1787000000, "run:7");')
+    # isoLocal produces a local-time 'YYYY-MM-DDTHH:MM' string (minute precision)
+    assert js.eval('el.value.length > 0')
+    import datetime as _dt
+    parsed = _dt.datetime.fromisoformat(js.eval('el.value'))
+    assert abs(parsed.timestamp() - 1787000000) <= 60
+    # the chain reference is remembered and the note explains the estimate
+    assert js.eval('hidden.value') == 'run:7'
+    assert js.eval('note.style.display') == ''
+
+
+def test_clear_schedule_chain(js):
+    js.eval('var hidden = { value: "run:7" };')
+    js.eval('var note = { style: { display: "" } };')
+    js.eval('function $(id) {'
+            '  if (id === "schedule_chain_after") return hidden;'
+            '  if (id === "schedule_chain_note") return note;'
+            '  return null; }')
+    js.eval('clearScheduleChain();')
+    assert js.eval('hidden.value') == ''
+    assert js.eval('note.style.display') == 'none'
+
+
+def _schedule_after_stub(js, shown='', inner=''):
+    js.eval('Date.now = function() { return 1000000000000; };')
+    js.eval('var sched_after = { style: { display: %r } };' % shown)
+    js.eval('var sched_list = { innerHTML: %r };' % inner)
+    js.eval('function $(id) {'
+            '  if (id === "schedule_after") return sched_after;'
+            '  if (id === "schedule_after_list") return sched_list;'
+            '  return null; }')
+
+
+def test_render_schedule_after_list_lists_running_and_scheduled(js):
+    _schedule_after_stub(js)
+    future = 1000000000 + 10000   # now + 10000s
+    js.eval('oven_status = { state: "RUNNING", profile: "candling", runtime: 3600,'
+            ' totaltime: 45240, run_id: 3 };')
+    js.eval('profiles = ['
+            '  { name: "candling", data: [[0, 65], [2040, 150], [45240, 150]] },'
+            '  { name: "cone-05-long-bisque", data: [[0, 65], [46800, 1708]] }'
+            '];')
+    js.eval('function apiPost(obj, cb) {'
+            '  cb({ success: true, schedules: [{ profile: "cone-05-long-bisque",'
+            '                                    id: "aa11bb22",'
+            '                                    start_time: %d, startat: 0, fired: false }] });'
+            '}' % future)
+    js.eval('function formatDuration(s) { return "DUR" + s; }')
+    js.eval('function escHtml(s) { return s; }')
+    js.eval('renderScheduleAfterList();')
+    html = js.eval('sched_list.innerHTML')
+    assert 'candling' in html
+    assert 'cone-05-long-bisque' in html
+    assert 'running' in html
+    assert 'scheduled' in html
+    assert 'After this' in html
+    assert js.eval('sched_after.style.display') == ''   # container is visible
+    # running firing: chains after run 3, starting ~1 min after its actual end
+    assert "scheduleAfter(%d, 'run:3')" % (1000000000 + 45240 - 3600 + 60) in html
+    # scheduled firing: chains after the schedule id, ~1 min after its actual end
+    assert "scheduleAfter(%d, 'sched:aa11bb22')" % (future + 46800 + 60) in html
+
+
+def test_render_schedule_after_list_sorts_by_finish(js):
+    _schedule_after_stub(js)
+    future = 1000000000 + 10000   # now + 10000s
+    js.eval('oven_status = { state: "RUNNING", profile: "long", runtime: 0, totaltime: 90000 };')
+    js.eval('profiles = ['
+            '  { name: "long", data: [[0, 65], [90000, 500]] },'
+            '  { name: "short", data: [[0, 65], [1800, 200]] }'
+            '];')
+    js.eval('function apiPost(obj, cb) {'
+            '  cb({ success: true, schedules: [{ profile: "short",'
+            '                                    start_time: %d, startat: 0, fired: false }] });'
+            '}' % future)
+    js.eval('function formatDuration(s) { return "DUR" + s; }')
+    js.eval('function escHtml(s) { return s; }')
+    js.eval('renderScheduleAfterList();')
+    html = js.eval('sched_list.innerHTML')
+    # the short scheduled firing finishes first (future + 1800), so it is listed first
+    assert html.index('short') < html.index('long')
+
+
+def test_render_schedule_after_list_hides_when_nothing_to_chain(js):
+    _schedule_after_stub(js, shown='block')
+    js.eval('oven_status = { state: "IDLE", profile: null };')
+    js.eval('profiles = [];')
+    js.eval('function apiPost(obj, cb) { cb({ success: true, schedules: [] }); }')
+    js.eval('renderScheduleAfterList();')
+    assert js.eval('sched_after.style.display') == 'none'
+    assert js.eval('sched_list.innerHTML') == ''

@@ -114,3 +114,50 @@ def test_fire_handles_callback_exception(scheduler):
     runs = scheduler.list()
     assert runs[0]['fired'] is True
     assert runs[0]['status'] == 'skipped'
+
+
+########################################################################
+# chaining a firing after another
+########################################################################
+
+def test_add_chained_entry_stores_chain_after(scheduler):
+    entry = scheduler.add('b', time.time() + 3600, chain_after='run:7')
+    assert entry['chain_after'] == 'run:7'
+
+
+def test_pending_includes_chained_before_start_time(scheduler):
+    # a chained run is pending immediately; its start_time is only an
+    # estimate, and the real start waits for the firing it follows.
+    entry = scheduler.add('b', time.time() + 3600, chain_after='run:7')
+    assert [e['id'] for e in scheduler.pending()] == [entry['id']]
+
+
+def test_fire_chained_waits_instead_of_skipping(scheduler):
+    scheduler.fire_callback = lambda entry: False
+    entry = scheduler.add('b', time.time() - 10, chain_after='run:7')
+    scheduler.fire(entry)
+    runs = scheduler.list()
+    assert runs[0]['fired'] is False
+    assert runs[0]['status'] == 'waiting'
+    # still pending so the next poll retries it
+    assert [e['id'] for e in scheduler.pending()] == [entry['id']]
+
+
+def test_fire_chained_succeeds_like_any_other(scheduler):
+    calls = []
+    scheduler.fire_callback = lambda entry: calls.append(entry) or True
+    entry = scheduler.add('b', time.time() - 10, chain_after='run:7')
+    scheduler.fire(entry)
+    runs = scheduler.list()
+    assert calls == [entry]
+    assert runs[0]['fired'] is True
+    assert runs[0]['status'] == 'fired'
+
+
+def test_cancel_removes_chained_runs(scheduler):
+    anchor = scheduler.add('a', time.time() + 3600)
+    chained = scheduler.add('b', time.time() + 7200, chain_after='sched:' + anchor['id'])
+    assert scheduler.cancel(anchor['id']) is True
+    remaining = scheduler.list()
+    assert all(e['id'] != anchor['id'] for e in remaining)
+    assert all(e['id'] != chained['id'] for e in remaining)

@@ -23,6 +23,9 @@ class StubOven:
     def __init__(self, *args, **kwargs):
         self.pid = types.SimpleNamespace(pidstats={})
         self.state = 'IDLE'
+        self.run_sequence = 0
+        self.ended_run_sequence = 0
+        self.idle_since = time.time()
 
     def set_ovenwatcher(self, watcher):
         pass
@@ -507,6 +510,153 @@ def test_fire_scheduled_run_with_startat(monkeypatch):
     entry = {'id': 'abc', 'profile': 'cone-05-long-bisque', 'startat': 60}
     assert controller.fire_scheduled_run(entry) is True
     assert calls == [('cone-05-long-bisque', 60, False)]
+
+
+def test_api_schedule_chain_after_run(scheduler, monkeypatch):
+    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
+    resp = controller.api_schedule({'profile': 'cone-05-long-bisque',
+                                    'start_time': time.time() + 3600,
+                                    'chain_after': 'run:3'})
+    assert resp['success'] is True
+    assert scheduler.list()[0]['chain_after'] == 'run:3'
+
+
+def test_api_schedule_chain_after_schedule(scheduler, monkeypatch):
+    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
+    anchor = controller.api_schedule({'profile': 'cone-05-long-bisque',
+                                      'start_time': time.time() + 3600})
+    resp = controller.api_schedule({'profile': 'cone-05-long-bisque',
+                                    'start_time': time.time() + 7200,
+                                    'chain_after': 'sched:' + anchor['id']})
+    assert resp['success'] is True
+    assert scheduler.list()[1]['chain_after'] == 'sched:' + anchor['id']
+
+
+def test_api_schedule_chain_after_missing_schedule_rejected(scheduler, monkeypatch):
+    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
+    resp = controller.api_schedule({'profile': 'cone-05-long-bisque',
+                                    'start_time': time.time() + 3600,
+                                    'chain_after': 'sched:nope'})
+    assert resp['success'] is False
+    assert 'not found' in resp['error']
+    assert scheduler.list() == []
+
+
+def test_api_schedule_chain_after_garbage_rejected(scheduler, monkeypatch):
+    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
+    for bad in ('run:xyz', 'banana'):
+        resp = controller.api_schedule({'profile': 'cone-05-long-bisque',
+                                        'start_time': time.time() + 3600,
+                                        'chain_after': bad})
+        assert resp['success'] is False
+        assert scheduler.list() == []
+
+
+def test_fire_scheduled_run_chained_waits_for_actual_end(monkeypatch):
+    # a chained firing must wait for the firing it follows to really end
+    # (catch-up can stretch a run past its nominal duration), so it stays
+    # quiet while the oven is busy even after its estimated start_time.
+    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name, 'data': [[0, 200]]})
+    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
+    monkeypatch.setattr(controller.oven, 'ended_run_sequence', 2)
+    monkeypatch.setattr(controller.oven, 'idle_since', time.time() - 5)
+    entry = {'id': 'abc', 'profile': 'cone-05-long-bisque', 'startat': 0,
+             'chain_after': 'run:5'}
+
+    # anchor run (sequence 5) has not ended yet
+    assert controller.fire_scheduled_run(entry) is False
+
+    # anchor ended, but the oven is still running something else
+    monkeypatch.setattr(controller.oven, 'ended_run_sequence', 5)
+    monkeypatch.setattr(controller.oven, 'state', 'RUNNING')
+    assert controller.fire_scheduled_run(entry) is False
+
+    # oven idle but still inside the chain buffer
+    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
+    monkeypatch.setattr(controller.oven, 'idle_since', time.time())
+    assert controller.fire_scheduled_run(entry) is False
+
+    # anchor ended, oven idle, buffer elapsed -> fires
+    monkeypatch.setattr(controller.oven, 'idle_since', time.time() - 120)
+    calls = []
+    def fake_run_profile(profile, startat=0, allow_seek=True):
+        calls.append((profile.name, startat, allow_seek))
+    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
+    assert controller.fire_scheduled_run(entry) is True
+    assert calls == [('cone-05-long-bisque', 0, False)]
+
+
+def test_fire_scheduled_run_chained_after_schedule(monkeypatch, scheduler):
+    # chained after a scheduled run: waits until that schedule has fired.
+    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name, 'data': [[0, 200]]})
+    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
+    monkeypatch.setattr(controller.oven, 'idle_since', time.time() - 120)
+    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
+    anchor = scheduler.add('cone-05-long-bisque', time.time() + 3600)
+    entry = {'id': 'abc', 'profile': 'cone-05-long-bisque', 'startat': 0,
+             'chain_after': 'sched:' + anchor['id']}
+
+    # anchor has not fired yet
+    assert controller.fire_scheduled_run(entry) is False
+
+    scheduler.mark_fired(anchor)
+    calls = []
+    def fake_run_profile(profile, startat=0, allow_seek=True):
+        calls.append((profile.name, startat, allow_seek))
+    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
+    assert controller.fire_scheduled_run(entry) is True
+    assert calls == [('cone-05-long-bisque', 0, False)]
+
+
+def test_chained_firing_waits_for_real_end_end_to_end(monkeypatch, tmp_path):
+    # full chain through the real scheduler + a real oven: a firing chained
+    # after the one in progress waits until that firing actually ends (a
+    # catch-up extension just means it ends later than its nominal time),
+    # then starts after the chain buffer.
+    import json as _json
+    import lib.scheduler as schedmod
+    from lib.oven import Oven, Profile
+
+    monkeypatch.setattr(config, 'automatic_restarts', False)
+    sched = schedmod.Scheduler(state_file=str(tmp_path / 'schedules.json'))
+    sched.fire_callback = controller.fire_scheduled_run
+    monkeypatch.setattr(controller, 'scheduler', sched)
+    real = Oven()
+    monkeypatch.setattr(controller, 'oven', real)
+    monkeypatch.setattr(controller, 'find_profile',
+                        lambda name: {'name': name, 'data': [[0, 200], [600, 200]], 'temp_units': 'c'})
+    monkeypatch.setattr(config, 'schedule_chain_buffer', 60)
+
+    # a firing is in progress
+    real.run_profile(Profile(_json.dumps({'name': 'p', 'data': [[0, 200], [600, 200]]})),
+                     startat=0, allow_seek=False)
+    assert real.run_sequence == 1
+
+    # chain a firing after the current one; start_time is just an estimate
+    resp = controller.api_schedule({'profile': 'p',
+                                    'start_time': time.time() + 600,
+                                    'chain_after': 'run:1'})
+    assert resp['success'] is True
+
+    # while the anchor runs, the chained firing waits and is never skipped
+    sched.fire_due()
+    assert sched.list()[0]['fired'] is False
+    assert sched.list()[0]['status'] == 'waiting'
+
+    # the anchor actually ends (completion or catch-up stretch both land here)
+    real.abort_run()
+    assert real.ended_run_sequence == 1
+
+    # still inside the chain buffer: not fired yet
+    sched.fire_due()
+    assert sched.list()[0]['fired'] is False
+
+    # buffer elapsed: the chained firing fires
+    monkeypatch.setattr(real, 'idle_since', time.time() - 120)
+    sched.fire_due()
+    runs = sched.list()
+    assert runs[0]['fired'] is True
+    assert runs[0]['status'] == 'fired'
 
 
 def test_start_run_converts_legacy_fahrenheit_profile(monkeypatch):

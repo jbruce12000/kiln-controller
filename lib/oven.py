@@ -332,6 +332,13 @@ class Oven(threading.Thread):
         self.temperature = 0
         self.time_step = config.sensor_time_wait
         self.reset()
+        # each firing gets an increasing run_sequence. ended_run_sequence
+        # remembers the highest sequence that has finished so scheduled
+        # firings chained after a run can wait for its real end (catch-up
+        # can stretch a firing past its nominal profile duration).
+        self.run_sequence = 0
+        self.ended_run_sequence = 0
+        self.idle_since = time.time()
 
     def reset(self):
         self.cost = 0
@@ -393,11 +400,14 @@ class Oven(threading.Thread):
         self.start_time = self.get_start_time()
         self.profile = profile
         self.totaltime = profile.get_duration()
+        self.run_sequence += 1
         self.state = "RUNNING"
         log.info("Running schedule %s starting at %d minutes" % (profile.name,startat))
         log.info("Starting")
 
     def abort_run(self):
+        self.ended_run_sequence = max(self.ended_run_sequence, self.run_sequence)
+        self.idle_since = time.time()
         self.reset()
         self.save_automatic_restart_state()
 
@@ -540,6 +550,7 @@ class Oven(threading.Thread):
             'kwh_rate': config.kwh_rate,
             'currency_type': config.currency_type,
             'profile': self.profile.name if self.profile else None,
+            'run_id': self.run_sequence,
             'pidstats': self.get_display_pidstats(),
             'catching_up': self.catching_up,
         }

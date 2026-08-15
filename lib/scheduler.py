@@ -39,9 +39,17 @@ class Scheduler(object):
         with open(self.state_file, 'w') as outfile:
             json.dump(self.schedules, outfile, indent=4, ensure_ascii=False)
 
-    def add(self, profile, start_time, startat=0):
+    def add(self, profile, start_time, startat=0, chain_after=None):
         '''schedule a firing of the given profile at start_time
-        (unix epoch seconds). returns the new schedule entry.'''
+        (unix epoch seconds). returns the new schedule entry.
+
+        chain_after, if given, makes this firing start only after the
+        firing it follows has actually ended (not its nominal end time,
+        since a run can stretch past its profile duration while the kiln
+        catches up). it is either 'run:<sequence>' for the firing in
+        progress when this was scheduled, or 'sched:<id>' for a schedule
+        already in the queue. start_time is then just an estimate used
+        for display and ordering.'''
         entry = {
             'id': uuid.uuid4().hex[:8],
             'profile': profile,
@@ -51,6 +59,8 @@ class Scheduler(object):
             'fired': False,
             'status': 'pending',
         }
+        if chain_after:
+            entry['chain_after'] = chain_after
         with self.lock:
             self.schedules.append(entry)
             self.save()
@@ -58,13 +68,20 @@ class Scheduler(object):
         return entry
 
     def cancel(self, sid):
-        '''cancel a scheduled run. returns True if it was cancelled.'''
+        '''cancel a scheduled run. returns True if it was cancelled.
+        also cancels any firing chained after it.'''
         with self.lock:
-            for i, entry in enumerate(self.schedules):
-                if entry['id'] == sid:
-                    del self.schedules[i]
-                    self.save()
-                    return True
+            kept = []
+            removed = False
+            for entry in self.schedules:
+                if entry['id'] == sid or entry.get('chain_after') == 'sched:' + sid:
+                    removed = True
+                else:
+                    kept.append(entry)
+            if removed:
+                self.schedules = kept
+                self.save()
+                return True
         return False
 
     def list(self):
@@ -73,15 +90,29 @@ class Scheduler(object):
             return list(self.schedules)
 
     def pending(self, now=None):
-        '''scheduled runs whose start time has arrived and which have not
-        yet fired'''
+        '''scheduled runs which should be (re)attempted. a plain run is
+        pending once its start time arrives. a chained run is pending
+        immediately; its start_time is only an estimate, and the fire
+        callback decides when the firing it follows really ends.'''
         now = time.time() if now is None else now
         pending = []
         with self.lock:
             for entry in self.schedules:
-                if not entry.get('fired') and entry['start_time'] <= now:
+                if not entry.get('fired') and (entry.get('chain_after') or entry['start_time'] <= now):
                     pending.append(entry)
         return pending
+
+    def mark_waiting(self, entry):
+        '''record that a chained run could not fire yet (the firing it
+        follows has not ended, or the oven is still busy). it stays
+        pending and is retried on the next poll.'''
+        with self.lock:
+            for e in self.schedules:
+                if e['id'] == entry['id']:
+                    if e.get('status') != 'waiting':
+                        e['status'] = 'waiting'
+                        self.save()
+                    return
 
     def mark_fired(self, entry, fired=True, status='fired'):
         '''record that a scheduled run fired (or was skipped)'''
@@ -97,7 +128,9 @@ class Scheduler(object):
     def fire(self, entry):
         '''attempt to start a due run using fire_callback. the callback
         returns True if the run started, False if it could not (oven busy,
-        profile missing, etc).'''
+        anchor firing not finished, profile missing, etc). a plain run
+        that cannot fire is marked skipped; a chained run waits and is
+        retried on the next poll.'''
         started = False
         if self.fire_callback:
             try:
@@ -108,6 +141,8 @@ class Scheduler(object):
             log.error("no fire_callback set, not firing schedule %s" % entry['id'])
         if started:
             self.mark_fired(entry, fired=True, status='fired')
+        elif entry.get('chain_after'):
+            self.mark_waiting(entry)
         else:
             self.mark_fired(entry, fired=True, status='skipped')
 
