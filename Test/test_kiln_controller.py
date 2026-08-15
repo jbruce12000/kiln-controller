@@ -624,10 +624,32 @@ def post_json(path, body_dict):
     return out, resp
 
 
+def test_load_secrets_reads_quoted_values(tmp_path):
+    path = tmp_path / 'secrets'
+    path.write_text('# a comment\n\ngithub_token = "ghp_abc123"\nother = x\n')
+    assert controller.load_secrets(str(path)) == \
+        {'github_token': 'ghp_abc123', 'other': 'x'}
+
+
+def test_load_secrets_missing_file(tmp_path):
+    assert controller.load_secrets(str(tmp_path / 'nope')) == {}
+
+
+def test_load_secrets_ignores_commented_lines(tmp_path):
+    path = tmp_path / 'secrets'
+    path.write_text('# github_token = "commented"\n\ngithub_token = "real"\n')
+    assert controller.load_secrets(str(path)) == {'github_token': 'real'}
+
+
+def test_get_github_token_empty_without_secrets():
+    # the repo's `secrets` file carries no token, so sharing stays off
+    assert controller.get_github_token() == ''
+
+
 def test_list_remote_profiles_parses_categories_and_files(monkeypatch, tmp_path):
     monkeypatch.setattr(controller.requests, 'get', _fake_github_listing())
     monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    monkeypatch.setattr(config, 'github_token', '')
+    monkeypatch.setattr(controller, 'get_github_token', lambda: '')
     _reset_remote_cache(monkeypatch)
 
     data = controller.list_remote_profiles(force=True)
@@ -644,7 +666,7 @@ def test_list_remote_profiles_parses_categories_and_files(monkeypatch, tmp_path)
 def test_list_remote_profiles_reports_installed_and_upload_enabled(monkeypatch, tmp_path):
     monkeypatch.setattr(controller.requests, 'get', _fake_github_listing())
     monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    monkeypatch.setattr(config, 'github_token', 'a-token')
+    monkeypatch.setattr(controller, 'get_github_token', lambda: 'a-token')
     (tmp_path / 'cone-05-long-bisque.json').write_text('{}')
     _reset_remote_cache(monkeypatch)
 
@@ -746,7 +768,7 @@ def test_api_profiles_remote_import_rejects_bad_path(monkeypatch, tmp_path):
 
 
 def test_api_profiles_remote_upload_disabled_without_token(monkeypatch, tmp_path):
-    monkeypatch.setattr(config, 'github_token', '')
+    monkeypatch.setattr(controller, 'get_github_token', lambda: '')
     monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
     out, resp = post_json('/api/profiles/remote/upload',
                           {'category': 'pottery',
@@ -756,7 +778,7 @@ def test_api_profiles_remote_upload_disabled_without_token(monkeypatch, tmp_path
 
 
 def test_api_profiles_remote_upload(monkeypatch, tmp_path):
-    monkeypatch.setattr(config, 'github_token', 'secret-token')
+    monkeypatch.setattr(controller, 'get_github_token', lambda: 'secret-token')
     monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
     _reset_remote_cache(monkeypatch)
     puts = []
@@ -797,7 +819,7 @@ def test_api_profiles_remote_upload(monkeypatch, tmp_path):
 
 
 def test_api_profiles_remote_upload_existing_file_sends_sha(monkeypatch, tmp_path):
-    monkeypatch.setattr(config, 'github_token', 'secret-token')
+    monkeypatch.setattr(controller, 'get_github_token', lambda: 'secret-token')
     monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
     _reset_remote_cache(monkeypatch)
     puts = []

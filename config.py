@@ -289,12 +289,12 @@ kiln_profiles_directory = os.path.abspath(os.path.join(os.path.dirname( __file__
 ########################################################################
 # community kiln profiles - the Schedules tab can browse, download, and
 # upload profiles to/from the shared kiln-profiles github repo.
-# Leave github_token empty ("") to disable uploading. When set, it must
-# be a github personal access token (fine-grained, Contents: Read+Write
-# on the repo below) and is used only to upload your profiles.
+# Downloading is public. Uploading needs a github personal access token
+# (fine-grained, Contents: Read+Write on the repo below), which is read
+# from the local `secrets` file (never checked into git) so this file
+# stays private. Leave `secrets` empty to disable uploading.
 kiln_profiles_repo = "https://github.com/jbruce12000/kiln-profiles"
 kiln_profiles_branch = "main"
-github_token = ""
 
 
 

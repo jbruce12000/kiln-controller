@@ -11,3 +11,4 @@ thumbs.db
 state.json
 storage/schedules.json
 venv/*
+secrets

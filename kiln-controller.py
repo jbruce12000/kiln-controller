@@ -33,6 +33,31 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, script_dir + '/lib/')
 profile_path = config.kiln_profiles_directory
 
+def load_secrets(path=None):
+    '''read the local `secrets` file (same directory as the controller)
+    where private values like the github token live, so they never end
+    up in git. Format: key = "value" per line, # starts a comment.'''
+    secrets = {}
+    secrets_path = path or os.path.join(script_dir, "secrets")
+    if not os.path.isfile(secrets_path):
+        return secrets
+    try:
+        with open(secrets_path) as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                secrets[key.strip()] = value.strip().strip('"').strip("'")
+    except Exception as e:
+        log.error("could not read secrets file: %s" % e)
+    return secrets
+
+local_secrets = load_secrets()
+
+def get_github_token():
+    return local_secrets.get("github_token", "") or ""
+
 from temp import f_to_c, c_to_f
 from urllib.parse import quote
 from oven import SimulatedOven, RealOven, Profile
@@ -407,7 +432,8 @@ def api_config_editor_save():
 ########################################################################
 # community profiles - browse, download, and upload profiles to/from the
 # shared kiln-profiles github repo (see the settings in config.py).
-# downloads are public; uploads need config.github_token.
+# downloads are public; uploads need a token from the local `secrets`
+# file.
 
 # a small cache for the remote listing so manual browsing doesn't slam
 # the github api rate limit (60/hr unauthenticated, 5000/hr with token)
@@ -426,7 +452,7 @@ def _repo_owner_repo():
 
 def _github_headers():
     headers = {"Accept": "application/vnd.github.v3+json", "User-Agent": "kiln-controller"}
-    token = getattr(config, "github_token", "") or ""
+    token = get_github_token()
     if token:
         headers["Authorization"] = "token %s" % token
     return headers
@@ -483,7 +509,7 @@ def list_remote_profiles(force=False):
     except Exception as e:
         log.error("could not list community profiles: %s" % e)
         return {"success": False, "error": "could not reach the kiln-profiles repo: %s" % e}
-    data = {"success": True, "upload_enabled": bool(getattr(config, "github_token", "") or ""),
+    data = {"success": True, "upload_enabled": bool(get_github_token()),
             "categories": categories, "profiles": profiles}
     _remote_cache.update({"at": time.time(), "data": data})
     return data
@@ -552,8 +578,8 @@ def api_profiles_remote_upload():
     body = bottle.request.json or {}
     profile = body.get("profile") or {}
     category = str(body.get("category") or "pottery")
-    if not (getattr(config, "github_token", "") or ""):
-        return bottle.HTTPResponse(json.dumps({"success": False, "error": "sharing is disabled (no github_token configured)"}),
+    if not get_github_token():
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": "sharing is disabled (no github token configured)"}),
                                    status=400,
                                    headers={"Content-Type": "application/json"})
     if not isinstance(profile, dict) or not profile.get("name"):
@@ -811,7 +837,7 @@ def get_config():
         "time_scale_profile": config.time_scale_profile,
         "kwh_rate": config.kwh_rate,
         "currency_type": config.currency_type,
-        "github_sharing_enabled": bool(getattr(config, "github_token", "") or "")})    
+        "github_sharing_enabled": bool(get_github_token())})    
 
 def main():
     ip = "0.0.0.0"
