@@ -51,6 +51,9 @@ def js():
     context.eval(extract_function(src, 'populateShareCategories'))
     context.eval(extract_function(src, 'importRemoteProfile'))
     context.eval(extract_function(src, 'shareProfile'))
+    context.eval(extract_function(src, 'escHtml'))
+    context.eval(extract_function(src, 'remoteFilterMatches'))
+    context.eval(extract_function(src, 'renderRemoteProfiles'))
     return context
 ########################################################################
 # websocket auto-reconnect
@@ -401,6 +404,7 @@ def test_profile_editor_has_share_row():
                                              'public', 'index.html'))).read()
     assert 'id="share_profile_row"' in html
     assert 'id="form_share_category"' in html
+    assert 'id="form_share_token"' in html
     assert 'shareProfile()' in html
 
 
@@ -489,6 +493,91 @@ def test_load_remote_profiles_shows_error(js):
     assert 'repo unreachable' in js.eval('list_el.innerHTML')
 
 
+def test_community_panel_has_search_filter():
+    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
+                                             'public', 'index.html'))).read()
+    assert 'id="remote_filter_input"' in html
+    assert 'applyRemoteFilter()' in html
+
+
+def test_remote_filter_matches_category(js):
+    js.eval('var p = { name: "cone-05-long-bisque", category: "pottery", tags: ["bisque"] };')
+    assert js.eval('remoteFilterMatches(p, "pottery")') is True
+    assert js.eval('remoteFilterMatches(p, "POTTERY")') is True  # case-insensitive
+
+
+def test_remote_filter_matches_tag(js):
+    js.eval('var p = { name: "cone-05-long-bisque", category: "pottery", tags: ["bisque", "cone05"] };')
+    assert js.eval('remoteFilterMatches(p, "bisque")') is True
+    assert js.eval('remoteFilterMatches(p, "cone05")') is True
+
+
+def test_remote_filter_matches_description(js):
+    js.eval('var p = { name: "bq1000", category: "pottery", tags: [],'
+            '          description: "fires to cone 05 with a soak" };')
+    assert js.eval('remoteFilterMatches(p, "soak")') is True
+    assert js.eval('remoteFilterMatches(p, "Cone")') is True  # case-insensitive
+    assert js.eval('remoteFilterMatches(p, "enamel")') is False
+
+
+def test_remote_filter_no_match(js):
+    js.eval('var p = { name: "cone-05-long-bisque", category: "pottery", tags: ["bisque"] };')
+    assert js.eval('remoteFilterMatches(p, "metal")') is False
+    assert js.eval('remoteFilterMatches(p, "")') is True  # empty shows everything
+
+
+def test_render_remote_profiles_filters_rows(js):
+    js.eval('remote_profiles = ['
+            '  { name: "cone-05", category: "pottery", tags: ["bisque"], path: "pottery/cone-05.json" },'
+            '  { name: "slumped", category: "glass", tags: ["slumping"], path: "glass/slumped.json" }'
+            '];')
+    js.eval('var els = {'
+            '  remote_profiles_list: { innerHTML: "" },'
+            '  remote_filter_input: { value: "bisque" } };')
+    js.eval('function $(id) { return els[id] || null; }')
+    js.eval('renderRemoteProfiles();')
+    html = js.eval('els.remote_profiles_list.innerHTML')
+    assert 'cone-05' in html
+    assert 'slumped' not in html
+
+
+def test_render_remote_profiles_no_match_message(js):
+    js.eval('remote_profiles = ['
+            '  { name: "cone-05", category: "pottery", tags: ["bisque"], path: "pottery/cone-05.json" }'
+            '];')
+    js.eval('var els = {'
+            '  remote_profiles_list: { innerHTML: "" },'
+            '  remote_filter_input: { value: "metal" } };')
+    js.eval('function $(id) { return els[id] || null; }')
+    js.eval('renderRemoteProfiles();')
+    assert 'metal' in js.eval('els.remote_profiles_list.innerHTML')
+    assert 'No community schedules match' in js.eval('els.remote_profiles_list.innerHTML')
+
+
+def test_render_remote_profiles_shows_tags(js):
+    js.eval('remote_profiles = ['
+            '  { name: "cone-05", category: "pottery", tags: ["bisque", "cone05"], path: "pottery/cone-05.json" }'
+            '];')
+    js.eval('var els = {'
+            '  remote_profiles_list: { innerHTML: "" },'
+            '  remote_filter_input: { value: "" } };')
+    js.eval('function $(id) { return els[id] || null; }')
+    js.eval('renderRemoteProfiles();')
+    html = js.eval('els.remote_profiles_list.innerHTML')
+    assert 'bisque' in html
+    assert 'cone05' in html
+    assert 'text-bg-light' in html
+
+
+def test_delete_profile_reloads_remote_installed_state():
+    src = open(JS_PATH).read()
+    body = extract_function(src, 'deleteProfile')
+    # deleting a local profile must refresh the community list so the
+    # installed badge is not stuck
+    assert 'remote_profiles_loaded = false' in body
+    assert 'loadRemoteProfiles()' in body
+
+
 def test_share_profile_requires_a_name(js):
     js.eval('var growls = [];')
     js.eval('showGrowl = function(m) { growls.push(m); };')
@@ -506,14 +595,15 @@ def test_share_profile_posts_upload(js):
     js.eval('var els = {'
             '  form_profile_name: { value: "my-bisque" },'
             '  form_profile_description: { value: "a bisque firing" },'
-            '  form_share_category: { value: "pottery" } };')
+            '  form_share_category: { value: "pottery" },'
+            '  form_share_token: { value: "" } };')
     js.eval('function $(id) { return els[id] || null; }')
     js.eval('graph = { profile: { data: [[0, 65], [3600, 1708]] } };')
     js.eval('temp_scale = "f";')
     js.eval('var posted = null;')
     js.eval('fetch = function(url, opts) {'
             '  posted = { url: url, opts: opts };'
-            '  return Promise.resolve({ json: function() { return Promise.resolve({ success: true, name: "my-bisque" }); } });'
+            '  return Promise.resolve({ json: function() { return Promise.resolve({ success: true, name: "my-bisque", pr_url: "https://github.com/x/pull/1" }); } });'
             '};')
     js.eval('ws_storage = { send: function() {} };')
     js.eval('renderProfiles = function() {};')
@@ -526,7 +616,41 @@ def test_share_profile_posts_upload(js):
     assert body['profile']['name'] == 'my-bisque'
     assert body['profile']['description'] == 'a bisque firing'
     assert body['profile']['temp_units'] == 'f'
-    assert 'Shared' in js.eval('growls.join(",")')
+    assert body['github_token'] == ''
+    # the profile is submitted as a pull request, with a link
+    growls = js.eval('growls.join(",")')
+    assert 'pull request' in growls
+    assert 'view PR' in growls
+
+
+def test_share_profile_sends_and_remembers_github_token(js):
+    js.eval('var growls = [];')
+    js.eval('showGrowl = function(m) { growls.push(m); };')
+    js.eval('var els = {'
+            '  form_profile_name: { value: "my-bisque" },'
+            '  form_profile_description: { value: "" },'
+            '  form_share_category: { value: "pottery" },'
+            '  form_share_token: { value: "ghp_abc123" } };')
+    js.eval('function $(id) { return els[id] || null; }')
+    js.eval('graph = { profile: { data: [[0, 65], [3600, 1708]] } };')
+    js.eval('temp_scale = "c";')
+    js.eval('var stored = null;')
+    js.eval('localStorage = { getItem: function() { return null; },'
+            '  setItem: function(k, v) { stored = v; } };')
+    js.eval('var posted = null;')
+    js.eval('fetch = function(url, opts) {'
+            '  posted = { url: url, opts: opts };'
+            '  return Promise.resolve({ json: function() { return Promise.resolve({ success: true, name: "my-bisque" }); } });'
+            '};')
+    js.eval('ws_storage = { send: function() {} };')
+    js.eval('renderProfiles = function() {};')
+    js.eval('shareProfile();')
+    for _ in range(10):
+        js.execute_pending_job()
+    body = json.loads(js.eval('posted.opts.body'))
+    assert body['github_token'] == 'ghp_abc123'
+    # the token is remembered for next time
+    assert js.eval('stored') == 'ghp_abc123'
 
 
 def test_import_remote_profile_posts_and_refreshes(js):

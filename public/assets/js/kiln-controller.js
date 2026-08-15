@@ -21,6 +21,7 @@ var currency_type = "EUR";
 var simulate = false;
 var upload_enabled = false;
 var remote_profiles_loaded = false;
+var remote_profiles = [];
 
 var PROFILE_DS = 0;
 var LIVE_DS = 1;
@@ -587,6 +588,9 @@ function deleteProfile()
     ws_storage.send(JSON.stringify(delete_struct));
     ws_storage.send('GET');
 
+    remote_profiles_loaded = false;
+    loadRemoteProfiles();
+
     if (profiles.length > 0) { selected_profile_name = profiles[0].name; }
 
     state="IDLE";
@@ -899,28 +903,68 @@ function loadRemoteProfiles(force) {
         var shareRow = $('share_profile_row');
         if (shareRow) { shareRow.style.display = upload_enabled ? '' : 'none'; }
         populateShareCategories(resp.categories);
-        var html = '';
-        if (resp.profiles.length === 0) {
-            html = '<p class="ds-empty">No profiles shared yet. Be the first!</p>';
-        }
-        for (var i = 0; i < resp.profiles.length; i++) {
-            var p = resp.profiles[i];
-            html += '<div class="profile-row">'
-                + '<div class="profile-info">'
-                + '<div class="profile-name">' + p.name
-                + ' <span class="badge text-bg-secondary">' + p.category + '</span>'
-                + (p.installed ? ' <span class="badge text-bg-success">installed</span>' : '') + '</div>'
-                + '<div class="profile-meta">community schedule' + (p.size ? ' &middot; ' + p.size + ' bytes' : '') + '</div>'
-                + '</div>'
-                + '<div class="btn-group">'
-                + (p.installed
-                    ? '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="importRemoteProfile(\'' + p.path + '\')"><i class="bi bi-arrow-repeat"></i> Re-install</button>'
-                    : '<button type="button" class="btn btn-success btn-sm" onclick="importRemoteProfile(\'' + p.path + '\')"><i class="bi bi-download"></i> Install</button>')
-                + '</div>'
-                + '</div>';
-        }
-        list.innerHTML = html;
+        remote_profiles = resp.profiles || [];
+        renderRemoteProfiles();
     });
+}
+
+function escHtml(s) {
+    return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function remoteFilterMatches(p, query) {
+    if (!query) { return true; }
+    var q = query.toLowerCase();
+    var hay = (p.name + ' ' + p.category + ' '
+        + (p.tags || []).join(' ') + ' '
+        + (p.description || '')).toLowerCase();
+    return hay.indexOf(q) !== -1;
+}
+
+function applyRemoteFilter() {
+    renderRemoteProfiles();
+}
+
+function renderRemoteProfiles() {
+    var list = $('remote_profiles_list');
+    if (!list) { return; }
+    var filter = $('remote_filter_input');
+    var query = filter ? filter.value.trim() : '';
+    var html = '';
+    var shown = 0;
+    if (remote_profiles.length === 0) {
+        html = '<p class="ds-empty">No profiles shared yet. Be the first!</p>';
+    }
+    for (var i = 0; i < remote_profiles.length; i++) {
+        var p = remote_profiles[i];
+        if (!remoteFilterMatches(p, query)) { continue; }
+        shown++;
+        var tags = (p.tags || []).slice(0, 6).map(function(t) {
+            return '<span class="badge text-bg-light border">' + escHtml(t) + '</span>';
+        }).join(' ');
+        html += '<div class="profile-row">'
+            + '<div class="profile-info">'
+            + '<div class="profile-name">' + escHtml(p.name)
+            + ' <span class="badge text-bg-secondary">' + escHtml(p.category) + '</span>'
+            + (p.installed ? ' <span class="badge text-bg-success">installed</span>' : '') + '</div>'
+            + '<div class="profile-meta">community schedule'
+            + (p.units ? ' &middot; ' + escHtml(p.units) : '')
+            + (p.description ? ' &middot; ' + escHtml(p.description) : '') + '</div>'
+            + (tags ? '<div class="profile-tags">' + tags + '</div>' : '')
+            + '</div>'
+            + '<div class="btn-group">'
+            + (p.installed
+                ? '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="importRemoteProfile(\'' + p.path + '\')"><i class="bi bi-arrow-repeat"></i> Re-install</button>'
+                : '<button type="button" class="btn btn-success btn-sm" onclick="importRemoteProfile(\'' + p.path + '\')"><i class="bi bi-download"></i> Install</button>')
+            + '</div>'
+            + '</div>';
+    }
+    if (remote_profiles.length > 0 && shown === 0) {
+        html = '<p class="ds-empty">No community schedules match &ldquo;' + escHtml(query) + '&rdquo;.</p>';
+    }
+    list.innerHTML = html;
 }
 
 function populateShareCategories(categories) {
@@ -966,6 +1010,14 @@ function shareProfile() {
         showGrowl('ERROR 99:<br/>A schedule needs at least two points to share.', 'error', 5000);
         return;
     }
+    var tokenInput = $('form_share_token');
+    if (tokenInput && !tokenInput.value) {
+        try { tokenInput.value = localStorage.getItem('kiln_share_token') || ''; } catch (e) {}
+    }
+    var token = tokenInput ? tokenInput.value.trim() : '';
+    if (token) {
+        try { localStorage.setItem('kiln_share_token', token); } catch (e) {}
+    }
     var profile = {
         "type": "profile",
         "name": name,
@@ -977,17 +1029,19 @@ function shareProfile() {
     fetch('/api/profiles/remote/upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category: category, profile: profile })
+        body: JSON.stringify({ category: category, profile: profile, github_token: token })
     })
     .then(function(r) { return r.json(); })
     .then(function(resp) {
         if (resp.success) {
-            showGrowl('Shared <b>' + resp.name + '</b> to the community repo', 'success', 5000);
+            var msg = 'Submitted <b>' + resp.name + '</b> as a community pull request';
+            if (resp.pr_url) { msg += ' &middot; <a href="' + resp.pr_url + '" target="_blank" rel="noopener">view PR</a>'; }
+            showGrowl(msg, 'success', 8000);
             remote_profiles_loaded = false;
             ws_storage.send('GET');
             renderProfiles();
         } else {
-            showGrowl('ERROR 97:<br/>' + (resp.error || 'Could not share profile.'), 'error', 5000);
+            showGrowl('ERROR 97:<br/>' + (resp.error || 'Could not share profile.'), 'error', 8000);
         }
     })
     .catch(function(err) {

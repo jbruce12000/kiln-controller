@@ -104,10 +104,14 @@
       <span class="input-group-text">Description</span>
       <input id="form_profile_description" type="text" class="form-control" placeholder="What is this schedule for?" />
      </div>
-     <div id="share_profile_row" class="input-group mt-2" style="display:none">
-      <span class="input-group-text">Share to Community</span>
-      <select id="form_share_category" class="form-select" style="max-width: 160px;"></select>
-      <button id="btn_share_profile" type="button" class="btn btn-outline-warning" onclick="shareProfile()"><i class="bi bi-cloud-upload"></i>&nbsp; Share</button>
+     <div id="share_profile_row" class="mt-2" style="display:none">
+      <div class="input-group">
+       <span class="input-group-text">Share to Community</span>
+       <select id="form_share_category" class="form-select" style="max-width: 160px;"></select>
+       <input id="form_share_token" type="password" class="form-control" placeholder="Your GitHub token" autocomplete="off" />
+       <button id="btn_share_profile" type="button" class="btn btn-outline-warning" onclick="shareProfile()"><i class="bi bi-cloud-upload"></i>&nbsp; Share</button>
+      </div>
+      <div class="small text-muted mt-1">Sharing opens a pull request to the community repo for review. Any GitHub token with public_repo scope works &mdash; nothing is written to the repo directly.</div>
      </div>
      <div class="btn-group btn-group-sm mt-2">
       <button id="btn_newPoint" type="button" class="btn btn-outline-secondary" onclick="newPoint()"><i class="bi bi-plus"></i></button>
@@ -134,6 +138,10 @@
      <button id="btn_refresh_remote" type="button" class="btn btn-outline-secondary btn-sm" onclick="loadRemoteProfiles(true)"><i class="bi bi-arrow-clockwise"></i>&nbsp; Refresh</button>
     </div>
     <div class="panel-body">
+     <div class="input-group mb-2">
+      <span class="input-group-text"><i class="bi bi-search"></i></span>
+      <input id="remote_filter_input" type="text" class="form-control" placeholder="Filter by category, tag, or description (e.g. pottery, bisque, cone6)&hellip;" oninput="applyRemoteFilter()" />
+     </div>
      <div id="remote_profiles_list"><p class="ds-empty">Community schedules load from the kiln-profiles repo.</p></div>
     </div>
    </div>

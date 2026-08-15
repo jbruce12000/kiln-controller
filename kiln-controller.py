@@ -33,33 +33,7 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, script_dir + '/lib/')
 profile_path = config.kiln_profiles_directory
 
-def load_secrets(path=None):
-    '''read the local `secrets` file (same directory as the controller)
-    where private values like the github token live, so they never end
-    up in git. Format: key = "value" per line, # starts a comment.'''
-    secrets = {}
-    secrets_path = path or os.path.join(script_dir, "secrets")
-    if not os.path.isfile(secrets_path):
-        return secrets
-    try:
-        with open(secrets_path) as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith("#") or "=" not in line:
-                    continue
-                key, _, value = line.partition("=")
-                secrets[key.strip()] = value.strip().strip('"').strip("'")
-    except Exception as e:
-        log.error("could not read secrets file: %s" % e)
-    return secrets
-
-local_secrets = load_secrets()
-
-def get_github_token():
-    return local_secrets.get("github_token", "") or ""
-
 from temp import f_to_c, c_to_f
-from urllib.parse import quote
 from oven import SimulatedOven, RealOven, Profile
 from ovenWatcher import OvenWatcher
 from scheduler import Scheduler
@@ -430,13 +404,13 @@ def api_config_editor_save():
     return response
 
 ########################################################################
-# community profiles - browse, download, and upload profiles to/from the
+# community profiles - browse, download, and share profiles with the
 # shared kiln-profiles github repo (see the settings in config.py).
-# downloads are public; uploads need a token from the local `secrets`
-# file.
+# downloads are public; sharing forks the repo and opens a pull request
+# using the sharer's own github token.
 
 # a small cache for the remote listing so manual browsing doesn't slam
-# the github api rate limit (60/hr unauthenticated, 5000/hr with token)
+# the github api rate limit (60/hr unauthenticated)
 _remote_cache = {"at": 0.0, "data": None}
 REMOTE_CACHE_TTL = 60  # seconds
 
@@ -450,19 +424,15 @@ def _repo_owner_repo():
     return url.split(marker, 1)[1].strip("/") or None
 
 
-def _github_headers():
+def _github_headers(token=None):
     headers = {"Accept": "application/vnd.github.v3+json", "User-Agent": "kiln-controller"}
-    token = get_github_token()
     if token:
         headers["Authorization"] = "token %s" % token
     return headers
 
 
-def _github_url(path):
-    repo = _repo_owner_repo()
-    if not repo:
-        return None
-    return "https://api.github.com/repos/%s/%s" % (repo, path)
+def _github_api_url(path):
+    return "https://api.github.com/" + path.lstrip("/")
 
 
 def _raw_url(path):
@@ -473,44 +443,50 @@ def _raw_url(path):
 
 
 def list_remote_profiles(force=False):
-    '''list the categories and profiles in the community repo. cached so
-    manual browsing doesn't slam the github api rate limit.'''
+    '''list the categories and profiles in the community repo from the
+    schedules.json index file. cached so manual browsing doesn't slam the
+    github pages endpoint.'''
     if not force and _remote_cache["data"] is not None and time.time() - _remote_cache["at"] < REMOTE_CACHE_TTL:
         return _remote_cache["data"]
-    if not _repo_owner_repo():
-        return {"success": False, "error": "kiln_profiles_repo must be a github.com URL"}
+    index_url = str(getattr(config, "kiln_profiles_index_url", "")).strip()
+    if not index_url:
+        return {"success": False, "error": "kiln_profiles_index_url not configured"}
     try:
-        root = requests.get(_github_url("contents"), params={"ref": config.kiln_profiles_branch},
-                            headers=_github_headers(), timeout=15).json()
-        if not isinstance(root, list):
+        resp = requests.get(index_url, headers=_github_headers(), timeout=15)
+        resp.raise_for_status()
+        index = resp.json()
+        if not isinstance(index, list):
             return {"success": False, "error": "unexpected response from the kiln-profiles repo"}
-        categories = [e["name"] for e in root if isinstance(e, dict) and e.get("type") == "dir"]
-        profiles = []
-        for category in categories:
-            listing = requests.get(_github_url("contents/" + quote(category)),
-                                   params={"ref": config.kiln_profiles_branch},
-                                   headers=_github_headers(), timeout=15).json()
-            if not isinstance(listing, list):
+        categories, tags, profiles = [], [], []
+        seen_cats, seen_tags = set(), set()
+        for entry in index:
+            if not isinstance(entry, dict) or not entry.get("name"):
                 continue
-            for entry in listing:
-                if not isinstance(entry, dict) or entry.get("type") != "file":
-                    continue
-                if not entry["name"].endswith(".json"):
-                    continue
-                local_name = entry["name"][:-5]
-                profiles.append({
-                    "category": category,
-                    "name": local_name,
-                    "path": entry["path"],
-                    "size": entry.get("size"),
-                    "download_url": entry.get("download_url"),
-                    "installed": os.path.isfile(os.path.join(profile_path, local_name + ".json")),
-                })
+            name = str(entry["name"])
+            category = str(entry.get("category") or "uncategorized")
+            entry_tags = [str(t) for t in (entry.get("tags") or []) if str(t).strip()]
+            if category not in seen_cats:
+                seen_cats.add(category)
+                categories.append(category)
+            for tag in entry_tags:
+                if tag not in seen_tags:
+                    seen_tags.add(tag)
+                    tags.append(tag)
+            local_name = name + ".json"
+            profiles.append({
+                "category": category,
+                "name": name,
+                "path": "%s/%s" % (category, local_name),
+                "tags": entry_tags,
+                "description": entry.get("description") or "",
+                "units": entry.get("units") or "",
+                "installed": os.path.isfile(os.path.join(profile_path, local_name)),
+            })
     except Exception as e:
         log.error("could not list community profiles: %s" % e)
         return {"success": False, "error": "could not reach the kiln-profiles repo: %s" % e}
-    data = {"success": True, "upload_enabled": bool(get_github_token()),
-            "categories": categories, "profiles": profiles}
+    data = {"success": True, "upload_enabled": bool(_repo_owner_repo()),
+            "categories": categories, "tags": tags, "profiles": profiles}
     _remote_cache.update({"at": time.time(), "data": data})
     return data
 
@@ -578,8 +554,9 @@ def api_profiles_remote_upload():
     body = bottle.request.json or {}
     profile = body.get("profile") or {}
     category = str(body.get("category") or "pottery")
-    if not get_github_token():
-        return bottle.HTTPResponse(json.dumps({"success": False, "error": "sharing is disabled (no github token configured)"}),
+    token = str(body.get("github_token") or "").strip()
+    if not token:
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": "sharing is disabled (no github token provided)"}),
                                    status=400,
                                    headers={"Content-Type": "application/json"})
     if not isinstance(profile, dict) or not profile.get("name"):
@@ -606,27 +583,88 @@ def api_profiles_remote_upload():
         return bottle.HTTPResponse(json.dumps({"success": False, "error": str(e)}),
                                    status=400,
                                    headers={"Content-Type": "application/json"})
-    api_path = "contents/%s/%s.json" % (category, name)
     try:
-        existing = requests.get(_github_url(api_path), params={"ref": config.kiln_profiles_branch},
-                                headers=_github_headers(), timeout=15)
-        payload = {
-            "message": "share %s" % name,
-            "content": base64.b64encode(json.dumps(profile).encode("utf-8")).decode("ascii"),
-            "branch": config.kiln_profiles_branch,
-        }
-        if existing.status_code == 200:
-            payload["sha"] = existing.json().get("sha")
-        resp = requests.put(_github_url(api_path), json=payload, headers=_github_headers(), timeout=20)
-        resp.raise_for_status()
+        pr_url, pr_number = share_profile_as_pr(profile, category, token)
     except Exception as e:
-        log.error("could not upload community profile: %s" % e)
-        return bottle.HTTPResponse(json.dumps({"success": False, "error": "upload failed: %s" % e}),
+        log.error("could not submit community profile: %s" % e)
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": "share failed: %s" % e}),
                                    status=400,
                                    headers={"Content-Type": "application/json"})
-    log.info("shared profile %s to %s" % (name, category))
-    _remote_cache["data"] = None  # listing changed
-    return json.dumps({"success": True, "name": name, "category": category})
+    log.info("shared profile %s to %s as pull request #%s" % (name, category, pr_number))
+    _remote_cache["data"] = None  # local installed state changed
+    return json.dumps({"success": True, "name": name, "category": category,
+                       "pr_url": pr_url, "pr_number": pr_number})
+
+
+def _ensure_fork(owner_repo, token):
+    '''return the "user/repo" of the authenticated user's fork of
+    owner_repo, creating it if it does not exist and best-effort syncing
+    it to the upstream default branch.'''
+    user = requests.get(_github_api_url("user"), headers=_github_headers(token), timeout=15)
+    user.raise_for_status()
+    username = user.json()["login"]
+    fork_repo = "%s/%s" % (username, owner_repo.split("/", 1)[1])
+    if requests.get(_github_api_url("repos/%s" % fork_repo), headers=_github_headers(token),
+                    timeout=15).status_code == 404:
+        requests.post(_github_api_url("repos/%s/forks" % owner_repo),
+                      json={"default_branch_only": True},
+                      headers=_github_headers(token), timeout=15)
+        # forking is asynchronous; poll until the fork is ready
+        deadline = time.time() + 60
+        while time.time() < deadline:
+            time.sleep(2)
+            if requests.get(_github_api_url("repos/%s" % fork_repo), headers=_github_headers(token),
+                            timeout=15).status_code == 200:
+                break
+        else:
+            raise RuntimeError("your fork did not finish syncing, try again in a moment")
+    # best-effort: bring the fork's branch up to date with the upstream
+    try:
+        requests.post(_github_api_url("repos/%s/merge-upstream" % fork_repo),
+                      json={"branch": config.kiln_profiles_branch},
+                      headers=_github_headers(token), timeout=15)
+    except Exception:
+        pass
+    return fork_repo
+
+
+def share_profile_as_pr(profile, category, token):
+    '''fork the kiln-profiles repo, commit the profile to a feature branch
+    in the fork, and open a pull request back to the shared repo. returns
+    the (html_url, number) of the pull request.'''
+    name = profile["name"]
+    owner_repo = _repo_owner_repo()
+    branch = config.kiln_profiles_branch
+    fork_repo = _ensure_fork(owner_repo, token)
+    username = fork_repo.split("/", 1)[0]
+
+    refs = requests.get(_github_api_url("repos/%s/git/ref/heads/%s" % (fork_repo, branch)),
+                        headers=_github_headers(token), timeout=15)
+    refs.raise_for_status()
+    feature_branch = "kiln-share-%s" % re.sub(r"[^A-Za-z0-9_.-]", "-", name)
+    requests.post(_github_api_url("repos/%s/git/refs" % fork_repo),
+                  json={"ref": "refs/heads/%s" % feature_branch, "sha": refs.json()["object"]["sha"]},
+                  headers=_github_headers(token), timeout=15)
+
+    requests.put(_github_api_url("repos/%s/contents/%s/%s.json" % (fork_repo, category, name)),
+                 json={
+                     "message": "share %s" % name,
+                     "content": base64.b64encode(json.dumps(profile).encode("utf-8")).decode("ascii"),
+                     "branch": feature_branch,
+                 },
+                 headers=_github_headers(token), timeout=20)
+
+    pr = requests.post(_github_api_url("repos/%s/pulls" % owner_repo),
+                       json={
+                           "title": "Add schedule %s (%s)" % (name, category),
+                           "head": "%s:%s" % (username, feature_branch),
+                           "base": branch,
+                           "body": profile.get("description") or "Community kiln schedule.",
+                       },
+                       headers=_github_headers(token), timeout=20)
+    pr.raise_for_status()
+    pr_json = pr.json()
+    return pr_json.get("html_url"), pr_json.get("number")
 
 @app.route('/<filename:path>')
 def send_static(filename):
@@ -785,6 +823,7 @@ def save_profile(profile, force=False):
         f.write(profile_json)
         f.close()
     log.info("Wrote %s" % filepath)
+    _remote_cache["data"] = None  # community "installed" state changed
     return True
 
 def add_temp_units(profile):
@@ -828,6 +867,7 @@ def delete_profile(profile):
     filepath = os.path.join(profile_path, filename)
     os.remove(filepath)
     log.info("Deleted %s" % filepath)
+    _remote_cache["data"] = None  # community "installed" state changed
     return True
 
 def get_config():
@@ -837,7 +877,7 @@ def get_config():
         "time_scale_profile": config.time_scale_profile,
         "kwh_rate": config.kwh_rate,
         "currency_type": config.currency_type,
-        "github_sharing_enabled": bool(get_github_token())})    
+        "github_sharing_enabled": bool(_repo_owner_repo())})    
 
 def main():
     ip = "0.0.0.0"

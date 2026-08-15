@@ -288,14 +288,18 @@ kiln_profiles_directory = os.path.abspath(os.path.join(os.path.dirname( __file__
 
 ########################################################################
 # community kiln profiles - the Schedules tab can browse, download, and
-# upload profiles to/from the shared kiln-profiles github repo.
-# Downloading is public. Uploading needs a github personal access token
-# (fine-grained, Contents: Read+Write on the repo below), which is read
-# from the local `secrets` file (never checked into git) so this file
-# stays private. Leave `secrets` empty to disable uploading.
+# share profiles with the shared kiln-profiles github repo.
+# Downloading is public. Sharing forks the repo and opens a pull request,
+# so it only needs the sharer's own github token (public_repo scope),
+# entered in the Share box on the Schedules tab.
 kiln_profiles_repo = "https://github.com/jbruce12000/kiln-profiles"
 kiln_profiles_branch = "main"
 
+# community schedules are listed from this index file (a json array with
+# name/category/tags/description per profile) instead of walking the repo
+# directory tree. the repo builds it into docs/schedules.json for github
+# pages, so it stays cheap to fetch on every browse.
+kiln_profiles_index_url = "https://jbruce12000.github.io/kiln-profiles/schedules.json"
 
 
 ########################################################################

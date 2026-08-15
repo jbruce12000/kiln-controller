@@ -476,6 +476,15 @@ body {
     margin-top: 2px;
 }
 
+.profile-tags {
+    margin-top: 4px;
+}
+
+.profile-tags .badge {
+    margin-right: 4px;
+    font-weight: 500;
+}
+
 .ds-empty {
     color: var(--muted);
     font-style: italic;
