@@ -104,6 +104,11 @@
       <span class="input-group-text">Description</span>
       <input id="form_profile_description" type="text" class="form-control" placeholder="What is this schedule for?" />
      </div>
+     <div id="share_profile_row" class="input-group mt-2" style="display:none">
+      <span class="input-group-text">Share to Community</span>
+      <select id="form_share_category" class="form-select" style="max-width: 160px;"></select>
+      <button id="btn_share_profile" type="button" class="btn btn-outline-warning" onclick="shareProfile()"><i class="bi bi-cloud-upload"></i>&nbsp; Share</button>
+     </div>
      <div class="btn-group btn-group-sm mt-2">
       <button id="btn_newPoint" type="button" class="btn btn-outline-secondary" onclick="newPoint()"><i class="bi bi-plus"></i></button>
       <button id="btn_delPoint" type="button" class="btn btn-outline-secondary" onclick="delPoint()"><i class="bi bi-dash-lg"></i></button>
@@ -119,6 +124,17 @@
     <div class="panel-heading"><strong>Scheduled Runs</strong></div>
     <div class="panel-body">
      <div id="scheduled_runs_list"><p class="ds-empty">No runs scheduled.</p></div>
+    </div>
+   </div>
+
+   <div class="panel panel-default mt-3">
+    <div class="panel-heading">
+     <strong>Community Schedules</strong>
+     <span class="text-muted fw-normal small">from the <a href="https://github.com/jbruce12000/kiln-profiles" target="_blank" rel="noopener">kiln-profiles</a> repo</span>
+     <button id="btn_refresh_remote" type="button" class="btn btn-outline-secondary btn-sm" onclick="loadRemoteProfiles(true)"><i class="bi bi-arrow-clockwise"></i>&nbsp; Refresh</button>
+    </div>
+    <div class="panel-body">
+     <div id="remote_profiles_list"><p class="ds-empty">Community schedules load from the kiln-profiles repo.</p></div>
     </div>
    </div>
 

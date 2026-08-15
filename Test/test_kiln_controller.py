@@ -6,6 +6,7 @@ import os
 import tarfile
 import time
 import types
+import base64
 
 import bottle
 import pytest
@@ -132,7 +133,8 @@ def test_api_dump_without_profiles(monkeypatch, tmp_path):
 def test_get_config():
     d = json.loads(controller.get_config())
     assert set(d) == {'simulate', 'temp_scale', 'time_scale_slope',
-                      'time_scale_profile', 'kwh_rate', 'currency_type'}
+                      'time_scale_profile', 'kwh_rate', 'currency_type',
+                      'github_sharing_enabled'}
     assert d['kwh_rate'] == config.kwh_rate
     assert d['simulate'] == config.simulate
 
@@ -539,3 +541,280 @@ def test_start_run_keeps_celsius_profile_untouched(monkeypatch):
 
     assert controller.start_run('cone-05-long-bisque') is True
     assert started[0] == 100
+
+
+########################################################################
+# community profiles (kiln-profiles repo)
+########################################################################
+
+class FakeResp:
+    '''minimal requests.Response stand-in for monkeypatched requests.'''
+
+    def __init__(self, payload, status_code=200):
+        self._payload = payload
+        self.status_code = status_code
+
+    def json(self):
+        return self._payload
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise RuntimeError('http %s' % self.status_code)
+
+
+def _reset_remote_cache(monkeypatch):
+    monkeypatch.setattr(controller, '_remote_cache', {'at': 0.0, 'data': None})
+
+
+def _fake_github_listing():
+    '''fake github api responses: root lists the category dirs, each
+    category dir lists its .json files.'''
+    root = [
+        {'name': 'glass', 'type': 'dir'},
+        {'name': 'pottery', 'type': 'dir'},
+        {'name': 'README.md', 'type': 'file'},
+    ]
+    dirs = {
+        'glass': [
+            {'name': 'slumped-plate.json', 'path': 'glass/slumped-plate.json',
+             'type': 'file', 'size': 120,
+             'download_url': 'https://raw.githubusercontent.com/x'},
+        ],
+        'pottery': [
+            {'name': 'cone-05-long-bisque.json', 'path': 'pottery/cone-05-long-bisque.json',
+             'type': 'file', 'size': 400,
+             'download_url': 'https://raw.githubusercontent.com/x'},
+        ],
+    }
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        if url == 'https://api.github.com/repos/jbruce12000/kiln-profiles/contents':
+            return FakeResp(root)
+        if url.startswith('https://api.github.com/repos/jbruce12000/kiln-profiles/contents/'):
+            category = url.rsplit('/', 1)[1]
+            if category in dirs:
+                return FakeResp(dirs[category])
+        raise AssertionError('unexpected request url: %s' % url)
+    return fake_get
+
+
+def post_json(path, body_dict):
+    '''drive the bottle app directly with a WSGI environ, the way a real
+    browser POST would arrive.'''
+    body = json.dumps(body_dict).encode()
+    env = {
+        'REQUEST_METHOD': 'POST',
+        'PATH_INFO': path,
+        'SERVER_NAME': 'localhost',
+        'SERVER_PORT': '80',
+        'wsgi.input': io.BytesIO(body),
+        'wsgi.errors': io.StringIO(),
+        'CONTENT_TYPE': 'application/json',
+        'CONTENT_LENGTH': str(len(body)),
+        'wsgi.version': (1, 0),
+        'wsgi.url_scheme': 'http',
+    }
+    out = {}
+
+    def start_response(status, headers, exc_info=None):
+        out['status'] = status
+        out['headers'] = dict(headers)
+
+    resp = b''.join(controller.app(env, start_response))
+    return out, resp
+
+
+def test_list_remote_profiles_parses_categories_and_files(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller.requests, 'get', _fake_github_listing())
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(config, 'github_token', '')
+    _reset_remote_cache(monkeypatch)
+
+    data = controller.list_remote_profiles(force=True)
+    assert data['success'] is True
+    assert data['categories'] == ['glass', 'pottery']
+    assert data['upload_enabled'] is False
+    assert sorted(p['name'] for p in data['profiles']) == ['cone-05-long-bisque', 'slumped-plate']
+    pottery = next(p for p in data['profiles'] if p['name'] == 'cone-05-long-bisque')
+    assert pottery['category'] == 'pottery'
+    assert pottery['path'] == 'pottery/cone-05-long-bisque.json'
+    assert pottery['installed'] is False
+
+
+def test_list_remote_profiles_reports_installed_and_upload_enabled(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller.requests, 'get', _fake_github_listing())
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(config, 'github_token', 'a-token')
+    (tmp_path / 'cone-05-long-bisque.json').write_text('{}')
+    _reset_remote_cache(monkeypatch)
+
+    data = controller.list_remote_profiles(force=True)
+    assert data['upload_enabled'] is True
+    pottery = next(p for p in data['profiles'] if p['name'] == 'cone-05-long-bisque')
+    assert pottery['installed'] is True
+    glass = next(p for p in data['profiles'] if p['name'] == 'slumped-plate')
+    assert glass['installed'] is False
+
+
+def test_list_remote_profiles_served_from_cache(monkeypatch):
+    calls = []
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        calls.append(url)
+        if url.endswith('/contents'):
+            return FakeResp([{'name': 'pottery', 'type': 'dir'}])
+        return FakeResp([{'name': 'a.json', 'path': 'pottery/a.json',
+                          'type': 'file', 'size': 1, 'download_url': 'x'}])
+    monkeypatch.setattr(controller.requests, 'get', fake_get)
+    _reset_remote_cache(monkeypatch)
+
+    controller.list_remote_profiles(force=True)
+    controller.list_remote_profiles()  # served from the cache, no new calls
+    assert len(calls) == 2  # root + pottery listing, fetched once
+
+
+def test_list_remote_profiles_bad_repo_url(monkeypatch):
+    monkeypatch.setattr(config, 'kiln_profiles_repo', 'https://example.com/not-github')
+    _reset_remote_cache(monkeypatch)
+    data = controller.list_remote_profiles(force=True)
+    assert data['success'] is False
+    assert 'github.com' in data['error']
+
+
+def test_import_profile_converts_legacy_fahrenheit(monkeypatch, tmp_path):
+    # repo profiles are stored untagged in fahrenheit (legacy format);
+    # importing must convert them to celsius like the run path does
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    profile = {'name': 'cone-05-long-bisque', 'type': 'profile',
+               'data': [[0, 65], [46800, 1708]], 'tags': ['bisque'],
+               'description': 'a cone 05 bisque firing'}
+    filepath = controller.import_profile(profile)
+    saved = json.loads(open(filepath).read())
+    assert saved['temp_units'] == 'c'
+    assert saved['data'][0][1] == pytest.approx((65 - 32) * 5 / 9)
+    assert saved['data'][1][1] == pytest.approx((1708 - 32) * 5 / 9)
+    assert saved['description'] == 'a cone 05 bisque firing'
+    assert saved['tags'] == ['bisque']
+
+
+def test_import_profile_keeps_tagged_celsius(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    profile = {'name': 'glass-fuse', 'temp_units': 'c', 'data': [[0, 20]]}
+    filepath = controller.import_profile(profile)
+    saved = json.loads(open(filepath).read())
+    assert saved['temp_units'] == 'c'
+    assert saved['data'] == [[0, 20]]
+
+
+def test_import_profile_rejects_bad_name(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    with pytest.raises(ValueError):
+        controller.import_profile({'name': '../evil', 'data': [[0, 20]]})
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_import_profile_rejects_missing_data(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    with pytest.raises(ValueError):
+        controller.import_profile({'name': 'cone-05-long-bisque'})
+
+
+def test_api_profiles_remote_import(monkeypatch, tmp_path):
+    profile = {'name': 'cone-05-long-bisque', 'type': 'profile',
+               'data': [[0, 65], [46800, 1708]], 'description': 'bisque firing'}
+    monkeypatch.setattr(controller.requests, 'get',
+                        lambda *a, **k: FakeResp(profile))
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    _reset_remote_cache(monkeypatch)
+
+    out, resp = post_json('/api/profiles/remote/import',
+                          {'path': 'pottery/cone-05-long-bisque.json'})
+    assert out['status'] == '200 OK', (out['status'], resp)
+    assert json.loads(resp) == {'success': True, 'name': 'cone-05-long-bisque'}
+    saved = json.loads((tmp_path / 'cone-05-long-bisque.json').read_text())
+    assert saved['temp_units'] == 'c'
+    assert saved['data'][0][1] == pytest.approx((65 - 32) * 5 / 9)
+
+
+def test_api_profiles_remote_import_rejects_bad_path(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    _reset_remote_cache(monkeypatch)
+    out, resp = post_json('/api/profiles/remote/import',
+                          {'path': '../../etc/passwd.json'})
+    assert out['status'] == '400 Bad Request'
+    assert json.loads(resp)['success'] is False
+
+
+def test_api_profiles_remote_upload_disabled_without_token(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, 'github_token', '')
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    out, resp = post_json('/api/profiles/remote/upload',
+                          {'category': 'pottery',
+                           'profile': {'name': 'x', 'data': [[0, 20]]}})
+    assert out['status'] == '400 Bad Request'
+    assert 'disabled' in json.loads(resp)['error']
+
+
+def test_api_profiles_remote_upload(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, 'github_token', 'secret-token')
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    _reset_remote_cache(monkeypatch)
+    puts = []
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        # no existing file yet -> 404, so the upload creates without a sha
+        return FakeResp({'message': 'not found'}, status_code=404)
+
+    def fake_put(url, json=None, headers=None, timeout=None):
+        puts.append((url, json, headers))
+        return FakeResp({'content': {}})
+
+    monkeypatch.setattr(controller.requests, 'get', fake_get)
+    monkeypatch.setattr(controller.requests, 'put', fake_put)
+
+    out, resp = post_json('/api/profiles/remote/upload', {
+        'category': 'pottery',
+        'profile': {'name': 'my-bisque', 'data': [[0, 65], [3600, 1708]],
+                    'description': 'shared schedule'},
+    })
+    assert out['status'] == '200 OK', (out['status'], resp)
+    assert json.loads(resp) == {'success': True, 'name': 'my-bisque', 'category': 'pottery'}
+    assert len(puts) == 1
+    url, payload, headers = puts[0]
+    assert url == ('https://api.github.com/repos/jbruce12000/kiln-profiles/'
+                   'contents/pottery/my-bisque.json')
+    assert payload['branch'] == 'main'
+    assert 'sha' not in payload
+    assert headers['Authorization'] == 'token secret-token'
+    uploaded = json.loads(base64.b64decode(payload['content']).decode('utf-8'))
+    assert uploaded['name'] == 'my-bisque'
+    assert uploaded['temp_units'] == 'c'
+    assert uploaded['description'] == 'shared schedule'
+    assert uploaded['data'][0][1] == pytest.approx((65 - 32) * 5 / 9)
+    # the profile was also saved locally in celsius
+    saved = json.loads((tmp_path / 'my-bisque.json').read_text())
+    assert saved['temp_units'] == 'c'
+
+
+def test_api_profiles_remote_upload_existing_file_sends_sha(monkeypatch, tmp_path):
+    monkeypatch.setattr(config, 'github_token', 'secret-token')
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    _reset_remote_cache(monkeypatch)
+    puts = []
+
+    def fake_get(url, params=None, headers=None, timeout=None):
+        return FakeResp({'sha': 'abc123'}, status_code=200)
+
+    def fake_put(url, json=None, headers=None, timeout=None):
+        puts.append(json)
+        return FakeResp({'content': {}})
+
+    monkeypatch.setattr(controller.requests, 'get', fake_get)
+    monkeypatch.setattr(controller.requests, 'put', fake_put)
+
+    out, resp = post_json('/api/profiles/remote/upload', {
+        'category': 'glass',
+        'profile': {'name': 'fuse', 'temp_units': 'c', 'data': [[0, 20]]},
+    })
+    assert out['status'] == '200 OK', (out['status'], resp)
+    assert puts[0]['sha'] == 'abc123'

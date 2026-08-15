@@ -19,6 +19,8 @@ var temp_scale_display = "C";
 var kwh_rate = 0.26;
 var currency_type = "EUR";
 var simulate = false;
+var upload_enabled = false;
+var remote_profiles_loaded = false;
 
 var PROFILE_DS = 0;
 var LIVE_DS = 1;
@@ -243,6 +245,7 @@ function showTab(name) {
         initDetails();
     } else if (name === 'profiles') {
         renderProfiles();
+        loadRemoteProfiles();
     } else if (name === 'config') {
         loadConfigEditor();
     } else if (name === 'overview' && chart) {
@@ -864,6 +867,131 @@ function apiPost(obj, cb) {
     .then(cb)
     .catch(function(err) {
         showGrowl('API error: ' + err, 'error', 5000);
+    });
+}
+
+function apiGet(url, cb) {
+    fetch(url)
+    .then(function(r) { return r.json(); })
+    .then(cb)
+    .catch(function(err) {
+        showGrowl('API error: ' + err, 'error', 5000);
+    });
+}
+
+/* ---------------------------------------------------------------------------
+   Community schedules - browse, install, and share profiles with the
+   kiln-profiles github repo.
+--------------------------------------------------------------------------- */
+
+function loadRemoteProfiles(force) {
+    if (!force && remote_profiles_loaded) { return; }
+    var list = $('remote_profiles_list');
+    if (!list) { return; }
+    list.innerHTML = '<p class="ds-empty">Loading community schedules&hellip;</p>';
+    apiGet('/api/profiles/remote', function(resp) {
+        remote_profiles_loaded = true;
+        if (!resp || !resp.success) {
+            list.innerHTML = '<p class="ds-empty">' + (resp && resp.error ? resp.error : 'Could not load community schedules.') + '</p>';
+            return;
+        }
+        upload_enabled = resp.upload_enabled;
+        var shareRow = $('share_profile_row');
+        if (shareRow) { shareRow.style.display = upload_enabled ? '' : 'none'; }
+        populateShareCategories(resp.categories);
+        var html = '';
+        if (resp.profiles.length === 0) {
+            html = '<p class="ds-empty">No profiles shared yet. Be the first!</p>';
+        }
+        for (var i = 0; i < resp.profiles.length; i++) {
+            var p = resp.profiles[i];
+            html += '<div class="profile-row">'
+                + '<div class="profile-info">'
+                + '<div class="profile-name">' + p.name
+                + ' <span class="badge text-bg-secondary">' + p.category + '</span>'
+                + (p.installed ? ' <span class="badge text-bg-success">installed</span>' : '') + '</div>'
+                + '<div class="profile-meta">community schedule' + (p.size ? ' &middot; ' + p.size + ' bytes' : '') + '</div>'
+                + '</div>'
+                + '<div class="btn-group">'
+                + (p.installed
+                    ? '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="importRemoteProfile(\'' + p.path + '\')"><i class="bi bi-arrow-repeat"></i> Re-install</button>'
+                    : '<button type="button" class="btn btn-success btn-sm" onclick="importRemoteProfile(\'' + p.path + '\')"><i class="bi bi-download"></i> Install</button>')
+                + '</div>'
+                + '</div>';
+        }
+        list.innerHTML = html;
+    });
+}
+
+function populateShareCategories(categories) {
+    var sel = $('form_share_category');
+    if (!sel || !categories || categories.length === 0) { return; }
+    var html = '';
+    for (var i = 0; i < categories.length; i++) {
+        html += '<option value="' + categories[i] + '">' + categories[i] + '</option>';
+    }
+    sel.innerHTML = html;
+}
+
+function importRemoteProfile(path) {
+    fetch('/api/profiles/remote/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path: path })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+        if (resp.success) {
+            showGrowl('Installed <b>' + resp.name + '</b> from the community repo', 'success', 5000);
+            remote_profiles_loaded = false;
+            ws_storage.send('GET');
+            loadRemoteProfiles(true);
+            renderProfiles();
+        } else {
+            showGrowl('ERROR 97:<br/>' + (resp.error || 'Could not install profile.'), 'error', 5000);
+        }
+    })
+    .catch(function(err) {
+        showGrowl('ERROR 98:<br/>' + err, 'error', 5000);
+    });
+}
+
+function shareProfile() {
+    var name = $('form_profile_name').value;
+    if (!name) {
+        showGrowl('ERROR 99:<br/>Enter a schedule name first.', 'error', 5000);
+        return;
+    }
+    if (!graph.profile.data || graph.profile.data.length < 2) {
+        showGrowl('ERROR 99:<br/>A schedule needs at least two points to share.', 'error', 5000);
+        return;
+    }
+    var profile = {
+        "type": "profile",
+        "name": name,
+        "data": graph.profile.data,
+        "temp_units": temp_scale,
+        "description": $('form_profile_description').value || ''
+    };
+    var category = $('form_share_category').value || 'pottery';
+    fetch('/api/profiles/remote/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ category: category, profile: profile })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+        if (resp.success) {
+            showGrowl('Shared <b>' + resp.name + '</b> to the community repo', 'success', 5000);
+            remote_profiles_loaded = false;
+            ws_storage.send('GET');
+            renderProfiles();
+        } else {
+            showGrowl('ERROR 97:<br/>' + (resp.error || 'Could not share profile.'), 'error', 5000);
+        }
+    })
+    .catch(function(err) {
+        showGrowl('ERROR 98:<br/>' + err, 'error', 5000);
     });
 }
 
@@ -1615,6 +1743,12 @@ function init()
 
         simulate = x.simulate;
         toggleSimBadge(simulate);
+
+        if (x.github_sharing_enabled !== undefined) {
+            upload_enabled = x.github_sharing_enabled;
+            var shareRow = $('share_profile_row');
+            if (shareRow) { shareRow.style.display = upload_enabled ? '' : 'none'; }
+        }
 
         switch(time_scale_profile){
             case "s":

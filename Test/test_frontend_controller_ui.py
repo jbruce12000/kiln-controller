@@ -6,6 +6,7 @@ installed.'''
 
 import os
 import re
+import json
 
 import pytest
 
@@ -45,6 +46,11 @@ def js():
     context.eval(extract_function(src, 'updateOverviewStatus'))
     context.eval(extract_function(src, 'clear_persisted_all'))
     context.eval(extract_function(src, 'prune_persisted_all'))
+    context.eval(extract_function(src, 'apiGet'))
+    context.eval(extract_function(src, 'loadRemoteProfiles'))
+    context.eval(extract_function(src, 'populateShareCategories'))
+    context.eval(extract_function(src, 'importRemoteProfile'))
+    context.eval(extract_function(src, 'shareProfile'))
     return context
 ########################################################################
 # websocket auto-reconnect
@@ -376,3 +382,173 @@ def test_config_tab_loads_editor_on_show():
     assert m, 'showTab must load the config editor when the config tab opens'
     assert re.search(r"fetch\('/api/config/editor'\)", src)
     assert "if (!r.ok)" in src  # non-200 responses are surfaced as errors
+
+
+########################################################################
+# community schedules (kiln-profiles repo)
+########################################################################
+
+def test_schedules_tab_has_community_panel():
+    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
+                                             'public', 'index.html'))).read()
+    assert 'id="remote_profiles_list"' in html
+    assert 'id="btn_refresh_remote"' in html
+    assert 'loadRemoteProfiles(true)' in html  # Refresh forces a reload
+
+
+def test_profile_editor_has_share_row():
+    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
+                                             'public', 'index.html'))).read()
+    assert 'id="share_profile_row"' in html
+    assert 'id="form_share_category"' in html
+    assert 'shareProfile()' in html
+
+
+def test_profiles_tab_loads_remote_profiles_on_show():
+    src = open(JS_PATH).read()
+    m = re.search(r"if \(name === 'profiles'\)\s*\{[^}]*renderProfiles\(\);[^}]*loadRemoteProfiles\(\);", src)
+    assert m, 'showTab must load the community profiles when the schedules tab opens'
+
+
+def test_remote_import_posts_path():
+    src = open(JS_PATH).read()
+    assert "fetch('/api/profiles/remote/import'" in src
+    assert "JSON.stringify({ path: path })" in src
+
+
+def test_share_profile_posts_editor_with_temp_units():
+    src = open(JS_PATH).read()
+    assert "fetch('/api/profiles/remote/upload'" in src
+    assert '"temp_units": temp_scale' in src
+    assert 'form_share_category' in src
+
+
+def test_config_socket_toggles_share_row():
+    src = open(JS_PATH).read()
+    assert 'x.github_sharing_enabled' in src
+    assert "shareRow.style.display = upload_enabled ? '' : 'none'" in src
+
+
+def test_load_remote_profiles_renders_install_buttons(js):
+    js.eval('var list_el = { innerHTML: "" };')
+    js.eval('var share_el = { style: { display: "" } };')
+    js.eval('var cat_sel = { innerHTML: "" };')
+    js.eval('var els = {'
+            '  remote_profiles_list: list_el,'
+            '  share_profile_row: share_el,'
+            '  form_share_category: cat_sel };')
+    js.eval('function $(id) { return els[id] || null; }')
+    js.eval('var seen = [];')
+    js.eval('var remote_profiles_loaded = false;')
+    js.eval('apiGet = function(url, cb) { seen.push(url); cb({'
+            '  success: true,'
+            '  upload_enabled: false,'
+            '  categories: ["pottery", "glass"],'
+            '  profiles: [{ name: "cone-05", category: "pottery",'
+            '              path: "pottery/cone-05.json", size: 400, installed: false }]'
+            '}); };')
+    js.eval('loadRemoteProfiles();')
+    assert js.eval('seen[0]') == '/api/profiles/remote'
+    assert 'cone-05' in js.eval('list_el.innerHTML')
+    assert 'Import' in js.eval('list_el.innerHTML') or 'Install' in js.eval('list_el.innerHTML')
+    # categories are offered in the share select
+    assert 'pottery' in js.eval('cat_sel.innerHTML')
+    assert 'glass' in js.eval('cat_sel.innerHTML')
+    # upload disabled -> share row stays hidden
+    assert js.eval('share_el.style.display') == 'none'
+
+
+def test_load_remote_profiles_shows_installed_state(js):
+    js.eval('var list_el = { innerHTML: "" };')
+    js.eval('var share_el = { style: { display: "" } };')
+    js.eval('var cat_sel = { innerHTML: "" };')
+    js.eval('var els = {'
+            '  remote_profiles_list: list_el,'
+            '  share_profile_row: share_el,'
+            '  form_share_category: cat_sel };')
+    js.eval('function $(id) { return els[id] || null; }')
+    js.eval('var remote_profiles_loaded = false;')
+    js.eval('apiGet = function(url, cb) { cb({'
+            '  success: true,'
+            '  upload_enabled: true,'
+            '  categories: ["pottery"],'
+            '  profiles: [{ name: "cone-05", category: "pottery",'
+            '              path: "pottery/cone-05.json", installed: true }]'
+            '}); };')
+    js.eval('loadRemoteProfiles();')
+    assert 'installed' in js.eval('list_el.innerHTML')
+    assert js.eval('share_el.style.display') == ''
+
+
+def test_load_remote_profiles_shows_error(js):
+    js.eval('var list_el = { innerHTML: "" };')
+    js.eval('function $(id) { return id === "remote_profiles_list" ? list_el : null; }')
+    js.eval('var remote_profiles_loaded = false;')
+    js.eval('apiGet = function(url, cb) { cb({ success: false, error: "repo unreachable" }); };')
+    js.eval('loadRemoteProfiles();')
+    assert 'repo unreachable' in js.eval('list_el.innerHTML')
+
+
+def test_share_profile_requires_a_name(js):
+    js.eval('var growls = [];')
+    js.eval('showGrowl = function(m) { growls.push(m); };')
+    js.eval('var els = { form_profile_name: { value: "" }, form_share_category: { value: "pottery" } };')
+    js.eval('function $(id) { return els[id] || null; }')
+    js.eval('graph = { profile: { data: [[0, 20], [100, 30]] } };')
+    js.eval('shareProfile();')
+    assert 'Enter a schedule name first' in js.eval('growls[0]')
+    assert js.eval('growls.length') == 1
+
+
+def test_share_profile_posts_upload(js):
+    js.eval('var growls = [];')
+    js.eval('showGrowl = function(m) { growls.push(m); };')
+    js.eval('var els = {'
+            '  form_profile_name: { value: "my-bisque" },'
+            '  form_profile_description: { value: "a bisque firing" },'
+            '  form_share_category: { value: "pottery" } };')
+    js.eval('function $(id) { return els[id] || null; }')
+    js.eval('graph = { profile: { data: [[0, 65], [3600, 1708]] } };')
+    js.eval('temp_scale = "f";')
+    js.eval('var posted = null;')
+    js.eval('fetch = function(url, opts) {'
+            '  posted = { url: url, opts: opts };'
+            '  return Promise.resolve({ json: function() { return Promise.resolve({ success: true, name: "my-bisque" }); } });'
+            '};')
+    js.eval('ws_storage = { send: function() {} };')
+    js.eval('renderProfiles = function() {};')
+    js.eval('shareProfile();')
+    for _ in range(10):
+        js.execute_pending_job()
+    assert js.eval('posted.url') == '/api/profiles/remote/upload'
+    body = json.loads(js.eval('posted.opts.body'))
+    assert body['category'] == 'pottery'
+    assert body['profile']['name'] == 'my-bisque'
+    assert body['profile']['description'] == 'a bisque firing'
+    assert body['profile']['temp_units'] == 'f'
+    assert 'Shared' in js.eval('growls.join(",")')
+
+
+def test_import_remote_profile_posts_and_refreshes(js):
+    js.eval('var growls = [];')
+    js.eval('showGrowl = function(m) { growls.push(m); };')
+    js.eval('var sent = null;')
+    js.eval('var reloaded = null;')
+    js.eval('var rerendered = null;')
+    js.eval('ws_storage = { send: function(m) { sent = m; } };')
+    js.eval('var posted = null;')
+    js.eval('fetch = function(url, opts) {'
+            '  posted = { url: url, opts: opts };'
+            '  return Promise.resolve({ json: function() { return Promise.resolve({ success: true, name: "cone-05" }); } });'
+            '};')
+    js.eval('renderProfiles = function() { rerendered = true; };')
+    js.eval('loadRemoteProfiles = function(force) { reloaded = force; };')
+    js.eval('importRemoteProfile("pottery/cone-05.json");')
+    for _ in range(10):
+        js.execute_pending_job()
+    assert js.eval('posted.url') == '/api/profiles/remote/import'
+    assert json.loads(js.eval('posted.opts.body')) == {'path': 'pottery/cone-05.json'}
+    assert 'Installed' in js.eval('growls.join(",")')
+    assert js.eval('sent') == 'GET'
+    assert js.eval('reloaded') is True   # force a reload to update installed state
+    assert js.eval('rerendered') is True

@@ -8,8 +8,12 @@ import json
 import datetime
 import tarfile
 import io
+import re
+import base64
 import subprocess
 import importlib
+
+import requests
 
 import bottle
 import gevent
@@ -30,6 +34,7 @@ sys.path.insert(0, script_dir + '/lib/')
 profile_path = config.kiln_profiles_directory
 
 from temp import f_to_c, c_to_f
+from urllib.parse import quote
 from oven import SimulatedOven, RealOven, Profile
 from ovenWatcher import OvenWatcher
 from scheduler import Scheduler
@@ -399,6 +404,204 @@ def api_config_editor_save():
         log.info("process restart scheduled")
     return response
 
+########################################################################
+# community profiles - browse, download, and upload profiles to/from the
+# shared kiln-profiles github repo (see the settings in config.py).
+# downloads are public; uploads need config.github_token.
+
+# a small cache for the remote listing so manual browsing doesn't slam
+# the github api rate limit (60/hr unauthenticated, 5000/hr with token)
+_remote_cache = {"at": 0.0, "data": None}
+REMOTE_CACHE_TTL = 60  # seconds
+
+
+def _repo_owner_repo():
+    '''parse "owner/repo" out of config.kiln_profiles_repo'''
+    url = str(getattr(config, "kiln_profiles_repo", "")).rstrip("/")
+    marker = "github.com/"
+    if marker not in url:
+        return None
+    return url.split(marker, 1)[1].strip("/") or None
+
+
+def _github_headers():
+    headers = {"Accept": "application/vnd.github.v3+json", "User-Agent": "kiln-controller"}
+    token = getattr(config, "github_token", "") or ""
+    if token:
+        headers["Authorization"] = "token %s" % token
+    return headers
+
+
+def _github_url(path):
+    repo = _repo_owner_repo()
+    if not repo:
+        return None
+    return "https://api.github.com/repos/%s/%s" % (repo, path)
+
+
+def _raw_url(path):
+    repo = _repo_owner_repo()
+    if not repo:
+        return None
+    return "https://raw.githubusercontent.com/%s/%s/%s" % (repo, config.kiln_profiles_branch, path)
+
+
+def list_remote_profiles(force=False):
+    '''list the categories and profiles in the community repo. cached so
+    manual browsing doesn't slam the github api rate limit.'''
+    if not force and _remote_cache["data"] is not None and time.time() - _remote_cache["at"] < REMOTE_CACHE_TTL:
+        return _remote_cache["data"]
+    if not _repo_owner_repo():
+        return {"success": False, "error": "kiln_profiles_repo must be a github.com URL"}
+    try:
+        root = requests.get(_github_url("contents"), params={"ref": config.kiln_profiles_branch},
+                            headers=_github_headers(), timeout=15).json()
+        if not isinstance(root, list):
+            return {"success": False, "error": "unexpected response from the kiln-profiles repo"}
+        categories = [e["name"] for e in root if isinstance(e, dict) and e.get("type") == "dir"]
+        profiles = []
+        for category in categories:
+            listing = requests.get(_github_url("contents/" + quote(category)),
+                                   params={"ref": config.kiln_profiles_branch},
+                                   headers=_github_headers(), timeout=15).json()
+            if not isinstance(listing, list):
+                continue
+            for entry in listing:
+                if not isinstance(entry, dict) or entry.get("type") != "file":
+                    continue
+                if not entry["name"].endswith(".json"):
+                    continue
+                local_name = entry["name"][:-5]
+                profiles.append({
+                    "category": category,
+                    "name": local_name,
+                    "path": entry["path"],
+                    "size": entry.get("size"),
+                    "download_url": entry.get("download_url"),
+                    "installed": os.path.isfile(os.path.join(profile_path, local_name + ".json")),
+                })
+    except Exception as e:
+        log.error("could not list community profiles: %s" % e)
+        return {"success": False, "error": "could not reach the kiln-profiles repo: %s" % e}
+    data = {"success": True, "upload_enabled": bool(getattr(config, "github_token", "") or ""),
+            "categories": categories, "profiles": profiles}
+    _remote_cache.update({"at": time.time(), "data": data})
+    return data
+
+
+def import_profile(profile):
+    '''save a community profile into the local profiles directory,
+    normalizing it to the internal celsius convention. raises ValueError
+    on invalid profiles.'''
+    if not isinstance(profile, dict):
+        raise ValueError("invalid profile")
+    name = profile.get("name")
+    if not name or not re.match(r"^[A-Za-z0-9._-]+$", str(name)):
+        raise ValueError("invalid profile name")
+    if not isinstance(profile.get("data"), list):
+        raise ValueError("profile has no data")
+    profile["name"] = str(name)
+    if profile.get("temp_units") != "c":
+        profile = convert_to_c(profile)
+        profile["temp_units"] = "c"
+    os.makedirs(profile_path, exist_ok=True)
+    filepath = os.path.join(profile_path, profile["name"] + ".json")
+    with open(filepath, "w+") as f:
+        f.write(json.dumps(profile))
+    log.info("imported community profile %s" % profile["name"])
+    return filepath
+
+
+@app.get('/api/profiles/remote')
+def api_profiles_remote():
+    return json.dumps(list_remote_profiles())
+
+
+@app.post('/api/profiles/remote/import')
+def api_profiles_remote_import():
+    body = bottle.request.json or {}
+    path = body.get("path") or ""
+    if not path or ".." in path or not path.endswith(".json"):
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": "invalid profile path"}),
+                                   status=400,
+                                   headers={"Content-Type": "application/json"})
+    if not _repo_owner_repo():
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": "kiln_profiles_repo must be a github.com URL"}),
+                                   status=400,
+                                   headers={"Content-Type": "application/json"})
+    try:
+        resp = requests.get(_raw_url(path), headers=_github_headers(), timeout=15)
+        resp.raise_for_status()
+        profile = resp.json()
+        import_profile(profile)
+    except ValueError as e:
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": str(e)}),
+                                   status=400,
+                                   headers={"Content-Type": "application/json"})
+    except Exception as e:
+        log.error("could not import community profile: %s" % e)
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": "could not download profile: %s" % e}),
+                                   status=400,
+                                   headers={"Content-Type": "application/json"})
+    _remote_cache["data"] = None  # installed state changed
+    return json.dumps({"success": True, "name": profile["name"]})
+
+
+@app.post('/api/profiles/remote/upload')
+def api_profiles_remote_upload():
+    body = bottle.request.json or {}
+    profile = body.get("profile") or {}
+    category = str(body.get("category") or "pottery")
+    if not (getattr(config, "github_token", "") or ""):
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": "sharing is disabled (no github_token configured)"}),
+                                   status=400,
+                                   headers={"Content-Type": "application/json"})
+    if not isinstance(profile, dict) or not profile.get("name"):
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": "no profile in request"}),
+                                   status=400,
+                                   headers={"Content-Type": "application/json"})
+    name = str(profile["name"])
+    if not re.match(r"^[A-Za-z0-9._-]+$", name):
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": "invalid profile name"}),
+                                   status=400,
+                                   headers={"Content-Type": "application/json"})
+    if not re.match(r"^[A-Za-z0-9._-]+$", category):
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": "invalid category"}),
+                                   status=400,
+                                   headers={"Content-Type": "application/json"})
+    if not _repo_owner_repo():
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": "kiln_profiles_repo must be a github.com URL"}),
+                                   status=400,
+                                   headers={"Content-Type": "application/json"})
+    try:
+        # save locally first (normalizes to celsius), then share
+        import_profile(profile)
+    except ValueError as e:
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": str(e)}),
+                                   status=400,
+                                   headers={"Content-Type": "application/json"})
+    api_path = "contents/%s/%s.json" % (category, name)
+    try:
+        existing = requests.get(_github_url(api_path), params={"ref": config.kiln_profiles_branch},
+                                headers=_github_headers(), timeout=15)
+        payload = {
+            "message": "share %s" % name,
+            "content": base64.b64encode(json.dumps(profile).encode("utf-8")).decode("ascii"),
+            "branch": config.kiln_profiles_branch,
+        }
+        if existing.status_code == 200:
+            payload["sha"] = existing.json().get("sha")
+        resp = requests.put(_github_url(api_path), json=payload, headers=_github_headers(), timeout=20)
+        resp.raise_for_status()
+    except Exception as e:
+        log.error("could not upload community profile: %s" % e)
+        return bottle.HTTPResponse(json.dumps({"success": False, "error": "upload failed: %s" % e}),
+                                   status=400,
+                                   headers={"Content-Type": "application/json"})
+    log.info("shared profile %s to %s" % (name, category))
+    _remote_cache["data"] = None  # listing changed
+    return json.dumps({"success": True, "name": name, "category": category})
+
 @app.route('/<filename:path>')
 def send_static(filename):
     log.debug("serving %s" % filename)
@@ -607,7 +810,8 @@ def get_config():
         "time_scale_slope": config.time_scale_slope,
         "time_scale_profile": config.time_scale_profile,
         "kwh_rate": config.kwh_rate,
-        "currency_type": config.currency_type})    
+        "currency_type": config.currency_type,
+        "github_sharing_enabled": bool(getattr(config, "github_token", "") or "")})    
 
 def main():
     ip = "0.0.0.0"
