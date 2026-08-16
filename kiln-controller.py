@@ -12,6 +12,7 @@ import re
 import base64
 import subprocess
 import importlib
+import threading
 
 import requests
 
@@ -484,7 +485,7 @@ def handle_tune():
 
         log.info("api tune start: target=%.1f method=%s tangent_divisor=%.0f" %
                  (float(target_temp), method, tangent_divisor))
-        gevent.spawn(tuner.start, target_c, method, tangent_divisor)
+        threading.Thread(target=tuner.start, args=(target_c, method, tangent_divisor), daemon=True).start()
         return {"success": True}
 
     elif cmd == 'status':
