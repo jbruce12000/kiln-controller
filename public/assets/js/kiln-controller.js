@@ -1184,15 +1184,20 @@ function tuner_poll() {
 
         // still running -- update status text
         var phase = resp.phase || resp.state || 'working';
+        var phaseLabel = phase.charAt(0).toUpperCase() + phase.slice(1);
         var temp = resp.temperature != null ? rnd(resp.temperature) : '--';
         var target = resp.target != null ? rnd(resp.target) : '--';
         var tunerElapsed = formatDuration(resp.elapsed || 0);
         var points = resp.data_points || 0;
-        $('tuner_status_text').innerHTML =
-            '<strong>' + escHtml(phase.charAt(0).toUpperCase() + phase.slice(1)) + '</strong>' +
-            ' &middot; Temp: ' + temp + ' &middot; Target: ' + target +
-            ' &middot; Elapsed: ' + tunerElapsed +
-            ' &middot; Points: ' + points;
+        var msg = '';
+        if (phase === 'heating') {
+            msg = '<i class="bi bi-fire"></i> <strong>Heating</strong> &mdash; ramping to ' + target + ' &deg; &middot; ' + temp + ' &deg; &middot; elapsed ' + tunerElapsed + ' &middot; ' + points + ' data points';
+        } else if (phase === 'cooling') {
+            msg = '<i class="bi bi-snow"></i> <strong>Cooling</strong> &mdash; dropping to ' + target + ' &deg; &middot; ' + temp + ' &deg; &middot; elapsed ' + tunerElapsed + ' &middot; ' + points + ' data points';
+        } else {
+            msg = '<strong>' + escHtml(phaseLabel) + '</strong> &middot; Temp: ' + temp + ' &middot; Target: ' + target + ' &middot; Elapsed: ' + tunerElapsed + ' &middot; Points: ' + points;
+        }
+        $('tuner_status_text').innerHTML = msg;
     });
 }
 
