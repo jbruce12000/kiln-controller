@@ -828,7 +828,9 @@ class Profile():
     def find_x_given_y_on_line_from_two_points(y, point1, point2):
         if point1[0] > point2[0]: return 0  # time2 before time1 makes no sense in kiln segment
         if point1[1] >= point2[1]: return 0 # Zero will crach. Negative temeporature slope, we don't want to seek a time.
-        x = (y - point1[1]) * (point2[0] -point1[0] ) / (point2[1] - point1[1]) + point1[0]
+        dy = point2[1] - point1[1]
+        if dy == 0: return 0
+        x = (y - point1[1]) * (point2[0] -point1[0] ) / dy + point1[0]
         return x
 
     def find_next_time_from_temperature(self, temperature):
@@ -866,7 +868,10 @@ class Profile():
 
         (prev_point, next_point) = self.get_surrounding_points(time)
 
-        incl = float(next_point[1] - prev_point[1]) / float(next_point[0] - prev_point[0])
+        dt = float(next_point[0] - prev_point[0])
+        if dt == 0:
+            return prev_point[1]
+        incl = float(next_point[1] - prev_point[1]) / dt
         temp = prev_point[1] + (time - prev_point[0]) * incl
         return temp
 
@@ -917,7 +922,8 @@ class PID():
                     output = config.throttle_percent/100
                     log.info("max heating throttled at %d percent below %d degrees to prevent overshoot" % (config.throttle_percent,config.throttle_below_temp))
         else:
-            self.iterm += (error * timeDelta * (1/self.ki))
+            ki = self.ki if self.ki else 1
+            self.iterm += (error * timeDelta * (1/ki))
             if timeDelta > 0:
                 dErr = (error - self.lastErr) / timeDelta
             else:
