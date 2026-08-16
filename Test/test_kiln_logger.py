@@ -150,3 +150,22 @@ def test_logger_reconnects_on_websocket_error(monkeypatch, tmp_path):
     assert fake_ws.connected is True
     rows = read_csv(csvfile)
     assert len(rows) == 2
+
+
+def test_logger_reconnects_after_websocket_error(monkeypatch, tmp_path):
+    sleeps = [0]
+
+    def fake_sleep(secs):
+        sleeps[0] += 1
+        if sleeps[0] >= 2:
+            raise StopIteration
+
+    monkeypatch.setattr(logger_mod.websocket, 'WebSocket',
+                        lambda: FakeStatusWS([]))
+    monkeypatch.setattr(logger_mod.time, 'sleep', fake_sleep)
+
+    csvfile = str(tmp_path / 'out.csv')
+    with pytest.raises(StopIteration):
+        logger_mod.logger('localhost:9099', csvfile,
+                          noprofilestats=True, pidstats=False, stdout=False)
+    assert sleeps[0] == 2

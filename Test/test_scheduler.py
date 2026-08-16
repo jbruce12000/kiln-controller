@@ -55,6 +55,13 @@ def test_cancel_missing_returns_false(scheduler):
     assert scheduler.cancel('nope') is False
 
 
+def test_cancel_keeps_unrelated_runs(scheduler):
+    a = scheduler.add('profile-a', time.time() + 3600)
+    b = scheduler.add('profile-b', time.time() + 7200)
+    assert scheduler.cancel(a['id']) is True
+    assert [r['profile'] for r in scheduler.list()] == ['profile-b']
+
+
 def test_save_creates_missing_directory(tmp_path):
     s = Scheduler(state_file=str(tmp_path / 'nested' / 'dir' / 'schedules.json'))
     s.add('cone-6-long-glaze', time.time() + 3600)
@@ -161,3 +168,77 @@ def test_cancel_removes_chained_runs(scheduler):
     remaining = scheduler.list()
     assert all(e['id'] != anchor['id'] for e in remaining)
     assert all(e['id'] != chained['id'] for e in remaining)
+
+
+def test_run_loop_fires_due_runs_until_interrupted(scheduler, monkeypatch):
+    import lib.scheduler as sched_mod
+
+    fired = []
+    scheduler.fire_callback = lambda entry: fired.append(entry['profile']) or True
+    scheduler.add('cone-05-long-bisque', time.time() - 10)
+
+    sleeps = []
+
+    def fake_sleep(secs):
+        sleeps.append(secs)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(sched_mod.time, 'sleep', fake_sleep)
+
+    with pytest.raises(KeyboardInterrupt):
+        scheduler.run()
+
+    assert fired == ['cone-05-long-bisque']
+    assert sleeps
+    runs = scheduler.list()
+    assert runs[0]['fired'] is True
+    assert runs[0]['status'] == 'fired'
+
+
+def test_run_loop_keeps_going_after_callback_error(scheduler, monkeypatch):
+    import lib.scheduler as sched_mod
+
+    def boom(entry):
+        raise RuntimeError('kaboom')
+
+    scheduler.fire_callback = boom
+    scheduler.add('cone-05-long-bisque', time.time() - 10)
+
+    sleeps = []
+
+    def fake_sleep(secs):
+        sleeps.append(secs)
+        if len(sleeps) >= 2:
+            raise KeyboardInterrupt
+
+    monkeypatch.setattr(sched_mod.time, 'sleep', fake_sleep)
+
+    with pytest.raises(KeyboardInterrupt):
+        scheduler.run()
+
+    assert len(sleeps) == 2
+    # the failing run is marked skipped, not retried forever
+    runs = scheduler.list()
+    assert runs[0]['status'] == 'skipped'
+
+
+def test_run_loop_survives_fire_due_error(scheduler, monkeypatch):
+    import lib.scheduler as sched_mod
+
+    def boom():
+        raise RuntimeError('pending exploded')
+
+    monkeypatch.setattr(scheduler, 'pending', boom)
+
+    sleeps = []
+
+    def fake_sleep(secs):
+        sleeps.append(secs)
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(sched_mod.time, 'sleep', fake_sleep)
+
+    with pytest.raises(KeyboardInterrupt):
+        scheduler.run()
+
+    assert len(sleeps) == 1

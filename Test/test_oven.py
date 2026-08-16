@@ -1,6 +1,7 @@
 import datetime
 import json
 import os
+import sys
 import types
 
 import pytest
@@ -727,6 +728,103 @@ def test_run_unknown_state_does_not_auto_restart(monkeypatch):
     assert oven.state == "TUNING"
 
 
+########################################################################
+# Oven.run() loop branches
+########################################################################
+
+def test_run_idle_restarts_when_asked(monkeypatch):
+    oven = Oven()
+    oven.state = "IDLE"
+    restart_calls = []
+    sleeps = []
+
+    monkeypatch.setattr(oven_module().Oven, 'should_i_automatic_restart', lambda self: True)
+    monkeypatch.setattr(oven_module().Oven, 'automatic_restart', lambda self: restart_calls.append(1))
+
+    def fake_sleep(secs):
+        sleeps.append(secs)
+        if len(sleeps) >= 2:
+            raise StopIteration
+
+    monkeypatch.setattr(oven_module().time, 'sleep', fake_sleep)
+
+    with pytest.raises(StopIteration):
+        oven.run()
+
+    assert restart_calls == [1, 1]
+    assert sleeps == [1, 1]
+
+
+def test_run_idle_waits_when_no_restart_wanted(monkeypatch):
+    oven = Oven()
+    oven.state = "IDLE"
+    restart_calls = []
+
+    monkeypatch.setattr(oven_module().Oven, 'should_i_automatic_restart', lambda self: False)
+    monkeypatch.setattr(oven_module().Oven, 'automatic_restart', lambda self: restart_calls.append(1))
+
+    def fake_sleep(secs):
+        raise StopIteration
+
+    monkeypatch.setattr(oven_module().time, 'sleep', fake_sleep)
+
+    with pytest.raises(StopIteration):
+        oven.run()
+
+    assert restart_calls == []
+
+
+def test_run_paused_branch(monkeypatch):
+    oven = Oven()
+    oven.state = "PAUSED"
+    calls = []
+
+    monkeypatch.setattr(oven_module().Oven, 'update_runtime', lambda self: calls.append('runtime'))
+    monkeypatch.setattr(oven_module().Oven, 'update_target_temp', lambda self: calls.append('target'))
+    monkeypatch.setattr(oven_module().Oven, 'heat_then_cool',
+                        lambda self: calls.append('heat'), raising=False)
+    monkeypatch.setattr(oven_module().Oven, 'reset_if_emergency', lambda self: calls.append('emergency'))
+
+    def ended(self):
+        calls.append('ended')
+        if calls.count('ended') >= 2:
+            raise StopIteration
+
+    monkeypatch.setattr(oven_module().Oven, 'reset_if_schedule_ended', ended)
+
+    with pytest.raises(StopIteration):
+        oven.run()
+
+    assert calls == (['runtime', 'target', 'heat', 'emergency', 'ended'] * 2)
+
+
+def test_run_running_branch(monkeypatch):
+    oven = Oven()
+    oven.state = "RUNNING"
+    calls = []
+
+    monkeypatch.setattr(oven_module().Oven, 'update_cost', lambda self: calls.append('cost'))
+    monkeypatch.setattr(oven_module().Oven, 'save_automatic_restart_state', lambda self: calls.append('save'))
+    monkeypatch.setattr(oven_module().Oven, 'kiln_must_catch_up', lambda self: calls.append('catch'))
+    monkeypatch.setattr(oven_module().Oven, 'update_runtime', lambda self: calls.append('runtime'))
+    monkeypatch.setattr(oven_module().Oven, 'update_target_temp', lambda self: calls.append('target'))
+    monkeypatch.setattr(oven_module().Oven, 'heat_then_cool',
+                          lambda self: calls.append('heat'), raising=False)
+    monkeypatch.setattr(oven_module().Oven, 'reset_if_emergency', lambda self: calls.append('emergency'))
+
+    def ended(self):
+        calls.append('ended')
+        if calls.count('ended') >= 2:
+            raise StopIteration
+
+    monkeypatch.setattr(oven_module().Oven, 'reset_if_schedule_ended', ended)
+
+    with pytest.raises(StopIteration):
+        oven.run()
+
+    assert calls == (['cost', 'save', 'catch', 'runtime', 'target', 'heat', 'emergency', 'ended'] * 2)
+
+
 def oven_module():
     import lib.oven
     return lib.oven
@@ -1004,3 +1102,349 @@ def test_dup_filter_deduplicates():
 def test_duplogger_returns_logger():
     logger = Duplogger().logref()
     assert logger.name.endswith('.dupfree')
+
+
+def test_simulated_oven_constructor(monkeypatch):
+    started = []
+
+    def fake_start(self):
+        started.append(True)
+
+    monkeypatch.setattr(oven_module().Oven, 'start', fake_start)
+
+    sim = SimulatedOven()
+
+    assert sim.board is not None
+    assert sim.state == 'IDLE'
+    assert sim.target == 0
+    assert sim.t_env == pytest.approx(to_c(config.sim_t_env))
+    assert sim.speedup_factor == config.sim_speedup_factor
+    assert sim.run_sequence == 0
+    assert started == [True]
+
+
+########################################################################
+# small gap fillers
+########################################################################
+
+def test_reset_if_emergency_too_many_errors(no_auto_restarts, monkeypatch):
+    monkeypatch.setattr(config, 'emergency_heat_rate', 0)
+    monkeypatch.setattr(config, 'ignore_tc_too_many_errors', False)
+    oven = Oven()
+    oven.state = 'RUNNING'
+    status = types.SimpleNamespace(over_error_limit=lambda: True)
+    oven.board = types.SimpleNamespace(
+        temp_sensor=types.SimpleNamespace(temperature=lambda: 100, status=status))
+    oven.reset_if_emergency()
+    assert oven.state == 'IDLE'
+
+
+def test_update_runtime_clamps_negative_start(monkeypatch):
+    oven = Oven()
+    oven.start_time = datetime.datetime.now() + datetime.timedelta(minutes=5)
+    oven.update_runtime()
+    assert oven.runtime == 0
+
+
+def test_should_i_automatic_restart_disabled(monkeypatch):
+    monkeypatch.setattr(config, 'automatic_restarts', False)
+    oven = Oven()
+    assert oven.should_i_automatic_restart() is False
+
+
+def test_set_ovenwatcher(monkeypatch):
+    oven = Oven()
+    watcher = types.SimpleNamespace()
+    oven.set_ovenwatcher(watcher)
+    assert oven.ovenwatcher is watcher
+
+
+def test_sim_update_runtime_clamps_negative_start(monkeypatch):
+    monkeypatch.setattr(oven_module().Oven, 'start', lambda self: None)
+    sim = SimulatedOven()
+    sim.start_time = datetime.datetime.now() + datetime.timedelta(minutes=5)
+    sim.update_runtime()
+    assert sim.runtime == 0
+
+
+def test_sim_update_target_temp(monkeypatch):
+    monkeypatch.setattr(oven_module().Oven, 'start', lambda self: None)
+    sim = SimulatedOven()
+    sim.profile = get_profile()
+    sim.runtime = 60
+    sim.update_target_temp()
+    assert sim.target == sim.profile.get_target_temperature(60)
+
+
+def test_sim_heat_then_cool_missing_pidstats(monkeypatch):
+    sim = make_sim()
+    sim.pid.pidstats = {}
+    monkeypatch.setattr(oven_module().time, 'sleep', lambda secs: None)
+    sim.heat_then_cool()
+
+
+def test_thermocouple_error_ignore_all_flags(monkeypatch):
+    monkeypatch.setattr(config, 'ignore_tc_lost_connection', True)
+    monkeypatch.setattr(config, 'ignore_tc_short_errors', True)
+    monkeypatch.setattr(config, 'ignore_tc_unknown_error', True)
+    monkeypatch.setattr(config, 'ignore_tc_cold_junction_range_error', True)
+    monkeypatch.setattr(config, 'ignore_tc_range_error', True)
+    monkeypatch.setattr(config, 'ignore_tc_cold_junction_temp_high', True)
+    monkeypatch.setattr(config, 'ignore_tc_cold_junction_temp_low', True)
+    monkeypatch.setattr(config, 'ignore_tc_temp_high', True)
+    monkeypatch.setattr(config, 'ignore_tc_temp_low', True)
+    monkeypatch.setattr(config, 'ignore_tc_voltage_error', True)
+
+    cases = [
+        (Max31855_Error('thermocouple not connected'), 'not connected'),
+        (Max31855_Error('short circuit to ground'), 'short circuit'),
+        (Max31855_Error('random nonsense'), 'unknown'),
+        (Max31856_Error('cj_range'), 'cold junction range fault'),
+        (Max31856_Error('tc_range'), 'thermocouple range fault'),
+        (Max31856_Error('cj_high'), 'cold junction temp too high'),
+        (Max31856_Error('cj_low'), 'cold junction temp too low'),
+        (Max31856_Error('tc_high'), 'thermocouple temp too high'),
+        (Max31856_Error('tc_low'), 'thermocouple temp too low'),
+        (Max31856_Error('voltage'), 'voltage too high or low'),
+    ]
+    for err, expected in cases:
+        assert err.ignore is True, expected
+        assert err.message == expected
+
+
+def test_reset_if_emergency_heat_rate_waiting_for_full_window(no_auto_restarts, monkeypatch):
+    monkeypatch.setattr(config, 'emergency_heat_rate', 23)
+    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    oven = Oven()
+    oven.profile = get_profile()
+    oven.runtime = 6000  # rising segment
+    oven.state = 'RUNNING'
+    # one recent sample: window not yet full, so the rate is not trusted
+    oven.emergency_heat_rate_temps = [(oven.runtime - 60, 0)]
+    oven.board = FakeBoard(100)
+    oven.reset_if_emergency()
+    assert oven.state == 'RUNNING'
+    assert len(oven.emergency_heat_rate_temps) == 2
+
+
+########################################################################
+# hardware classes (blinka deps faked)
+########################################################################
+
+class FakeDigitalInOut:
+    def __init__(self, pin):
+        self.pin = pin
+        self.direction = None
+        self.value = None
+
+
+def _patch_hardware_deps(monkeypatch):
+    monkeypatch.setattr(oven_module(), 'digitalio',
+                        types.SimpleNamespace(
+                            DigitalInOut=FakeDigitalInOut,
+                            Direction=types.SimpleNamespace(OUTPUT=1)))
+    monkeypatch.setattr(oven_module(), 'bitbangio',
+                        types.SimpleNamespace(SPI=lambda *a, **k: 'spi-bus'))
+    monkeypatch.setattr(config, 'gpio_heat', 23, raising=False)
+    monkeypatch.setattr(config, 'gpio_heat_invert', False, raising=False)
+    monkeypatch.setattr(config, 'spi_sclk', 1, raising=False)
+    monkeypatch.setattr(config, 'spi_mosi', 2, raising=False)
+    monkeypatch.setattr(config, 'spi_miso', 3, raising=False)
+    monkeypatch.setattr(config, 'spi_cs', 4, raising=False)
+    monkeypatch.setattr(config, 'sensor_time_wait', 2, raising=False)
+    monkeypatch.setattr(config, 'temperature_average_samples', 5, raising=False)
+
+
+def test_output_heater_cycles(monkeypatch):
+    _patch_hardware_deps(monkeypatch)
+    out = oven_module().Output()
+    assert out.on is True
+    assert out.off is False
+    assert out.heater.direction == 1
+    out.heat(0)
+    assert out.heater.value is True
+    out.cool(0)
+    assert out.heater.value is False
+
+
+def test_temp_sensor_real_init_and_run(monkeypatch):
+    _patch_hardware_deps(monkeypatch)
+    sensor = oven_module().TempSensorReal()
+    assert sensor.sleeptime == 0.4
+    assert sensor.spi == 'spi-bus'
+    assert isinstance(sensor.cs, FakeDigitalInOut)
+    assert sensor.temperature() == 0  # empty tracker medians to 0
+
+    monkeypatch.setattr(sensor, 'get_temperature', lambda: 120.0)
+    sleeps = [0]
+
+    def fake_sleep(secs):
+        sleeps[0] += 1
+        if sleeps[0] >= 3:
+            raise StopIteration
+
+    monkeypatch.setattr(oven_module().time, 'sleep', fake_sleep)
+
+    with pytest.raises(StopIteration):
+        sensor.run()
+    assert sensor.temptracker.get_avg_temp() == 120.0
+
+
+def test_max31855_sensor(monkeypatch):
+    _patch_hardware_deps(monkeypatch)
+
+    class GoodTC:
+        temperature_NIST = 25.0
+
+        def __init__(self, spi, cs):
+            pass
+
+    monkeypatch.setitem(sys.modules, 'adafruit_max31855',
+                        types.SimpleNamespace(MAX31855=GoodTC))
+    sensor = oven_module().Max31855()
+    assert sensor.raw_temp() == 25.0
+
+    class ErrTC:
+        def __init__(self, spi, cs):
+            pass
+
+        @property
+        def temperature_NIST(self):
+            raise RuntimeError('fault reading')
+
+    monkeypatch.setitem(sys.modules, 'adafruit_max31855',
+                        types.SimpleNamespace(MAX31855=ErrTC))
+    sensor2 = oven_module().Max31855()
+    with pytest.raises(Max31855_Error) as exc:
+        sensor2.raw_temp()
+    assert exc.value.message == 'unknown'
+
+    class EmptyErrTC:
+        def __init__(self, spi, cs):
+            pass
+
+        @property
+        def temperature_NIST(self):
+            raise RuntimeError()
+
+    monkeypatch.setitem(sys.modules, 'adafruit_max31855',
+                        types.SimpleNamespace(MAX31855=EmptyErrTC))
+    sensor3 = oven_module().Max31855()
+    with pytest.raises(Max31855_Error) as exc:
+        sensor3.raw_temp()
+    assert exc.value.message == 'unknown'
+
+
+def test_max31856_sensor(monkeypatch):
+    _patch_hardware_deps(monkeypatch)
+    monkeypatch.setattr(config, 'thermocouple_type', 'K')
+    monkeypatch.setattr(config, 'ac_freq_50hz', True)
+
+    class FakeTC:
+        temperature = 120.0
+        fault = {}
+        noise_rejection = None
+
+        def __init__(self, spi, cs, thermocouple_type=None):
+            pass
+
+    monkeypatch.setitem(sys.modules, 'adafruit_max31856',
+                        types.SimpleNamespace(MAX31856=FakeTC,
+                                              ThermocoupleType=types.SimpleNamespace(K='K')))
+    sensor = oven_module().Max31856()
+    assert sensor.thermocouple.noise_rejection == 50
+    assert sensor.raw_temp() == 120.0
+
+    monkeypatch.setattr(config, 'ac_freq_50hz', False)
+    sensor2 = oven_module().Max31856()
+    assert sensor2.thermocouple.noise_rejection == 60
+    sensor2.thermocouple.fault = {'cj_range': True, 'voltage': False}
+    with pytest.raises(Max31856_Error) as exc:
+        sensor2.raw_temp()
+    assert exc.value.message == 'cold junction range fault'
+
+
+def test_real_board_choose_tempsensor(monkeypatch):
+    _patch_hardware_deps(monkeypatch)
+
+    class FakeSensor:
+        def __init__(self):
+            self.started = False
+
+        def start(self):
+            self.started = True
+
+    fake_sensor = FakeSensor()
+    monkeypatch.setattr(oven_module(), 'Max31855', lambda: fake_sensor)
+    monkeypatch.setitem(sys.modules, 'board',
+                        types.SimpleNamespace(board_id='TEST_BOARD'))
+
+    board = oven_module().RealBoard()
+    assert board.name == 'TEST_BOARD'
+    assert board.temp_sensor is fake_sensor
+    assert fake_sensor.started is True
+
+    class FakeSensor2:
+        def start(self):
+            pass
+
+    fake2 = FakeSensor2()
+    monkeypatch.setattr(config, 'max31855', 0)
+    monkeypatch.setattr(config, 'max31856', 1)
+    monkeypatch.setattr(oven_module(), 'Max31856', lambda: fake2)
+    board2 = oven_module().RealBoard()
+    assert board2.temp_sensor is fake2
+
+
+def test_real_oven(monkeypatch):
+    _patch_hardware_deps(monkeypatch)
+
+    class FakeSensor:
+        def start(self):
+            pass
+
+        def temperature(self):
+            return 100.0
+
+    monkeypatch.setattr(oven_module(), 'Max31855', lambda: FakeSensor())
+    monkeypatch.setitem(sys.modules, 'board',
+                        types.SimpleNamespace(board_id='TEST_BOARD'))
+    monkeypatch.setattr(oven_module().Oven, 'start', lambda self: None)
+
+    oven = oven_module().RealOven()
+    assert oven.state == 'IDLE'
+    assert oven.output is not None
+    assert oven.board.name == 'TEST_BOARD'
+
+    heat_calls = []
+    cool_calls = []
+    monkeypatch.setattr(oven.output, 'heat', lambda s: heat_calls.append(s))
+    monkeypatch.setattr(oven.output, 'cool', lambda s: cool_calls.append(s))
+    monkeypatch.setattr(oven, 'pid', types.SimpleNamespace(
+        compute=lambda setpoint, ispoint, now: 0.4,
+        pidstats={'ispoint': 100, 'setpoint': 200, 'err': -100, 'errDelta': 0,
+                  'p': 0, 'i': 0, 'd': 0, 'pid': 0, 'out': 0.4}))
+    monkeypatch.setattr(oven, 'runtime', 10)
+    monkeypatch.setattr(oven, 'totaltime', 100)
+    monkeypatch.setattr(oven, 'time_step', 2)
+
+    oven.heat_then_cool()
+    assert oven.heat == 1.0
+    assert heat_calls == [0.8]
+    assert cool_calls == [1.2]
+
+
+def test_temp_sensor_simulated_temperature(monkeypatch):
+    monkeypatch.setattr(config, 'sim_t_env', 77)
+    sensor = oven_module().TempSensorSimulated()
+    assert sensor.temperature() == to_c(77)
+
+
+def test_temp_sensor_real_hardware_spi(monkeypatch):
+    _patch_hardware_deps(monkeypatch)
+    for attr in ('spi_sclk', 'spi_mosi', 'spi_miso'):
+        monkeypatch.delattr(config, attr, raising=False)
+    monkeypatch.setitem(sys.modules, 'board',
+                        types.SimpleNamespace(SPI=lambda: 'hw-spi'))
+    sensor = oven_module().TempSensorReal()
+    assert sensor.spi == 'hw-spi'

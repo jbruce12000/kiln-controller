@@ -1,8 +1,13 @@
+import importlib
 import importlib.util
 import os
 import re
+import sys
+import types
 
 import pytest
+
+import config
 
 
 def load_tuner():
@@ -152,3 +157,221 @@ def test_find_tangent_known_curve():
     assert slope == 20
     assert L == 45
     assert T == 55
+
+
+########################################################################
+# find_tangent error paths
+########################################################################
+
+def test_find_tangent_not_enough_points_raises():
+    # curve never reaches the upper tangent threshold
+    with pytest.raises(ValueError):
+        tuner.find_tangent([0, 1, 2, 3], [0, 0, 0, 50], 8)
+
+
+def test_find_tangent_flat_mid_raises():
+    # two distinct tangent points with identical temperature -> slope 0
+    with pytest.raises(ValueError):
+        tuner.find_tangent([0, 1, 2], [70, 70, 20], 8)
+
+
+def test_find_tangent_bad_process_params_raises():
+    # tangent crosses the starting temperature before the first sample
+    with pytest.raises(ValueError):
+        tuner.find_tangent([0, 1, 2, 3, 4], [50, 100, 60, 30, 10], 8)
+
+
+########################################################################
+# calculate edge cases
+########################################################################
+
+def test_calculate_ignores_bad_rows(tmp_path, capsys):
+    csvfile = tmp_path / 'messy.csv'
+    with open(csvfile, 'w') as f:
+        f.write('time,temperature\n')
+        f.write('not-a-time,hello\n')
+        f.write('%f,%f\n' % (1000000.0, 0.0))
+        for t in range(0, 61):
+            f.write('%f,%f\n' % (1000000.0 + t, 5 * t))
+        for t in range(61, 101):
+            f.write('%f,%f\n' % (1000000.0 + t, 300 + 20 * (t - 60)))
+    tuner.calculate(str(csvfile))
+    kp, ki, kd = parse_output(capsys.readouterr().out)
+    assert kp == pytest.approx(0.6 * 55 / 45, abs=0.001)
+
+
+def test_calculate_showplot(tmp_path, capsys, monkeypatch):
+    calls = []
+    fake = types.SimpleNamespace(
+        scatter=lambda *a, **k: calls.append('scatter'),
+        plot=lambda *a, **k: calls.append('plot'),
+        show=lambda: calls.append('show'),
+    )
+    monkeypatch.setitem(sys.modules, 'matplotlib',
+                        types.SimpleNamespace(pyplot=fake))
+
+    csvfile = write_curve(tmp_path)
+    tuner.calculate(str(csvfile), showplot=True)
+
+    assert 'scatter' in calls
+    assert 'plot' in calls
+    assert 'show' in calls
+    kp, _, _ = parse_output(capsys.readouterr().out)
+    assert kp == pytest.approx(0.6 * 55 / 45, abs=0.001)
+
+
+########################################################################
+# recordprofile
+########################################################################
+
+def make_sim_oven():
+    '''a simulated oven that produces a realistic S-shaped heating
+    curve: the element heats up quickly but the oven lags behind it,
+    so the recorded curve starts slow and then ramps up.'''
+    instances = []
+
+    class FakeSimOven:
+        def __init__(self):
+            instances.append(self)
+            self.target = 0
+            self.temp = 20.0
+            self.t_h = 20.0
+            self.state = None
+
+        def heat_then_cool(self):
+            if self.target:
+                self.t_h += 40.0
+                self.temp += 0.3 * (self.t_h - self.temp)
+            else:
+                self.temp -= 15.0
+
+        @property
+        def board(self):
+            return types.SimpleNamespace(
+                temp_sensor=types.SimpleNamespace(temperature=lambda: self.temp))
+
+    return FakeSimOven, instances
+
+
+def test_recordprofile_simulated(tmp_path, monkeypatch, capsys):
+    import csv as csvmod
+    oven_mod = importlib.import_module('oven')
+
+    FakeSimOven, instances = make_sim_oven()
+    monkeypatch.setattr(config, 'simulate', True)
+    monkeypatch.setattr(config, 'automatic_restarts', True)
+    monkeypatch.setattr(oven_mod, 'SimulatedOven', FakeSimOven)
+
+    csvfile = tmp_path / 'recorded.csv'
+    tuner.recordprofile(str(csvfile), 100.0)
+
+    # the tuner turns off automatic restarts while driving the oven
+    assert config.automatic_restarts is False
+    assert len(instances) == 1
+    assert instances[0].state == 'TUNING'
+
+    rows = list(csvmod.DictReader(open(csvfile)))
+    assert len(rows) >= 3
+    temps = [float(r['temperature']) for r in rows]
+    # the first sample is taken after one heat step, so it is already
+    # above ambient
+    assert temps[0] > tuner.to_display(20.0)
+    assert temps[-1] == pytest.approx(tuner.to_display(instances[0].temp))
+
+
+def test_recordprofile_real_oven_always_cools_down(tmp_path, monkeypatch, capsys):
+    import csv as csvmod
+    oven_mod = importlib.import_module('oven')
+
+    instances = []
+
+    class FakeRealOven:
+        def __init__(self):
+            instances.append(self)
+            self.target = 0
+            self.temp = 20.0
+            self.t_h = 20.0
+            self.state = None
+            self.cool_calls = []
+            self.output = types.SimpleNamespace(
+                heat=self.heat,
+                cool=self.cool,
+            )
+
+        def heat(self, secs):
+            self.t_h += 40.0
+            self.temp += 0.3 * (self.t_h - self.temp)
+
+        def cool(self, secs):
+            self.cool_calls.append(secs)
+            self.temp -= 15.0
+
+        @property
+        def board(self):
+            return types.SimpleNamespace(
+                temp_sensor=types.SimpleNamespace(temperature=lambda: self.temp))
+
+    monkeypatch.setattr(config, 'simulate', False)
+    monkeypatch.setattr(config, 'automatic_restarts', True)
+    monkeypatch.setattr(oven_mod, 'RealOven', FakeRealOven)
+
+    csvfile = tmp_path / 'recorded-real.csv'
+    tuner.recordprofile(str(csvfile), 100.0)
+
+    assert len(instances) == 1
+    # the finally block always shuts the kiln down, even after cooling
+    assert instances[0].cool_calls and instances[0].cool_calls[-1] == 0
+
+    rows = list(csvmod.DictReader(open(csvfile)))
+    assert len(rows) >= 3
+
+
+########################################################################
+# main / cli
+########################################################################
+
+def test_main_calculate_only(tmp_path, capsys, monkeypatch):
+    csvfile = write_curve(tmp_path)
+    monkeypatch.setattr(sys, 'argv',
+                        ['kiln-tuner.py', '--calculate_only', '--csvfile', str(csvfile)])
+    tuner.main()
+    kp, ki, kd = parse_output(capsys.readouterr().out)
+    assert kp == pytest.approx(0.6 * 55 / 45, abs=0.001)
+
+
+def test_main_records_then_calculates(tmp_path, capsys, monkeypatch):
+    oven_mod = importlib.import_module('oven')
+
+    FakeSimOven, instances = make_sim_oven()
+    monkeypatch.setattr(config, 'simulate', True)
+    monkeypatch.setattr(config, 'automatic_restarts', True)
+    monkeypatch.setattr(oven_mod, 'SimulatedOven', FakeSimOven)
+    monkeypatch.setattr(sys, 'argv',
+                        ['kiln-tuner.py', '--target_temp', '300', '--csvfile', str(tmp_path / 'tuning.csv')])
+
+    tuner.main()
+
+    out = capsys.readouterr().out
+    assert 'stage = heating' in out
+    assert 'stage = cooling' in out
+    kp, ki, kd = parse_output(out)
+    assert kp > 0
+    assert (tmp_path / 'tuning.csv').exists()
+
+
+def test_missing_config_exits(monkeypatch):
+    import builtins
+    real_import = builtins.__import__
+
+    def blocked(name, *args, **kwargs):
+        if name == 'config':
+            raise ImportError('blocked')
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, '__import__', blocked)
+
+    path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'kiln-tuner.py'))
+    spec = importlib.util.spec_from_file_location('kiln_tuner_missing_config', path)
+    module = importlib.util.module_from_spec(spec)
+    with pytest.raises(SystemExit):
+        spec.loader.exec_module(module)

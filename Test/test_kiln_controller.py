@@ -36,12 +36,19 @@ class StubOven:
     def abort_run(self):
         pass
 
+    def get_display_pidstats(self):
+        return {'ispoint': 0, 'setpoint': 0, 'err': 0,
+                'pid': 0, 'p': 0, 'i': 0, 'd': 0}
+
 
 class StubOvenWatcher:
     def __init__(self, oven, *args, **kwargs):
         pass
 
     def record(self, profile):
+        pass
+
+    def add_observer(self, wsock):
         pass
 
 
@@ -1033,3 +1040,589 @@ def test_api_profiles_remote_upload_reuses_existing_fork(monkeypatch, tmp_path):
     # the fork already existed, so no "create fork" call was made
     assert not any(url.endswith('/forks') for url in calls)
     assert any(url.endswith('/merge-upstream') for url in calls)
+
+
+########################################################################
+# /api routes (handle_api / handle_stats)
+########################################################################
+
+def api_call(payload, monkeypatch):
+    monkeypatch.setattr(bottle, 'request', types.SimpleNamespace(json=payload))
+    return controller.handle_api()
+
+
+def test_handle_stats(monkeypatch):
+    resp = controller.handle_stats()
+    assert json.loads(resp)['ispoint'] == 0
+
+
+def test_handle_api_run_success(monkeypatch):
+    calls = []
+
+    def fake_run_profile(profile, startat=0, allow_seek=True):
+        calls.append(profile.name)
+
+    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name, 'data': [[0, 200]]})
+    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
+    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
+
+    resp = api_call({'cmd': 'run', 'profile': 'cone-05'}, monkeypatch)
+    assert resp == {'success': True}
+    assert calls == ['cone-05']
+
+
+def test_handle_api_run_missing_profile(monkeypatch):
+    monkeypatch.setattr(controller, 'find_profile', lambda name: None)
+    resp = api_call({'cmd': 'run', 'profile': 'nope'}, monkeypatch)
+    assert resp == {'success': False, 'error': 'profile nope not found'}
+
+
+def test_handle_api_schedule_route(scheduler, monkeypatch):
+    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
+    resp = api_call({'cmd': 'schedule', 'profile': 'cone-05', 'start_time': time.time() + 3600}, monkeypatch)
+    assert resp['success'] is True
+    assert len(scheduler.list()) == 1
+
+
+def test_handle_api_cancel_schedule_route(scheduler, monkeypatch):
+    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
+    sched = controller.api_schedule({'profile': 'cone-05', 'start_time': time.time() + 3600})
+    resp = api_call({'cmd': 'cancel_schedule', 'id': sched['id']}, monkeypatch)
+    assert resp['success'] is True
+    assert scheduler.list() == []
+
+
+def test_handle_api_list_schedules(scheduler, monkeypatch):
+    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
+    controller.api_schedule({'profile': 'cone-05', 'start_time': time.time() + 3600})
+    resp = api_call({'cmd': 'list_schedules'}, monkeypatch)
+    assert resp['success'] is True
+    assert len(resp['schedules']) == 1
+
+
+def test_handle_api_pause(monkeypatch):
+    monkeypatch.setattr(controller.oven, 'state', 'RUNNING')
+    resp = api_call({'cmd': 'pause'}, monkeypatch)
+    assert resp == {'success': True}
+    assert controller.oven.state == 'PAUSED'
+
+
+def test_handle_api_resume(monkeypatch):
+    monkeypatch.setattr(controller.oven, 'state', 'PAUSED')
+    resp = api_call({'cmd': 'resume'}, monkeypatch)
+    assert resp == {'success': True}
+    assert controller.oven.state == 'RUNNING'
+
+
+def test_handle_api_stop(monkeypatch):
+    abort_called = []
+
+    def fake_abort():
+        abort_called.append(True)
+
+    monkeypatch.setattr(controller.oven, 'abort_run', fake_abort)
+    resp = api_call({'cmd': 'stop'}, monkeypatch)
+    assert resp == {'success': True}
+    assert abort_called == [True]
+
+
+def test_handle_api_memo(monkeypatch):
+    resp = api_call({'cmd': 'memo', 'memo': 'hello there'}, monkeypatch)
+    assert resp == {'success': True}
+
+
+def test_handle_api_stats(monkeypatch):
+    resp = api_call({'cmd': 'stats'}, monkeypatch)
+    assert json.loads(resp)['ispoint'] == 0
+
+
+########################################################################
+# helper coverage: error paths and thin routes
+########################################################################
+
+def test_profile_files_missing_directory(monkeypatch):
+    monkeypatch.setattr(controller, 'profile_path', '/nonexistent/dir/xyz')
+    assert controller.profile_files() == []
+
+
+def test_tar_add_path_missing_file(tmp_path):
+    with tarfile.open(fileobj=io.BytesIO(), mode='w') as tar:
+        controller._tar_add_path(tar, 'config.py', str(tmp_path / 'nope.py'))
+
+
+def test_gather_log_lines_error(monkeypatch):
+    def boom(*a, **k):
+        raise OSError('no journal here')
+    monkeypatch.setattr(controller.subprocess, 'check_output', boom)
+    assert controller.gather_log_lines() == []
+
+
+def test_find_profile_listdir_error(monkeypatch):
+    monkeypatch.setattr(controller.os, 'listdir', lambda *a, **k: (_ for _ in ()).throw(OSError()))
+    assert controller.find_profile('cone-05') is None
+
+
+def test_start_run_with_startat_does_not_seek(monkeypatch):
+    calls = []
+
+    def fake_run_profile(profile, startat=0, allow_seek=True):
+        calls.append((startat, allow_seek))
+
+    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name, 'data': [[0, 200]]})
+    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
+    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
+
+    assert controller.start_run('cone-05', startat=60) is True
+    assert calls == [(60, False)]
+
+
+def test_handle_api_run_with_startat(monkeypatch):
+    calls = []
+
+    def fake_run_profile(profile, startat=0, allow_seek=True):
+        calls.append((startat, allow_seek))
+
+    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name, 'data': [[0, 200]]})
+    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
+    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
+
+    resp = api_call({'cmd': 'run', 'profile': 'cone-05', 'startat': 30}, monkeypatch)
+    assert resp == {'success': True}
+    assert calls == [(30, False)]
+
+
+def test_api_schedule_missing_profile_name(scheduler, monkeypatch):
+    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
+    resp = controller.api_schedule({'start_time': time.time() + 3600})
+    assert resp == {'success': False, 'error': 'profile is required'}
+
+
+def test_api_cancel_schedule_missing_id(monkeypatch):
+    resp = controller.api_cancel_schedule({})
+    assert resp == {'success': False, 'error': 'id is required'}
+
+
+def test_reload_config_module_removes_cached(monkeypatch):
+    config.__cached__ = '/nonexistent/config.cpython-312.pyc'
+
+    def fake_reload(mod):
+        pass
+
+    def boom(path):
+        raise OSError('no such file')
+
+    monkeypatch.setattr(controller.os, 'remove', boom)
+    monkeypatch.setattr(controller.importlib, 'reload', fake_reload)
+    controller.reload_config_module()
+
+
+def test_repo_owner_repo_without_github_url(monkeypatch):
+    monkeypatch.setattr(controller.config, 'kiln_profiles_repo', '')
+    assert controller._repo_owner_repo() is None
+
+
+def test_send_static():
+    resp = controller.send_static('index.html')
+    assert resp.headers['Content-Type'].startswith('text/html')
+
+
+def test_get_websocket_from_request_present(monkeypatch):
+    monkeypatch.setattr(bottle, 'request',
+                        types.SimpleNamespace(environ={'wsgi.websocket': 'sock'}))
+    assert controller.get_websocket_from_request() == 'sock'
+
+
+def test_get_websocket_from_request_missing(monkeypatch):
+    monkeypatch.setattr(bottle, 'request', types.SimpleNamespace(environ={}))
+    with pytest.raises(bottle.HTTPResponse):
+        controller.get_websocket_from_request()
+
+
+########################################################################
+# websocket handlers
+########################################################################
+
+class FakeWebSocket:
+    def __init__(self, messages):
+        self.messages = list(messages)
+        self.sent = []
+
+    def receive(self):
+        if self.messages:
+            return self.messages.pop(0)
+        raise controller.WebSocketError('closed')
+
+    def send(self, msg):
+        self.sent.append(msg)
+
+
+def test_handle_control_run_and_stop(monkeypatch):
+    ws = FakeWebSocket([
+        json.dumps({'cmd': 'RUN', 'profile': {'name': 'cone-05', 'data': [[0, 200]]}}),
+        json.dumps({'cmd': 'STOP'}),
+    ])
+    runs = []
+    stops = []
+    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
+    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    monkeypatch.setattr(controller.oven, 'run_profile', lambda profile: runs.append(profile.name))
+    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
+    monkeypatch.setattr(controller.oven, 'abort_run', lambda: stops.append(True))
+
+    controller.handle_control()
+
+    assert runs == ['cone-05']
+    assert stops == [True]
+
+
+def test_handle_storage_get_and_put(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    (tmp_path / 'cone-05.json').write_text(
+        json.dumps({'name': 'cone-05', 'data': [[0, 32]]}))
+
+    ws = FakeWebSocket([
+        'GET',
+        json.dumps({'cmd': 'PUT', 'profile': {'name': 'cone-06', 'data': [[0, 32]]}}),
+    ])
+    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
+    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+
+    profiles_before = controller.get_profiles()
+    controller.handle_storage()
+
+    assert ws.sent[0] == profiles_before
+    put_reply = json.loads(ws.sent[1])
+    assert put_reply['resp'] == 'OK'
+    assert 'cone-06' in [p['name'] for p in json.loads(ws.sent[2])]
+
+
+def test_handle_storage_delete(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    (tmp_path / 'cone-05.json').write_text(
+        json.dumps({'name': 'cone-05', 'data': [[0, 32]]}))
+
+    ws = FakeWebSocket([json.dumps({'cmd': 'DELETE', 'profile': {'name': 'cone-05'}})])
+    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
+    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+
+    controller.handle_storage()
+
+    assert not (tmp_path / 'cone-05.json').exists()
+    reply = json.loads(ws.sent[0])
+    assert reply['resp'] == 'OK'
+
+
+def test_handle_config_websocket(monkeypatch):
+    ws = FakeWebSocket(['ping'])
+    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
+    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+
+    controller.handle_config()
+
+    assert json.loads(ws.sent[0])['simulate'] == config.simulate
+
+
+def test_handle_status_websocket(monkeypatch):
+    ws = FakeWebSocket(['hello'])
+    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
+    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+
+    controller.handle_status()
+
+    assert ws.sent == ["Your message was: 'hello'"]
+
+
+def test_main_starts_server(monkeypatch):
+    captured = {}
+
+    class FakeServer:
+        def __init__(self, ip_port, app, handler_class=None):
+            captured['addr'] = ip_port
+            captured['handler'] = handler_class
+
+        def serve_forever(self):
+            captured['served'] = True
+
+    monkeypatch.setattr(controller, 'WSGIServer', FakeServer)
+    monkeypatch.setattr(controller, 'scheduler', types.SimpleNamespace(fire_due=lambda: None))
+
+    ran = []
+
+    def fake_spawn_later(secs, func, *a, **k):
+        captured.setdefault('spawned', []).append((secs, func))
+        if not ran:
+            ran.append(True)
+            func()
+
+    monkeypatch.setattr(controller, 'gevent', types.SimpleNamespace(spawn_later=fake_spawn_later))
+
+    controller.main()
+
+    assert captured['addr'][1] == config.listening_port
+    assert captured['handler'] == controller.WebSocketHandler
+    assert captured['served'] is True
+    assert ran == [True]
+
+
+def test_controller_uses_real_oven_when_not_simulated(monkeypatch):
+    monkeypatch.setattr(config, 'simulate', False)
+    mod = load_controller()
+    assert isinstance(mod.oven, StubOven)
+    assert mod.oven.state == 'IDLE'
+
+
+def test_chain_anchor_ready_invalid_run_sequence(monkeypatch):
+    monkeypatch.setattr(controller.oven, 'ended_run_sequence', 5)
+    assert controller.chain_anchor_ready('run:abc') is False
+
+
+def test_chain_anchor_ready_missing_schedule(scheduler, monkeypatch):
+    assert controller.chain_anchor_ready('sched:missing-id') is False
+
+
+def test_chain_anchor_ready_unrecognized(monkeypatch):
+    assert controller.chain_anchor_ready('bogus:1') is False
+
+
+def test_handle_control_simulate(monkeypatch):
+    ws = FakeWebSocket([json.dumps({'cmd': 'SIMULATE'})])
+    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
+    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    controller.handle_control()
+
+
+def test_handle_storage_break_on_empty_message(monkeypatch):
+    class EmptyWS:
+        def __init__(self):
+            self.sent = []
+
+        def receive(self):
+            return ''
+
+        def send(self, msg):
+            self.sent.append(msg)
+
+    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: EmptyWS())
+    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    controller.handle_storage()
+
+
+def test_handle_storage_put_failure(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    ws = FakeWebSocket([json.dumps({'cmd': 'PUT', 'profile': {'name': 'x', 'data': [[0, 32]]}})])
+    monkeypatch.setattr(controller, 'save_profile', lambda profile, force: False)
+    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
+    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    controller.handle_storage()
+    reply = json.loads(ws.sent[0])
+    assert reply['resp'] == 'FAIL'
+
+
+def test_raw_url_without_repo(monkeypatch):
+    monkeypatch.setattr(controller, '_repo_owner_repo', lambda: None)
+    assert controller._raw_url('pottery/x.json') is None
+
+
+def test_list_remote_profiles_network_error(monkeypatch):
+    def boom(url, params=None, headers=None, timeout=None):
+        raise RuntimeError('offline')
+    monkeypatch.setattr(controller.requests, 'get', boom)
+    _reset_remote_cache(monkeypatch)
+    data = controller.list_remote_profiles(force=True)
+    assert data['success'] is False
+    assert 'could not reach' in data['error']
+
+
+def test_list_remote_profiles_index_not_list(monkeypatch):
+    monkeypatch.setattr(controller.requests, 'get',
+                        lambda *a, **k: FakeResp({'not': 'a list'}))
+    _reset_remote_cache(monkeypatch)
+    data = controller.list_remote_profiles(force=True)
+    assert data['success'] is False
+    assert 'unexpected response' in data['error']
+
+
+def test_list_remote_profiles_skips_bad_entries(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller.requests, 'get',
+                        lambda *a, **k: FakeResp([
+                            {'name': 'good-profile', 'path': 'pottery/good.json'},
+                            'garbage',
+                            {'no-name': True},
+                        ]))
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    _reset_remote_cache(monkeypatch)
+
+    data = controller.list_remote_profiles(force=True)
+    assert data['success'] is True
+    assert [p['name'] for p in data['profiles']] == ['good-profile']
+
+
+def test_api_profiles_remote_import_rejects_non_github_repo(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, '_repo_owner_repo', lambda: None)
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    _reset_remote_cache(monkeypatch)
+    out, resp = post_json('/api/profiles/remote/import',
+                          {'path': 'pottery/cone-05.json'})
+    assert out['status'] == '400 Bad Request'
+    assert 'github.com URL' in json.loads(resp)['error']
+
+
+def test_api_profiles_remote_import_invalid_profile(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller.requests, 'get',
+                        lambda *a, **k: FakeResp({'name': ''}))
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    _reset_remote_cache(monkeypatch)
+    out, resp = post_json('/api/profiles/remote/import',
+                          {'path': 'pottery/cone-05.json'})
+    assert out['status'] == '400 Bad Request'
+    assert 'invalid profile name' in json.loads(resp)['error']
+
+
+def test_api_profiles_remote_import_download_error(monkeypatch, tmp_path):
+    def boom(url, headers=None, timeout=None):
+        raise OSError('network down')
+    monkeypatch.setattr(controller.requests, 'get', boom)
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    _reset_remote_cache(monkeypatch)
+    out, resp = post_json('/api/profiles/remote/import',
+                          {'path': 'pottery/cone-05.json'})
+    assert out['status'] == '400 Bad Request'
+    assert 'could not download profile' in json.loads(resp)['error']
+
+
+def test_import_profile_rejects_non_dict(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    with pytest.raises(ValueError):
+        controller.import_profile('not-a-dict')
+
+
+def test_api_profiles_remote_upload_no_profile(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    out, resp = post_json('/api/profiles/remote/upload',
+                          {'category': 'pottery', 'github_token': 'tok',
+                           'profile': {'name': ''}})
+    assert out['status'] == '400 Bad Request'
+    assert 'no profile in request' in json.loads(resp)['error']
+
+
+def test_api_profiles_remote_upload_invalid_name(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    out, resp = post_json('/api/profiles/remote/upload',
+                          {'category': 'pottery', 'github_token': 'tok',
+                           'profile': {'name': 'bad name!'}})
+    assert out['status'] == '400 Bad Request'
+    assert 'invalid profile name' in json.loads(resp)['error']
+
+
+def test_api_profiles_remote_upload_invalid_category(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    out, resp = post_json('/api/profiles/remote/upload',
+                          {'category': 'bad category!', 'github_token': 'tok',
+                           'profile': {'name': 'good'}})
+    assert out['status'] == '400 Bad Request'
+    assert 'invalid category' in json.loads(resp)['error']
+
+
+def test_api_profiles_remote_upload_non_github_repo(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, '_repo_owner_repo', lambda: None)
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    out, resp = post_json('/api/profiles/remote/upload',
+                          {'category': 'pottery', 'github_token': 'tok',
+                           'profile': {'name': 'good'}})
+    assert out['status'] == '400 Bad Request'
+    assert 'github.com URL' in json.loads(resp)['error']
+
+
+def test_api_profiles_remote_upload_import_failure(monkeypatch, tmp_path):
+    def bad_import(profile):
+        raise ValueError('profile has no data')
+    monkeypatch.setattr(controller, 'import_profile', bad_import)
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    out, resp = post_json('/api/profiles/remote/upload',
+                          {'category': 'pottery', 'github_token': 'tok',
+                           'profile': {'name': 'good'}})
+    assert out['status'] == '400 Bad Request'
+    assert 'profile has no data' in json.loads(resp)['error']
+
+
+def test_api_profiles_remote_upload_share_failure(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, 'import_profile', lambda profile: None)
+    def bad_share(profile, category, token):
+        raise RuntimeError('github is down')
+    monkeypatch.setattr(controller, 'share_profile_as_pr', bad_share)
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    out, resp = post_json('/api/profiles/remote/upload',
+                          {'category': 'pottery', 'github_token': 'tok',
+                           'profile': {'name': 'good'}})
+    assert out['status'] == '400 Bad Request'
+    assert 'share failed' in json.loads(resp)['error']
+
+
+def test_ensure_fork_times_out(monkeypatch):
+    def fake_get(url, params=None, headers=None, timeout=None):
+        if url == 'https://api.github.com/user':
+            return FakeResp({'login': 'sharer'})
+        if url == 'https://api.github.com/repos/sharer/kiln-profiles':
+            return FakeResp({'message': 'not found'}, status_code=404)
+        raise AssertionError('unexpected get url: %s' % url)
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        assert url == 'https://api.github.com/repos/jbruce12000/kiln-profiles/forks', url
+        return FakeResp({}, status_code=202)
+
+    clock = [0.0]
+
+    def fake_time():
+        clock[0] += 10.0
+        return clock[0]
+
+    monkeypatch.setattr(controller.requests, 'get', fake_get)
+    monkeypatch.setattr(controller.requests, 'post', fake_post)
+    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    monkeypatch.setattr(controller.time, 'time', fake_time)
+
+    with pytest.raises(RuntimeError):
+        controller._ensure_fork('jbruce12000/kiln-profiles', 'token')
+
+
+def test_ensure_fork_merge_error_ignored(monkeypatch):
+    def fake_get(url, params=None, headers=None, timeout=None):
+        if url == 'https://api.github.com/user':
+            return FakeResp({'login': 'sharer'})
+        if url == 'https://api.github.com/repos/sharer/kiln-profiles':
+            return FakeResp({'full_name': 'sharer/kiln-profiles'}, status_code=200)
+        raise AssertionError('unexpected get url: %s' % url)
+
+    def fake_post(url, json=None, headers=None, timeout=None):
+        assert url == 'https://api.github.com/repos/sharer/kiln-profiles/merge-upstream', url
+        raise RuntimeError('merge upstream failed')
+
+    monkeypatch.setattr(controller.requests, 'get', fake_get)
+    monkeypatch.setattr(controller.requests, 'post', fake_post)
+
+    assert controller._ensure_fork('jbruce12000/kiln-profiles', 'token') == 'sharer/kiln-profiles'
+
+
+def test_api_profiles_remote_route(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller.requests, 'get', _fake_index_get())
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    _reset_remote_cache(monkeypatch)
+
+    env = {
+        'REQUEST_METHOD': 'GET',
+        'PATH_INFO': '/api/profiles/remote',
+        'SERVER_NAME': 'localhost',
+        'SERVER_PORT': '80',
+        'wsgi.input': io.BytesIO(b''),
+        'wsgi.errors': io.StringIO(),
+        'wsgi.version': (1, 0),
+        'wsgi.url_scheme': 'http',
+    }
+    out = {}
+
+    def start_response(status, headers, exc_info=None):
+        out['status'] = status
+
+    resp = json.loads(b''.join(controller.app(env, start_response)))
+    assert out['status'] == '200 OK'
+    assert resp['success'] is True

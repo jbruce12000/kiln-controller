@@ -143,3 +143,16 @@ def test_paho_listed_in_requirements():
     with open(os.path.join(root, 'requirements.txt')) as f:
         requirements = f.read()
     assert 'paho-mqtt' in requirements
+
+
+def test_make_client_falls_back_to_paho(monkeypatch, mqtt_config):
+    import paho.mqtt.client as paho_mqtt
+    client = FakeClient()
+    monkeypatch.setattr(paho_mqtt, 'Client', lambda: client)
+    mqtt_config(enable=True, mqtt_host='broker.home', mqtt_port=1883,
+                mqtt_user='u', mqtt_pass='p')
+    out = mqttout.MqttOut()
+    result = out._make_client(None)
+    assert result is client
+    assert ('connect', 'broker.home', 1883) in client.calls
+    assert ('userpass', 'u', 'p') in client.calls

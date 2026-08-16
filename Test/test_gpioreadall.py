@@ -102,3 +102,18 @@ def test_main_old_style_board(monkeypatch, capsys):
     gpioreadall.main()
     out = capsys.readouterr().out
     assert 'Pi B' in out
+
+
+def test_pin_state_unknown_mode(monkeypatch):
+    monkeypatch.setattr(gpioreadall.subprocess, 'run',
+                        lambda *a, **k: FakeProc(b'5: xx pu | hi // GPIO5 = input\n'))
+    assert gpioreadall.pin_state(5) == ('GPIO5', 'IN ^', 1)
+
+
+def test_main_unknown_board(monkeypatch, capsys):
+    monkeypatch.setattr(gpioreadall, 'get_hardware_revision', lambda: 0x800150)
+    monkeypatch.setattr(gpioreadall.subprocess, 'run',
+                        lambda *a, **k: FakeProc(b'23: op -- | hi // GPIO23 = output\n'))
+    gpioreadall.main()
+    out = capsys.readouterr().out
+    assert 'Pi ??' in out

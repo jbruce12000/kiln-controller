@@ -276,3 +276,20 @@ def test_post_reload_error_rejected_config_restored(fake_config, spawn_log):
     assert json.loads(resp)['success'] is False
     assert module.kwh_rate == 0.1319
     assert len(spawn_log) == 0
+
+
+def test_post_restart_greenlet_execs_process(fake_config, spawn_log, monkeypatch):
+    execv_calls = []
+    monkeypatch.setattr(controller.gevent, 'sleep', lambda secs: None)
+    monkeypatch.setattr(controller.os, 'execv',
+                        lambda path, argv: execv_calls.append((path, argv)))
+    monkeypatch.setattr(controller.logging, 'shutdown', lambda: None)
+
+    out, resp = post_config({'config': edit_rate(CONFIG_TMPL, 2.5)})
+    assert out['status'] == '200 OK', (out['status'], resp)
+    assert len(spawn_log) == 1
+
+    spawn_log[0]()  # run the restart greenlet
+
+    assert len(execv_calls) == 1
+    assert execv_calls[0][0] == sys.executable

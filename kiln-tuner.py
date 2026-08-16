@@ -328,7 +328,7 @@ def calculate(filename, method=DEFAULT_METHOD, tangentdivisor=8, showplot=False)
              lower_crossing_x, upper_crossing_x)
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(description='Kiln tuner')
     parser.add_argument('-c', '--calculate_only', action='store_true')
     parser.add_argument('-t', '--target_temp', type=float, default=400, help="Target temperature")
@@ -353,3 +353,7 @@ if __name__ == "__main__":
     else:
         recordprofile(args.csvfile, target)
         calculate(args.csvfile, args.method, tangentdivisor, args.showplot)
+
+
+if __name__ == "__main__":
+    main()

@@ -133,3 +133,22 @@ def test_run_loop_alerts_after_limit(monkeypatch):
 
     assert len(sent) == 2  # resets each time it hits the limit
     assert all("error kiln needs help" in msg for msg in sent)
+
+
+def test_run_loop_log_line_survives_missing_fields(monkeypatch):
+    w = make_watcher(bad_check_limit=10, sleepfor=1)
+    monkeypatch.setattr(watcher.requests, 'get',
+                        lambda url, timeout: types.SimpleNamespace(json=lambda: {'time': 1, 'err': 1}))
+
+    sleeps = [0]
+
+    def fake_sleep(secs):
+        sleeps[0] += 1
+        if sleeps[0] >= 3:
+            raise StopIteration
+
+    monkeypatch.setattr(watcher.time, 'sleep', fake_sleep)
+
+    with pytest.raises(StopIteration):
+        w.run()
+    assert w.bad_checks == 0

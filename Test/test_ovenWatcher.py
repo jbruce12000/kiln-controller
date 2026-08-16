@@ -273,3 +273,22 @@ def test_watcher_init_creates_mqtt_when_enabled(monkeypatch):
 
     assert len(instances) == 1
     assert watcher.mqtt is instances[0]
+
+
+def test_add_observer_send_failure_logged(caplog):
+    watcher = make_watcher()
+    profile = types.SimpleNamespace(name="test-fast", data=[[0, 200]])
+    watcher.record(profile)
+    dead = FakeSocket()
+    dead.dead = True
+    watcher.add_observer(dead)
+    assert watcher.observers == [dead]
+    assert any('Could not send backlog' in r.message for r in caplog.records)
+
+
+def test_notify_all_removes_falsy_observer():
+    watcher = make_watcher()
+    sock = FakeSocket()
+    watcher.observers = [sock, None]
+    watcher.notify_all({'state': 'IDLE'})
+    assert watcher.observers == [sock]
