@@ -1108,12 +1108,25 @@ function loadConfigEditor() {
 
 var tuner_poll_timer = null;
 
+function tunerPost(obj, cb) {
+    fetch('/api/tune', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(obj)
+    })
+    .then(function(r) { return r.json(); })
+    .then(cb)
+    .catch(function(err) {
+        showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> API error: ' + err, 'error', 5000);
+    });
+}
+
 function startTuner() {
     var target = $('tuner_target_temp').value;
     var method = $('tuner_method').value;
     var divisor = $('tuner_tangent_divisor').value;
 
-    apiPost({cmd: 'start', target_temp: parseFloat(target), method: method, tangent_divisor: parseFloat(divisor)}, function(resp) {
+    tunerPost({cmd: 'start', target_temp: parseFloat(target), method: method, tangent_divisor: parseFloat(divisor)}, function(resp) {
         if (resp.success) {
             $('btn_tuner_start').style.display = 'none';
             $('btn_tuner_stop').style.display = '';
@@ -1130,13 +1143,13 @@ function startTuner() {
 }
 
 function stopTuner() {
-    apiPost({cmd: 'stop'}, function(resp) {
+    tunerPost({cmd: 'stop'}, function(resp) {
         tuner_poll();
     });
 }
 
 function tuner_poll() {
-    apiPost({cmd: 'status'}, function(resp) {
+    tunerPost({cmd: 'status'}, function(resp) {
         if (!resp || !resp.success) return;
 
         if (resp.state === 'DONE') {
@@ -1170,7 +1183,7 @@ function tuner_poll() {
         }
 
         // still running -- update status text
-        var phase = resp.phase || resp.state;
+        var phase = resp.phase || resp.state || 'working';
         var temp = resp.temperature != null ? rnd(resp.temperature) : '--';
         var target = resp.target != null ? rnd(resp.target) : '--';
         var tunerElapsed = formatDuration(resp.elapsed || 0);
