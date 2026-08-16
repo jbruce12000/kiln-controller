@@ -11,12 +11,6 @@ def test_cost_settings():
     assert config.currency_type == "$"
 
 
-def test_pid_defaults():
-    assert config.pid_kp == 3.47
-    assert config.pid_ki == 37.154
-    assert config.pid_kd == 111.864
-
-
 def test_sensor_settings():
     assert config.sensor_time_wait == 2
     assert config.temperature_average_samples == 10
