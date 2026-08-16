@@ -165,6 +165,51 @@
      </div>
     </div>
 
+    <div class="panel panel-default mt-3" id="tuner_panel">
+     <div class="panel-heading"><strong>PID Auto-Tuner</strong></div>
+     <div class="panel-body">
+      <p class="text-muted mb-2">
+       Heats the kiln at full power, records the heating curve, and calculates
+       optimal PID values using the Ziegler-Nichols method. No schedule can run
+       while tuning. Calculated values are applied to config.py automatically.
+      </p>
+      <div id="tuner_inputs">
+       <div class="input-group mb-2">
+        <span class="input-group-text">Target Temperature (&deg;F)</span>
+        <input id="tuner_target_temp" type="number" class="form-control" value="400" />
+       </div>
+       <div class="input-group mb-2">
+        <span class="input-group-text">Method</span>
+        <select id="tuner_method" class="form-select">
+         <option value="critically_damped" selected>Critically Damped (no overshoot)</option>
+         <option value="some_overshoot">Some Overshoot (~20%)</option>
+         <option value="quarter_decay">Quarter Decay (~25% overshoot)</option>
+        </select>
+       </div>
+       <div class="input-group mb-2">
+        <span class="input-group-text">Tangent Divisor</span>
+        <input id="tuner_tangent_divisor" type="number" class="form-control" value="8" min="2" step="1" />
+       </div>
+      </div>
+      <div class="btn-group mb-3">
+       <button id="btn_tuner_start" type="button" class="btn btn-success" onclick="startTuner()"><i class="bi bi-play-fill"></i> Start Tuning</button>
+       <button id="btn_tuner_stop" type="button" class="btn btn-danger" onclick="stopTuner()" style="display:none"><i class="bi bi-stop-fill"></i> Stop</button>
+      </div>
+      <div id="tuner_status" style="display:none">
+       <div class="alert alert-info mb-0" id="tuner_status_text"></div>
+      </div>
+      <div id="tuner_results" style="display:none">
+       <div class="alert alert-success mb-0">
+        <strong>Tuning complete. PID values applied to config.py and controller restarted.</strong>
+        <pre id="tuner_pid_values" class="mt-2 mb-0"></pre>
+       </div>
+      </div>
+      <div id="tuner_error" style="display:none">
+       <div class="alert alert-danger mb-0" id="tuner_error_text"></div>
+      </div>
+     </div>
+    </div>
+
    </section>
 
   <!-- ================================================================ -->

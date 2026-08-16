@@ -33,10 +33,11 @@ script_dir = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(0, script_dir + '/lib/')
 profile_path = config.kiln_profiles_directory
 
-from temp import f_to_c, c_to_f
+from temp import f_to_c, c_to_f, to_c
 from oven import SimulatedOven, RealOven, Profile
 from ovenWatcher import OvenWatcher
 from scheduler import Scheduler
+from tuner import Tuner, DEFAULT_METHOD
 
 app = bottle.Bottle()
 
@@ -51,6 +52,7 @@ else:
 ovenWatcher = OvenWatcher(oven)
 # this ovenwatcher is used in the oven class for restarts
 oven.set_ovenwatcher(ovenWatcher)
+tuner = Tuner(oven)
 
 @app.route('/')
 def index():
@@ -445,6 +447,55 @@ def api_config_editor_save():
         gevent.spawn(_do_restart)
         log.info("process restart scheduled")
     return response
+
+@app.post('/api/tune')
+def handle_tune():
+    '''PID auto-tuner endpoint. start begins a tuning run in a background
+    greenlet, status returns current progress, stop aborts.'''
+    body = bottle.request.json or {}
+    cmd = body.get('cmd')
+
+    if cmd == 'start':
+        if oven.state not in ("IDLE", "TUNING"):
+            return {"success": False,
+                    "error": "cannot tune while a schedule is running (state: %s)" % oven.state}
+        if tuner.state != Tuner.IDLE:
+            return {"success": False, "error": "tuner is already running"}
+
+        target_temp = body.get('target_temp')
+        if target_temp is None:
+            return {"success": False, "error": "target_temp is required"}
+
+        method = body.get('method', DEFAULT_METHOD)
+        tangent_divisor = body.get('tangent_divisor', 8)
+
+        try:
+            target_c = to_c(float(target_temp))
+        except (ValueError, TypeError):
+            return {"success": False, "error": "invalid target_temp"}
+
+        try:
+            tangent_divisor = float(tangent_divisor)
+        except (ValueError, TypeError):
+            return {"success": False, "error": "invalid tangent_divisor"}
+
+        if tangent_divisor < 2:
+            return {"success": False, "error": "tangent_divisor must be >= 2"}
+
+        log.info("api tune start: target=%.1f method=%s tangent_divisor=%.0f" %
+                 (float(target_temp), method, tangent_divisor))
+        gevent.spawn(tuner.start, target_c, method, tangent_divisor)
+        return {"success": True}
+
+    elif cmd == 'status':
+        return {"success": True, **tuner.get_status()}
+
+    elif cmd == 'stop':
+        log.info("api tune stop")
+        tuner.stop()
+        return {"success": True}
+
+    return {"success": False, "error": "unknown tune command"}
 
 ########################################################################
 # community profiles - browse, download, and share profiles with the

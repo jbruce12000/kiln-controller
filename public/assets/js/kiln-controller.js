@@ -563,7 +563,8 @@ function setEditMode(on) {
        var status = {
            IDLE:    { label: 'Idle',    color: 'secondary' },
            RUNNING: { label: 'Running', color: 'success' },
-           PAUSED:  { label: 'Paused',  color: 'warning' }
+           PAUSED:  { label: 'Paused',  color: 'warning' },
+           TUNING:  { label: 'Tuning',  color: 'info' }
        }[state] || { label: state || 'Idle', color: 'secondary' };
        badge.className = 'badge overview-status text-bg-' + status.color;
        badge.innerHTML = status.label;
@@ -1098,6 +1099,87 @@ function loadConfigEditor() {
     })
     .catch(function(err) {
         showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> <b>ERROR 95:</b><br/>Could not load config.py: ' + err, 'error', 5000);
+    });
+}
+
+/* ---------------------------------------------------------------------------
+   PID Auto-Tuner
+--------------------------------------------------------------------------- */
+
+var tuner_poll_timer = null;
+
+function startTuner() {
+    var target = $('tuner_target_temp').value;
+    var method = $('tuner_method').value;
+    var divisor = $('tuner_tangent_divisor').value;
+
+    apiPost({cmd: 'start', target_temp: parseFloat(target), method: method, tangent_divisor: parseFloat(divisor)}, function(resp) {
+        if (resp.success) {
+            $('btn_tuner_start').style.display = 'none';
+            $('btn_tuner_stop').style.display = '';
+            $('tuner_status').style.display = '';
+            $('tuner_results').style.display = 'none';
+            $('tuner_error').style.display = 'none';
+            $('tuner_status_text').innerHTML = 'Starting tuning...';
+            tuner_poll();
+            tuner_poll_timer = setInterval(tuner_poll, 3000);
+        } else {
+            showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> ' + (resp.error || 'Could not start tuner'), 'error', 5000);
+        }
+    });
+}
+
+function stopTuner() {
+    apiPost({cmd: 'stop'}, function(resp) {
+        tuner_poll();
+    });
+}
+
+function tuner_poll() {
+    apiPost({cmd: 'status'}, function(resp) {
+        if (!resp || !resp.success) return;
+
+        if (resp.state === 'DONE') {
+            clearInterval(tuner_poll_timer);
+            tuner_poll_timer = null;
+            $('btn_tuner_stop').style.display = 'none';
+            $('btn_tuner_start').style.display = '';
+            $('tuner_status').style.display = 'none';
+            $('tuner_results').style.display = '';
+            $('tuner_error').style.display = 'none';
+            if (resp.pid_values) {
+                $('tuner_pid_values').innerHTML =
+                    'pid_kp = ' + resp.pid_values.kp + '\n' +
+                    'pid_ki = ' + resp.pid_values.ki + '\n' +
+                    'pid_kd = ' + resp.pid_values.kd;
+            }
+            showGrowl('Tuning complete. PID values applied.', 'success', 5000);
+            return;
+        }
+
+        if (resp.state === 'ERROR') {
+            clearInterval(tuner_poll_timer);
+            tuner_poll_timer = null;
+            $('btn_tuner_stop').style.display = 'none';
+            $('btn_tuner_start').style.display = '';
+            $('tuner_status').style.display = 'none';
+            $('tuner_results').style.display = 'none';
+            $('tuner_error').style.display = '';
+            $('tuner_error_text').innerHTML = '<i class="bi bi-exclamation-triangle-fill"></i> ' + (resp.error || 'Tuning failed');
+            return;
+        }
+
+        // still running -- update status text
+        var phase = resp.phase || resp.state;
+        var temp = resp.temperature != null ? rnd(resp.temperature) : '--';
+        var target = resp.target != null ? rnd(resp.target) : '--';
+        var tunerElapsed = formatDuration(resp.elapsed || 0);
+        var points = resp.data_points || 0;
+        $('tuner_status_text').innerHTML =
+            '<strong>' + escHtml(phase.charAt(0).toUpperCase() + phase.slice(1)) + '</strong>' +
+            ' &middot; Temp: ' + temp + ' &middot; Target: ' + target +
+            ' &middot; Elapsed: ' + tunerElapsed +
+            ' &middot; Points: ' + points;
     });
 }
 
@@ -1830,7 +1912,7 @@ function init()
                 }
             }
 
-            if(state=="RUNNING")
+            if(state=="RUNNING" || state=="TUNING")
             {
                 updateSelectedProfileLabel();
 
@@ -1881,6 +1963,13 @@ function init()
             $("target").innerHTML = rnd(x.pidstats.setpoint);
             $("heat-pct").innerHTML = rnd(x.pidstats.out);
             $("catching-up").innerHTML = rnd(percent_catching_up(all));
+        }
+
+        // during tuning, pidstats may be stale -- use top-level state
+        if (x.state === "TUNING" && x.temperature !== undefined) {
+            $("temp").innerHTML = rnd(x.temperature);
+            $("target").innerHTML = rnd(x.target);
+            $("heat-pct").innerHTML = rnd((x.heat || 0) * 100);
         }
 
         $("raw_state").innerHTML = "<pre>" + JSON.stringify(x, null, 2) + "</pre>";
