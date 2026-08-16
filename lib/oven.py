@@ -918,7 +918,10 @@ class PID():
                     log.info("max heating throttled at %d percent below %d degrees to prevent overshoot" % (config.throttle_percent,config.throttle_below_temp))
         else:
             self.iterm += (error * timeDelta * (1/self.ki))
-            dErr = (error - self.lastErr) / timeDelta
+            if timeDelta > 0:
+                dErr = (error - self.lastErr) / timeDelta
+            else:
+                dErr = 0
             output = self.kp * error + self.iterm + self.kd * dErr
             output = sorted([-1 * window_size, output, window_size])[1]
             out4logs = output
