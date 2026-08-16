@@ -82,6 +82,13 @@
   <section id="tab-profiles" class="tab-pane" style="display:none">
 
    <div class="panel panel-default">
+    <div class="panel-heading"><strong>Scheduled Runs</strong></div>
+    <div class="panel-body">
+     <div id="scheduled_runs_list"><p class="ds-empty">No runs scheduled.</p></div>
+    </div>
+   </div>
+
+   <div class="panel panel-default mt-3">
     <div class="panel-heading">
      <strong>Saved Schedules</strong>
      <button id="btn_new_profile" type="button" class="btn btn-outline-secondary btn-sm" onclick="enterNewMode()"><i class="bi bi-file-earmark-plus"></i>&nbsp; New Schedule</button>
@@ -121,13 +128,6 @@
       <button id="btn_delProfile" type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#delProfileModal"><i class="bi bi-trash"></i></button>
      </div>
      <div id="profile_table" class="mt-2" style="display:none;"></div>
-    </div>
-   </div>
-
-   <div class="panel panel-default mt-3">
-    <div class="panel-heading"><strong>Scheduled Runs</strong></div>
-    <div class="panel-body">
-     <div id="scheduled_runs_list"><p class="ds-empty">No runs scheduled.</p></div>
     </div>
    </div>
 
