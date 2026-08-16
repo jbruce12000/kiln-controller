@@ -144,6 +144,13 @@ If you want the server to autostart on boot, run the following command:
 Click http://127.0.0.1:8081 for local development or the IP
 of your PI and the port defined in config.py (default 8081).
 
+### Web Interface
+
+A full single-page web app provides real-time kiln monitoring, profile
+editing, scheduling, and live config editing. See the
+[Web Interface Guide](docs/web-interface.md) for details on every tab,
+feature, API endpoint, and WebSocket.
+
 ### Simulation
 
 In config.py, set **simulate=True**. Start the server and select a profile and click Start. Simulations run at near real time.
