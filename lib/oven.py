@@ -547,6 +547,7 @@ class Oven(threading.Thread):
             'target': to_display(self.target),
             'state': self.state,
             'heat': self.heat,
+            'time_step': self.time_step,
             'heat_rate': delta_to_display(self.heat_rate),
             'totaltime': self.totaltime,
             'kwh_rate': config.kwh_rate,

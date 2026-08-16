@@ -196,10 +196,6 @@ class Tuner:
 
             if using_sim:
                 self.oven.heat_then_cool()
-                # SimulatedOven sets heat = time_step * pid which can
-                # exceed 1.0; clamp so the OvenWatcher broadcasts a
-                # sane 0-1 value to the frontend.
-                self.oven.heat = min(self.oven.heat, 1.0)
             else:
                 self.oven.output.heat(sleepfor)
 
@@ -210,7 +206,7 @@ class Tuner:
             # update oven attributes so OvenWatcher broadcasts progress
             self.oven.runtime = time.time() - self.start_time
             self.oven.target = target_temp_c
-            self.oven.heat = 1
+            self.oven.heat = self.time_step
 
             log.debug("tuner heating: actual=%.2f target=%.2f" %
                       (to_display(temp), to_display(target_temp_c)))
@@ -240,7 +236,6 @@ class Tuner:
 
             if using_sim:
                 self.oven.heat_then_cool()
-                self.oven.heat = 0
             else:
                 self.oven.output.cool(sleepfor)
 

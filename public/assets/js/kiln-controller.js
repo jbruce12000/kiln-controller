@@ -1982,7 +1982,8 @@ function init()
         if (x.state === "TUNING" && x.temperature !== undefined) {
             $("temp").innerHTML = rnd(x.temperature);
             $("target").innerHTML = rnd(x.target);
-            $("heat-pct").innerHTML = rnd((x.heat || 0) * 100);
+            var ts = x.time_step || 1;
+            $("heat-pct").innerHTML = rnd((x.heat || 0) / ts * 100);
         }
 
         $("raw_state").innerHTML = "<pre>" + JSON.stringify(x, null, 2) + "</pre>";
