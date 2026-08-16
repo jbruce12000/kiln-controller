@@ -174,21 +174,21 @@
        while tuning. Calculated values are applied to config.py automatically.
       </p>
       <div id="tuner_inputs">
-       <div class="input-group mb-2">
+       <div class="d-inline-flex align-items-center gap-2 mb-2">
         <span class="input-group-text">Target Temperature (&deg;F)</span>
-        <input id="tuner_target_temp" type="number" class="form-control" value="400" />
+        <input id="tuner_target_temp" type="number" class="form-control form-control-sm" value="400" style="width:6rem" />
        </div>
-       <div class="input-group mb-2">
+       <div class="d-inline-flex align-items-center gap-2 mb-2">
         <span class="input-group-text">Method</span>
-        <select id="tuner_method" class="form-select">
+        <select id="tuner_method" class="form-select form-select-sm" style="width:auto">
          <option value="critically_damped" selected>Critically Damped (no overshoot)</option>
          <option value="some_overshoot">Some Overshoot (~20%)</option>
          <option value="quarter_decay">Quarter Decay (~25% overshoot)</option>
         </select>
        </div>
-       <div class="input-group mb-2">
+       <div class="d-inline-flex align-items-center gap-2 mb-2">
         <span class="input-group-text">Tangent Divisor</span>
-        <input id="tuner_tangent_divisor" type="number" class="form-control" value="8" min="2" step="1" />
+        <input id="tuner_tangent_divisor" type="number" class="form-control form-control-sm" value="8" min="2" step="1" style="width:4rem" />
        </div>
       </div>
       <div class="btn-group mb-3">
