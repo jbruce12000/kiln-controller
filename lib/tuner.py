@@ -142,8 +142,13 @@ class Tuner:
         self.tangent_divisor = tangent_divisor
         self._stop_requested = False
 
-        log.info("tuner starting, target=%.1f %s, method=%s" %
-                 (to_display(target_temp_c), config.temp_scale, method))
+        log.info("========================================")
+        log.info("tuner starting")
+        log.info("  target: %.1f %s" % (to_display(target_temp_c), config.temp_scale))
+        log.info("  method: %s" % method)
+        log.info("  tangent divisor: %d" % tangent_divisor)
+        log.info("  simulate: %s" % config.simulate)
+        log.info("========================================")
 
         # take control of the oven
         self.oven.state = "TUNING"
@@ -157,14 +162,19 @@ class Tuner:
 
             self.state = self.CALCULATING
             self.phase = None
+            log.info("recording complete -- analyzing %d data points" %
+                     len(self.csv_data))
             self._calculate()
 
             if not self._stop_requested:
                 self._apply_pid()
                 self.state = self.DONE
-                log.info("tuner done, kp=%.3f ki=%.3f kd=%.3f" %
-                         (self.pid_values["kp"], self.pid_values["ki"],
-                          self.pid_values["kd"]))
+                log.info("========================================")
+                log.info("tuner COMPLETE")
+                log.info("  kp = %.3f" % self.pid_values["kp"])
+                log.info("  ki = %.3f" % self.pid_values["ki"])
+                log.info("  kd = %.3f" % self.pid_values["kd"])
+                log.info("========================================")
         except Exception as e:
             log.error("tuner error: %s" % e)
             self.state = self.ERROR
@@ -189,9 +199,13 @@ class Tuner:
 
         # --- heating phase ---
         self.phase = "heating"
-        self.oven.heat = 1
+        self.oven.heat = self.oven.time_step
+        log.info("HEATING PHASE -- ramping to %.1f %s" %
+                 (to_display(target_temp_c), config.temp_scale))
+
         while True:
             if self._stop_requested:
+                log.info("heating phase aborted by user")
                 return
 
             if using_sim:
@@ -208,10 +222,14 @@ class Tuner:
             self.oven.target = target_temp_c
             self.oven.heat = self.oven.time_step
 
-            log.debug("tuner heating: actual=%.2f target=%.2f" %
-                      (to_display(temp), to_display(target_temp_c)))
+            elapsed = time.time() - self.start_time
+            log.info("  heating: %.1f / %.1f %s  (elapsed: %.0fs, %d points)" %
+                     (to_display(temp), to_display(target_temp_c),
+                      config.temp_scale, elapsed, len(self.csv_data)))
 
             if to_display(temp) >= to_display(target_temp_c):
+                log.info("heating phase COMPLETE -- reached %.1f %s in %.0fs" %
+                         (to_display(temp), config.temp_scale, elapsed))
                 break
 
             # safety check
@@ -229,9 +247,12 @@ class Tuner:
         self.oven.heat = 0
         if using_sim:
             self.oven.target = 0
+        log.info("COOLING PHASE -- cooling back to %.1f %s" %
+                 (to_display(target_temp_c), config.temp_scale))
 
         while True:
             if self._stop_requested:
+                log.info("cooling phase aborted by user")
                 return
 
             if using_sim:
@@ -246,10 +267,14 @@ class Tuner:
             self.oven.runtime = time.time() - self.start_time
             self.oven.heat = 0
 
-            log.debug("tuner cooling: actual=%.2f target=%.2f" %
-                      (to_display(temp), to_display(target_temp_c)))
+            elapsed = time.time() - self.start_time
+            log.info("  cooling: %.1f / %.1f %s  (elapsed: %.0fs, %d points)" %
+                     (to_display(temp), to_display(target_temp_c),
+                      config.temp_scale, elapsed, len(self.csv_data)))
 
             if to_display(temp) <= to_display(target_temp_c):
+                log.info("cooling phase COMPLETE -- reached %.1f %s in %.0fs" %
+                         (to_display(temp), config.temp_scale, elapsed))
                 break
 
     def _calculate(self):
@@ -279,6 +304,9 @@ class Tuner:
         # only use the heating portion (up to first time max temp is reached)
         max_temp = max(ydata)
         heating_end = ydata.index(max_temp) + 1
+        log.info("heating data: %d of %d points, temp range %.1f - %.1f %s" %
+                 (heating_end, len(xdata), min(ydata), max(ydata),
+                  config.temp_scale))
         xdata = xdata[:heating_end]
         ydata = ydata[:heating_end]
 
@@ -286,6 +314,8 @@ class Tuner:
             raise ValueError("not enough heating data to tune against")
 
         L, T = _find_tangent(xdata, ydata, tangentdivisor)
+        log.info("tangent analysis: L (dead time) = %.1fs, T (time constant) = %.1fs" %
+                 (L, T))
 
         rule = ZN_TABLES[method]
         Kp = rule["factor"] * (T / L)
@@ -303,8 +333,10 @@ class Tuner:
             "ki": round(pid_ki, 3),
             "kd": round(pid_kd, 3),
         }
-        log.info("tuner calculated: L=%.1f T=%.1f kp=%.3f ki=%.3f kd=%.3f" %
-                 (L, T, pid_kp, pid_ki, pid_kd))
+        log.info("Ziegler-Nichols (%s): Kp=%.3f Ti=%.1f Td=%.1f" %
+                 (method, Kp, Ti, Td))
+        log.info("PID values: kp=%.3f ki=%.3f kd=%.3f" %
+                 (pid_kp, pid_ki, pid_kd))
 
     def _apply_pid(self):
         '''Write the calculated PID values into config.py and reload.'''
@@ -332,8 +364,7 @@ class Tuner:
         with open(config_path, 'w') as f:
             f.write(text)
 
-        log.info("tuner wrote pid_kp=%.3f pid_ki=%.3f pid_kd=%.3f to %s" %
-                 (kp, ki, kd, config_path))
+        log.info("wrote new PID values to %s" % config_path)
 
         # reload config module
         cached = getattr(config, '__cached__', None)
@@ -344,6 +375,7 @@ class Tuner:
                 pass
         import importlib
         importlib.reload(config)
+        log.info("reloaded config module -- new values are active")
 
     def stop(self):
         '''Abort tuning. The record loop will exit on next iteration.'''
