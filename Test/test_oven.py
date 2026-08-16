@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import sys
+import time
 import types
 
 import pytest
@@ -194,6 +195,28 @@ def test_pid_never_outputs_negative():
     assert out == 0
 
 
+def test_pid_time_delta_unaffected_by_dst():
+    # PID timeDelta must measure real elapsed time, not naive wall-clock
+    # difference. across the spring-forward transition naive subtraction
+    # reports 2 hours even though only 1 hour really passed.
+    old_tz = os.environ.get('TZ')
+    os.environ['TZ'] = 'America/New_York'
+    time.tzset()
+    try:
+        pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
+        now1 = datetime.datetime(2020, 3, 8, 1, 30)  # before the 2am jump
+        now2 = datetime.datetime(2020, 3, 8, 3, 30)  # after the jump
+        pid.lastNow = now1
+        pid.compute(100, 98, now2)
+        assert pid.pidstats['timeDelta'] == pytest.approx(3600, abs=2)
+    finally:
+        if old_tz is None:
+            os.environ.pop('TZ', None)
+        else:
+            os.environ['TZ'] = old_tz
+        time.tzset()
+
+
 ########################################################################
 # Oven
 ########################################################################
@@ -251,7 +274,7 @@ def test_run_profile_seek_start_time_matches_runtime(no_auto_restarts, monkeypat
     # seek found 3800s into the profile for a 250c oven
     assert oven.runtime == 3800
     # start_time must be set back by the runtime, not just startat
-    offset = (datetime.datetime.now() - oven.start_time).total_seconds()
+    offset = time.time() - oven.start_time
     assert offset == pytest.approx(3800, abs=2)
     # and update_runtime keeps the sought position instead of zeroing it
     oven.update_runtime()
@@ -265,7 +288,7 @@ def test_run_profile_no_seek_start_time_matches_startat(no_auto_restarts):
     oven.board = FakeBoard(250)
     oven.run_profile(get_profile(), startat=10, allow_seek=False)
     assert oven.runtime == 600
-    offset = (datetime.datetime.now() - oven.start_time).total_seconds()
+    offset = time.time() - oven.start_time
     assert offset == pytest.approx(600, abs=2)
     oven.update_runtime()
     assert oven.runtime == pytest.approx(600, abs=2)
@@ -851,7 +874,7 @@ def make_sim():
     sim.target = 0
     sim.runtime = 0
     sim.totaltime = 0
-    sim.start_time = datetime.datetime(2020, 1, 1)
+    sim.start_time = time.mktime(datetime.datetime(2020, 1, 1).timetuple())
     sim.heat = 0
     sim.cost = 0
     sim.board = types.SimpleNamespace(
@@ -906,26 +929,97 @@ def test_sim_get_start_time():
     sim.speedup_factor = 2
     sim.runtime = 100
     start = sim.get_start_time()
-    offset = (datetime.datetime.now() - start).total_seconds()
+    offset = time.time() - start
     assert offset == pytest.approx(50, abs=1)  # 100 sim-seconds at 2x speedup
 
 
 def test_sim_update_runtime(monkeypatch):
-    class FakeDateTime(datetime.datetime):
-        @classmethod
-        def now(cls, tz=None):
-            return datetime.datetime(2020, 1, 1, 0, 0, 0)
-
-    monkeypatch.setattr(oven_module().datetime, 'datetime', FakeDateTime)
+    clock = {'epoch': 1_600_000_000.0}
+    monkeypatch.setattr(oven_module().time, 'time', lambda: clock['epoch'])
     sim = make_sim()
     sim.speedup_factor = 1
-    sim.start_time = datetime.datetime(2019, 12, 31, 23, 58, 20)  # 100s ago
+    sim.start_time = clock['epoch'] - 100  # 100s ago
     sim.update_runtime()
     assert sim.runtime == 100
 
     sim.speedup_factor = 2
     sim.update_runtime()
     assert sim.runtime == 200
+
+
+def test_runtime_survives_spring_forward(monkeypatch):
+    # the wall clock jumps forward an hour during the firing; the
+    # elapsed-time tracking must keep using real time, not local time
+    clock = {'epoch': 1_600_000_000.0, 'wall': 0}
+    monkeypatch.setattr(oven_module().time, 'time', lambda: clock['epoch'])
+
+    class FakeDateTime(datetime.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls.fromtimestamp(clock['epoch'] + clock['wall'])
+
+    monkeypatch.setattr(oven_module().datetime, 'datetime', FakeDateTime)
+    oven = Oven()
+    oven.board = FakeBoard(250)
+    oven.run_profile(get_profile(), startat=0, allow_seek=False)
+    assert oven.runtime == 0
+
+    clock['epoch'] += 1200
+    oven.update_runtime()
+    assert oven.runtime == pytest.approx(1200)
+
+    # the DST transition happens here: local time jumps ahead 3600s while
+    # only 1200 more real seconds passed
+    clock['epoch'] += 1200
+    clock['wall'] += 3600
+    oven.update_runtime()
+    assert oven.runtime == pytest.approx(2400)
+
+
+def test_runtime_survives_fall_back(monkeypatch):
+    # the wall clock jumps back an hour during the firing; runtime must
+    # not be clamped to zero as it would if it tracked local time
+    clock = {'epoch': 1_600_000_000.0, 'wall': 0}
+    monkeypatch.setattr(oven_module().time, 'time', lambda: clock['epoch'])
+
+    class FakeDateTime(datetime.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls.fromtimestamp(clock['epoch'] + clock['wall'])
+
+    monkeypatch.setattr(oven_module().datetime, 'datetime', FakeDateTime)
+    oven = Oven()
+    oven.board = FakeBoard(250)
+    oven.run_profile(get_profile(), startat=0, allow_seek=False)
+    assert oven.runtime == 0
+
+    clock['epoch'] += 1200
+    oven.update_runtime()
+    assert oven.runtime == pytest.approx(1200)
+
+    # the DST transition happens here: local time falls back 3600s while
+    # only 1200 more real seconds passed
+    clock['epoch'] += 1200
+    clock['wall'] -= 3600
+    oven.update_runtime()
+    assert oven.runtime == pytest.approx(2400)
+
+
+def test_sim_runtime_survives_dst(monkeypatch):
+    # the simulated oven's runtime is sped-up time but is still anchored
+    # to the real clock, so a DST transition cannot corrupt it
+    clock = {'epoch': 1_600_000_000.0}
+    monkeypatch.setattr(oven_module().time, 'time', lambda: clock['epoch'])
+    sim = make_sim()
+    sim.speedup_factor = 2
+    sim.start_time = clock['epoch']
+    clock['epoch'] += 600
+    sim.update_runtime()
+    assert sim.runtime == pytest.approx(1200)
+    # fall-back: local time goes back an hour, real time keeps going
+    clock['epoch'] += 600
+    sim.update_runtime()
+    assert sim.runtime == pytest.approx(2400)
 
 
 ########################################################################
@@ -1141,7 +1235,7 @@ def test_reset_if_emergency_too_many_errors(no_auto_restarts, monkeypatch):
 
 def test_update_runtime_clamps_negative_start(monkeypatch):
     oven = Oven()
-    oven.start_time = datetime.datetime.now() + datetime.timedelta(minutes=5)
+    oven.start_time = time.time() + 300
     oven.update_runtime()
     assert oven.runtime == 0
 
@@ -1162,7 +1256,7 @@ def test_set_ovenwatcher(monkeypatch):
 def test_sim_update_runtime_clamps_negative_start(monkeypatch):
     monkeypatch.setattr(oven_module().Oven, 'start', lambda self: None)
     sim = SimulatedOven()
-    sim.start_time = datetime.datetime.now() + datetime.timedelta(minutes=5)
+    sim.start_time = time.time() + 300
     sim.update_runtime()
     assert sim.runtime == 0
 

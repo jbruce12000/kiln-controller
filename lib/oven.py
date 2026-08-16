@@ -412,7 +412,9 @@ class Oven(threading.Thread):
         self.save_automatic_restart_state()
 
     def get_start_time(self):
-        return datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000)
+        # epoch seconds so elapsed-time math is immune to local-time
+        # (daylight-saving) changes while a firing is running
+        return time.time() - self.runtime
 
     def kiln_must_catch_up(self):
         '''shift the whole schedule forward in time by one time_step
@@ -437,11 +439,11 @@ class Oven(threading.Thread):
 
     def update_runtime(self):
 
-        runtime_delta = datetime.datetime.now() - self.start_time
-        if runtime_delta.total_seconds() < 0:
-            runtime_delta = datetime.timedelta(0)
+        runtime_delta = time.time() - self.start_time
+        if runtime_delta < 0:
+            runtime_delta = 0
 
-        self.runtime = runtime_delta.total_seconds()
+        self.runtime = runtime_delta
 
     def update_target_temp(self):
         self.target = self.profile.get_target_temperature(self.runtime)
@@ -674,16 +676,16 @@ class SimulatedOven(Oven):
         self.start()
         log.info("SimulatedOven started")
 
-    # runtime is in sped up time, start_time is actual time of day
+    # runtime is in sped up time, start_time is epoch seconds (real time)
     def get_start_time(self):
-        return datetime.datetime.now() - datetime.timedelta(milliseconds = self.runtime * 1000 / self.speedup_factor)
+        return time.time() - self.runtime / self.speedup_factor
 
     def update_runtime(self):
-        runtime_delta = datetime.datetime.now() - self.start_time
-        if runtime_delta.total_seconds() < 0:
-            runtime_delta = datetime.timedelta(0)
+        runtime_delta = (time.time() - self.start_time) * self.speedup_factor
+        if runtime_delta < 0:
+            runtime_delta = 0
 
-        self.runtime = runtime_delta.total_seconds() * self.speedup_factor
+        self.runtime = runtime_delta
 
     def update_target_temp(self):
         self.target = self.profile.get_target_temperature(self.runtime)
@@ -711,7 +713,7 @@ class SimulatedOven(Oven):
         self.board.temp_sensor.simulated_temperature = self.t
 
     def heat_then_cool(self):
-        now_simulator = self.start_time + datetime.timedelta(milliseconds = self.runtime * 1000)
+        now_simulator = datetime.datetime.fromtimestamp(self.start_time + self.runtime)
         pid = self.pid.compute(self.target,
                                self.board.temp_sensor.temperature() +
                                delta_to_c(config.thermocouple_offset), now_simulator)
@@ -885,7 +887,10 @@ class PID():
     # in a larger PID control window and much more accurate control...
     # instead of what used to be binary on/off control.
     def compute(self, setpoint, ispoint, now):
-        timeDelta = (now - self.lastNow).total_seconds()
+        # epoch deltas keep the PID insensitive to local-time
+        # (daylight-saving) changes between calls
+        now_epoch = time.mktime(now.timetuple())
+        timeDelta = now_epoch - time.mktime(self.lastNow.timetuple())
 
         window_size = 100
 
@@ -926,7 +931,7 @@ class PID():
             output = 0
 
         self.pidstats = {
-            'time': time.mktime(now.timetuple()),
+            'time': now_epoch,
             'timeDelta': timeDelta,
             'setpoint': setpoint,
             'ispoint': ispoint,
