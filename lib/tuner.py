@@ -206,7 +206,7 @@ class Tuner:
             # update oven attributes so OvenWatcher broadcasts progress
             self.oven.runtime = time.time() - self.start_time
             self.oven.target = target_temp_c
-            self.oven.heat = self.time_step
+            self.oven.heat = self.oven.time_step
 
             log.debug("tuner heating: actual=%.2f target=%.2f" %
                       (to_display(temp), to_display(target_temp_c)))
