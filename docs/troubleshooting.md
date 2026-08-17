@@ -113,8 +113,6 @@ having to type.
 | Controller crashes mid-run | [Controller crashes mid-run (SSH disconnection)](#controller-crashes-mid-run-ssh-disconnection) |
 | Installation / dependency errors | [Installation or dependency errors](#installation-or-dependency-errors) |
 | Simulation mode won't exit | [Simulation mode won't turn off](#simulation-mode-wont-turn-off) |
-| Daylight savings / clock issues | [Daylight savings or clock skew breaks scheduling](#daylight-savings-or-clock-skew-breaks-scheduling) |
-| Can't find log files | [Can't find or save log files](#cant-find-or-save-log-files) |
 | Temperature offset has no effect | [Temperature offset has no effect](#temperature-offset-has-no-effect) |
 | Pi 5 or new OS doesn't work | [Raspberry Pi 5 or new OS version doesn't work](#raspberry-pi-5-or-new-os-version-doesnt-work) |
 | Interface is slow or unresponsive | [The interface is very slow or unresponsive](#the-interface-is-very-slow-or-unresponsive) |
@@ -562,45 +560,6 @@ The firing stops when you close your SSH session or the network drops.
   to `config.py` don't take effect until the controller is restarted.
 - **Check `test_output`.** If `test_output = True` in config, the controller
   will simulate even if `simulate = False`. Make sure both are set correctly.
-
----
-
-## Daylight savings or clock skew breaks scheduling
-
-- **NTP sync after power outage.** If the Pi has been off for a while, it
-  may boot with the wrong time until NTP syncs. Scheduled firings that
-  depend on accurate time will fire at the wrong time. Wait for NTP sync
-  (check with `date`) before starting a scheduled firing.
-- **Daylight savings transition.** If a firing spans a DST change, the
-  scheduled times may be off by an hour. The controller uses wall clock
-  time, not monotonic time. Plan firings to avoid DST transitions, or use
-  the reboot/resume feature to recover.
-
-*Related: [#135](https://github.com/jbruce12000/kiln-controller/issues/135),
-[#228](https://github.com/jbruce12000/kiln-controller/issues/228)*
-
----
-
-## Can't find or save log files
-
-- **Log location.** By default, logs are written to the same directory as
-  `kiln-controller.py`. Check `log_directory` in `config.py` if you've
-  changed it.
-- **Log format.** Logs are JSON lines (one JSON object per line). You can
-  view them with `cat` or parse them with `jq`:
-  ```
-  cat logs/kiln-log.json | jq .
-  ```
-- **No logs directory.** If `log_directory` points to a path that doesn't
-  exist, the controller won't create it. Create it manually:
-  ```
-  mkdir -p logs
-  ```
-  Then restart the controller.
-
-*Related: [#18](https://github.com/jbruce12000/kiln-controller/issues/18),
-[#214](https://github.com/jbruce12000/kiln-controller/issues/214),
-[#251](https://github.com/jbruce12000/kiln-controller/issues/251)*
 
 ---
 
