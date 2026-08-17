@@ -114,7 +114,6 @@ having to type.
 | Installation / dependency errors | [Installation or dependency errors](#installation-or-dependency-errors) |
 | Simulation mode won't exit | [Simulation mode won't turn off](#simulation-mode-wont-turn-off) |
 | Temperature offset has no effect | [Temperature offset has no effect](#temperature-offset-has-no-effect) |
-| Pi 5 or new OS doesn't work | [Raspberry Pi 5 or new OS version doesn't work](#raspberry-pi-5-or-new-os-version-doesnt-work) |
 | Interface is slow or unresponsive | [The interface is very slow or unresponsive](#the-interface-is-very-slow-or-unresponsive) |
 
 ---
@@ -575,29 +574,6 @@ The firing stops when you close your SSH session or the network drops.
 *Related: [#2](https://github.com/jbruce12000/kiln-controller/issues/2),
 [#154](https://github.com/jbruce12000/kiln-controller/issues/154),
 [#174](https://github.com/jbruce12000/kiln-controller/issues/174)*
-
----
-
-## Raspberry Pi 5 or new OS version doesn't work
-
-- **Pi 5 GPIO library.** `RPi.GPIO` does not work on Pi 5. Use the blinka
-  branch which uses Adafruit Blinka, or use `gpiozero` / `lgpio` instead.
-- **Bookworm / Trixie OS.** Newer Raspberry Pi OS versions may break
-  `raspi-gpio` (used by `gpioreadall.py`). Update to the latest
-  controller version which uses `pinctrl` instead.
-- **Missing `libffi-dev`.** Newer OS images may not include this by
-  default. Install it with `sudo apt-get install libffi-dev` before running
-  `pip install -r requirements.txt`.
-- **GPIO library conflicts.** If you have both `RPi.GPIO` and `gpiozero`
-  installed, they may conflict. Uninstall one:
-  ```
-  pip uninstall RPi.GPIO
-  ```
-
-*Related: [#202](https://github.com/jbruce12000/kiln-controller/issues/202),
-[#201](https://github.com/jbruce12000/kiln-controller/issues/201),
-[#252](https://github.com/jbruce12000/kiln-controller/issues/252),
-[#260](https://github.com/jbruce12000/kiln-controller/issues/260)*
 
 ---
 
