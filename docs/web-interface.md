@@ -123,6 +123,44 @@ simulation options, and more.
 **Be careful** -- incorrect changes can prevent the controller from starting.
 Keep a backup of a known-working config.
 
+### PID Auto-Tuner
+
+At the bottom of the Config tab, the **PID Auto-Tuner** calculates optimal PID
+values for your kiln using the Ziegler-Nichols open-loop method.
+
+**How it works:**
+
+1. Enter a **target temperature**, pick a **tuning method**, and set the
+   **tangent divisor** (leave the defaults unless you know you need to change
+   them).
+2. Click **Start Tuning**. The tuner takes control of the kiln and heats at
+   full power until the target is reached, then lets it cool back down.
+3. The heating curve is recorded and analyzed to compute dead time and time
+   constant. PID values are calculated using Ziegler-Nichols formulas.
+4. The new values are written to `config.py` and the controller restarts
+   automatically.
+
+The **Overview** tab shows the live temperature during tuning. The
+**Details** tab shows temp, target, and heat percentage.
+
+**Tuning methods:**
+
+| Method | Description |
+|--------|-------------|
+| Critically Damped | No overshoot (recommended starting point) |
+| Some Overshoot | ~20% overshoot, faster settling |
+| Quarter Decay | ~25% overshoot, classic Ziegler-Nichols |
+
+**Tangent Divisor** controls where on the heating curve the tangent line is
+fitted. The default of 8 works well for most kilns. Increase it if the heating
+curve has irregular bumps.
+
+No schedule can run while tuning. The tuner will refuse to start if the oven is
+not idle.
+
+**Warning:** Tuning automatically writes PID values to `config.py` and restarts
+the server. This will change how your kiln heats.
+
 ### Key settings
 
 | Setting | What it does |
@@ -205,8 +243,8 @@ This is the most common tuning problem.
 - **PID control window too narrow.** Increase `pid_control_window` (try 15
   or 20). A wider window lets PID control kick in sooner as the kiln
   approaches the target.
-- **PID not tuned.** Run the auto-tuner (`./kiln-tuner.py`) and copy the
-  results into `config.py`. Manual tuning guide: [PID Tuning](pid_tuning.md).
+- **PID not tuned.** Run the PID Auto-Tuner on the Config tab. Manual
+  tuning guide: [PID Tuning](pid_tuning.md).
 - **Throttling not aggressive enough.** Lower `throttle_percent` (try 15 or
   10) and raise `throttle_below_temp` to limit power at low temperatures
   where overshoot is worst.

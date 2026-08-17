@@ -124,9 +124,19 @@ and you can use this script to examine each pin's state including input/output/v
 
 ## PID Tuning
 
-Run the [autotuner](docs/ziegler_tuning.md). It will heat your kiln to 400F, pass that, and then once it cools back down to 400F, it will calculate PID values which you must copy into config.py. No tuning is perfect across a wide temperature range. Here is a [PID Tuning Guide](docs/pid_tuning.md) if you end up having to manually tune.
+The Config tab includes a built-in **PID Auto-Tuner** that heats the kiln at
+full power, records the heating curve, and calculates optimal PID values using
+the Ziegler-Nichols method. The new values are written to `config.py`
+automatically and the controller restarts. See the
+[Web Interface Guide](docs/web-interface.md) for details.
 
-There is a Details tab that can help with tuning. It shows the P, I, and D parameters over time plus allows for a csv dump of data collected. It also shows lots of other details that might help with troubleshooting issues. Go to http://127.0.0.1:9099/#details.
+There is also a Details tab that can help with tuning. It shows the P, I, and D
+parameters over time plus allows for a csv dump of data collected. It also shows
+lots of other details that might help with troubleshooting issues. Go to
+http://127.0.0.1:9099/#details.
+
+If you end up having to manually tune, here is a
+[PID Tuning Guide](docs/pid_tuning.md).
 
 ## Usage
 
