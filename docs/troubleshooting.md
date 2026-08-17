@@ -459,7 +459,7 @@ wrong state.
 
 - **Inverted output.** Some SSRs are active-low (the GPIO pin must be LOW to
   turn on the relay). If your relay activates on LOW, set
-  `output_inverted = True` in `config.py`.
+  `gpio_heat_invert = True` in `config.py`.
 - **SSR wiring.** Double-check that the GPIO pin on the Pi is connected to
   the correct SSR input terminal. Some SSRs have separate terminals for DC
   control and AC load -- make sure you're not wired to the load side.
@@ -558,8 +558,6 @@ The firing stops when you close your SSH session or the network drops.
 - **Check `config.py`.** Set `simulate = False` and restart the controller.
 - **Restart the controller.** The simulate flag is read at startup. Changes
   to `config.py` don't take effect until the controller is restarted.
-- **Check `test_output`.** If `test_output = True` in config, the controller
-  will simulate even if `simulate = False`. Make sure both are set correctly.
 
 ---
 
