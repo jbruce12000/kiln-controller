@@ -76,9 +76,6 @@ The browser can't talk to the controller. Try these in order:
 
 This is the most common tuning problem.
 
-- **PID control window too narrow.** Increase `pid_control_window` (try 15
-  or 20). A wider window lets PID control kick in sooner as the kiln
-  approaches the target.
 - **PID not tuned.** Run the PID Auto-Tuner on the Config tab. Manual
   tuning guide: [PID Tuning](pid_tuning.md).
 - **Throttling not aggressive enough.** Lower `throttle_percent` (try 15 or
