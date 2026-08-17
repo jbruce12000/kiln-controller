@@ -173,7 +173,12 @@
        optimal PID values using the Ziegler-Nichols method. No schedule can run
        while tuning. Calculated values are applied to config.py automatically.
       </p>
-      <div id="tuner_inputs">
+       <div class="alert alert-warning mb-2">
+        <i class="bi bi-exclamation-triangle-fill"></i>
+        <strong>Warning:</strong> Tuning will automatically write PID values to
+        config.py and the server will restart. This will impact how your kiln heats.
+       </div>
+       <div id="tuner_inputs">
        <div class="d-flex align-items-center gap-2 mb-2">
         <span class="input-group-text">Target Temperature (&deg;F)</span>
         <input id="tuner_target_temp" type="number" class="form-control form-control-sm" value="400" style="width:6rem" />
