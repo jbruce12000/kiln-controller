@@ -107,6 +107,16 @@ having to type.
 | gpioreadall.py fails on newer Raspberry Pi OS | [gpioreadall.py fails on newer Raspberry Pi OS](#gpioreadallpy-fails-on-newer-raspberry-pi-os) |
 | Cost estimate seems wrong | [Cost estimate seems wrong](#cost-estimate-seems-wrong) |
 | Charts on the Details tab are empty | [Charts on the Details tab are empty](#charts-on-the-details-tab-are-empty) |
+| Short-to-ground / short-to-VCC errors | [Short-to-ground / short-to-VCC errors at high temperatures](#short-to-ground--short-to-vcc-errors-at-high-temperatures) |
+| SSR / relay working in reverse | [SSR / relay is working in reverse](#ssr--relay-is-working-in-reverse) |
+| Firing ends prematurely | [Firing ends prematurely ("Run complete")](#firing-ends-prematurely-run-complete) |
+| Controller crashes mid-run | [Controller crashes mid-run (SSH disconnection)](#controller-crashes-mid-run-ssh-disconnection) |
+| Installation / dependency errors | [Installation or dependency errors](#installation-or-dependency-errors) |
+| Simulation mode won't exit | [Simulation mode won't turn off](#simulation-mode-wont-turn-off) |
+| Daylight savings / clock issues | [Daylight savings or clock skew breaks scheduling](#daylight-savings-or-clock-skew-breaks-scheduling) |
+| Can't find log files | [Can't find or save log files](#cant-find-or-save-log-files) |
+| Temperature offset has no effect | [Temperature offset has no effect](#temperature-offset-has-no-effect) |
+| Pi 5 or new OS doesn't work | [Raspberry Pi 5 or new OS version doesn't work](#raspberry-pi-5-or-new-os-version-doesnt-work) |
 | Interface is slow or unresponsive | [The interface is very slow or unresponsive](#the-interface-is-very-slow-or-unresponsive) |
 
 ---
@@ -385,6 +395,252 @@ This shouldn't happen -- all clients receive the same live data. If it does:
 - **Too much tuning data.** After a very long firing (many hours), the
   Details tab charts may slow down. Refresh the page to clear the in-memory
   data and start fresh.
+
+---
+
+## Short-to-ground / short-to-VCC errors at high temperatures
+
+The MAX31855/MAX31856 report "short to ground" (GND:True) or "short to VCC"
+(VCC:True) errors. These are the most common and frustrating errors in kiln
+controllers. They typically appear above 800-1000F and may be intermittent.
+
+**Why this happens:**
+
+- **Thermocouple insulation breakdown.** As temperatures rise, the ceramic or
+  fiberglass insulation around thermocouple wire degrades. The wire can
+  momentarily touch the kiln shell or other grounded metal, creating a
+  short-to-ground. This is the most common cause.
+- **EMI from the SSR.** The solid-state relay switches high-current AC
+  (typically 15-30A) which generates electromagnetic interference. This noise
+  can couple into the thermocouple wire and cause false error readings. The
+  problem is worse when the SSR is switching rapidly (low `pid_control_window`,
+  high-frequency PID control).
+- **Defective MAX31855 board.** Some boards have a manufacturing defect where
+  the T- pin is internally shorted to GND on the IC. Scraping between the
+  pins to break the copper trace can fix this. The symptom is erratic behavior
+  that doesn't respond to rewiring.
+- **Missing or poor earth ground.** One user found that battery-powered
+  low-voltage circuits (no earth ground connection to the Pi) eliminated all
+  short-to-ground errors. The earth ground on the Pi's power supply can create
+  a ground loop with the kiln shell.
+
+**What to try:**
+
+- **Rewire with shielded cable.** Use thermocouple wire with fiberglass
+  insulation rated for your maximum temperature. Run it away from power
+  cables.
+- **Separate the thermocouple from power wiring.** Keep TC wire at least 6
+  inches from SSR and element wires. Cross them at 90 degrees if they must
+  intersect.
+- **Increase `pid_control_window`.** A wider window (try 20) means the SSR
+  switches less often, reducing EMI.
+- **Set `ignore_tc_short_errors = True`** in `config.py` as a last resort.
+  This suppresses the error but means the controller won't stop if the
+  thermocouple actually fails. Monitor temperatures closely.
+- **Try a different MAX31855/MAX31856 board.** If you have a defective board,
+  replacement is the only fix.
+- **Check for the 25th bit bug.** Some MAX31855 boards have a known issue
+  where the 25th bit fails above a certain temperature, producing wildly
+  incorrect readings. There is no software fix -- replace the board.
+
+*Related: [#21](https://github.com/jbruce12000/kiln-controller/issues/21),
+[#93](https://github.com/jbruce12000/kiln-controller/issues/93),
+[#114](https://github.com/jbruce12000/kiln-controller/issues/114),
+[#137](https://github.com/jbruce12000/kiln-controller/issues/137),
+[#194](https://github.com/jbruce12000/kiln-controller/issues/194),
+[#225](https://github.com/jbruce12000/kiln-controller/issues/225),
+[#229](https://github.com/jbruce12000/kiln-controller/issues/229),
+[#246](https://github.com/jbruce12000/kiln-controller/issues/246)*
+
+---
+
+## SSR / relay is working in reverse
+
+The kiln heats when it should cool, or the "heat on" indicator shows the
+wrong state.
+
+- **Inverted output.** Some SSRs are active-low (the GPIO pin must be LOW to
+  turn on the relay). If your relay activates on LOW, set
+  `output_inverted = True` in `config.py`.
+- **SSR wiring.** Double-check that the GPIO pin on the Pi is connected to
+  the correct SSR input terminal. Some SSRs have separate terminals for DC
+  control and AC load -- make sure you're not wired to the load side.
+- **Test with a multimeter.** Run `./test-output.py` and measure the voltage
+  across the SSR input terminals. It should toggle between 0V and 3.3V when
+  the script runs.
+
+*Related: [#159](https://github.com/jbruce12000/kiln-controller/issues/159),
+[#180](https://github.com/jbruce12000/kiln-controller/issues/180)*
+
+---
+
+## Firing ends prematurely ("Run complete")
+
+The kiln stops heating and displays "Run complete" before the profile
+finishes.
+
+- **Thermocouple errors.** A short-to-ground or short-to-VCC error at high
+  temperatures can cause a crash (division by zero in the PID loop). The
+  controller interprets this as the run being over. Check the logs for
+  `ERROR oven:` messages. See
+  [Short-to-ground / short-to-VCC errors](#short-to-ground--short-to-vcc-errors-at-high-temperatures).
+- **Emergency shutoff.** The firing stops if `emergency_shutoff_temp` is
+  reached. Make sure it's set higher than your target temperature.
+- **Heat rate too aggressive.** If the kiln can't heat fast enough during a
+  ramp, the emergency heat rate check triggers and the run aborts. Increase
+  `emergency_heat_rate` or check for a failing element.
+- **Catch-up loops.** If `kiln_must_catch_up` is enabled and the kiln can't
+  reach the target, the schedule shifts repeatedly. Eventually it may shift
+  past the end of the profile, which displays as "Run complete." Disable
+  `kiln_must_catch_up` or widen the tolerance in the profile.
+
+*Related: [#68](https://github.com/jbruce12000/kiln-controller/issues/68),
+[#100](https://github.com/jbruce12000/kiln-controller/issues/100),
+[#213](https://github.com/jbruce12000/kiln-controller/issues/213),
+[#231](https://github.com/jbruce12000/kiln-controller/issues/231)*
+
+---
+
+## Controller crashes mid-run (SSH disconnection)
+
+The firing stops when you close your SSH session or the network drops.
+
+- **SSH session dependency.** If you started the controller from an SSH
+  session without `nohup` or a terminal multiplexer, closing the session
+  sends SIGHUP to the process and it dies.
+- **Use `screen` or `tmux`.** Start the controller inside a `screen` or `tmux`
+  session so it survives SSH disconnection:
+  ```
+  screen -S kiln
+  source venv/bin/activate
+  ./kiln-controller.py
+  ```
+  Detach with Ctrl+A then D. Reattach later with `screen -r kiln`.
+- **Use `nohup`.** As a simpler alternative:
+  ```
+  nohup source venv/bin/activate && ./kiln-controller.py &
+  ```
+- **Use `start-on-boot`.** Run `./start-on-boot` so the controller starts
+  automatically on boot and doesn't depend on any user session.
+
+*Related: [#95](https://github.com/jbruce12000/kiln-controller/issues/95),
+[#83](https://github.com/jbruce12000/kiln-controller/issues/83)*
+
+---
+
+## Installation or dependency errors
+
+- **Missing `libffi-dev`.** On Raspberry Pi OS 2021-05 and later, you may need
+  to install the FFI development headers before `pip install gevent`:
+  ```
+  sudo apt-get install libffi-dev
+  ```
+- **`gevent-websocket` vs `geventwebsocket`.** The pip package name is
+  `gevent-websocket` (with a hyphen), but the import name is `geventwebsocket`
+  (no hyphen). If you get `ModuleNotFoundError: No module named
+  'geventwebsocket'`, run `pip install gevent-websocket`.
+- **`RPi.GPIO` not found.** On Pi 5 or Bookworm, `RPi.GPIO` may not be
+  available. Install with `pip install RPi.GPIO` or use the blinka branch
+  which uses Adafruit Blinka instead.
+- **`Could not determine platform`.** This means the GPIO library couldn't
+  detect your hardware. Make sure you're running on a Raspberry Pi, or check
+  that the correct GPIO library is installed.
+
+*Related: [#47](https://github.com/jbruce12000/kiln-controller/issues/47),
+[#63](https://github.com/jbruce12000/kiln-controller/issues/63),
+[#31](https://github.com/jbruce12000/kiln-controller/issues/31),
+[#111](https://github.com/jbruce12000/kiln-controller/issues/111),
+[#232](https://github.com/jbruce12000/kiln-controller/issues/232),
+[#248](https://github.com/jbruce12000/kiln-controller/issues/248)*
+
+---
+
+## Simulation mode won't turn off
+
+- **Check `config.py`.** Set `simulate = False` and restart the controller.
+- **Restart the controller.** The simulate flag is read at startup. Changes
+  to `config.py` don't take effect until the controller is restarted.
+- **Check `test_output`.** If `test_output = True` in config, the controller
+  will simulate even if `simulate = False`. Make sure both are set correctly.
+
+---
+
+## Daylight savings or clock skew breaks scheduling
+
+- **NTP sync after power outage.** If the Pi has been off for a while, it
+  may boot with the wrong time until NTP syncs. Scheduled firings that
+  depend on accurate time will fire at the wrong time. Wait for NTP sync
+  (check with `date`) before starting a scheduled firing.
+- **Daylight savings transition.** If a firing spans a DST change, the
+  scheduled times may be off by an hour. The controller uses wall clock
+  time, not monotonic time. Plan firings to avoid DST transitions, or use
+  the reboot/resume feature to recover.
+
+*Related: [#135](https://github.com/jbruce12000/kiln-controller/issues/135),
+[#228](https://github.com/jbruce12000/kiln-controller/issues/228)*
+
+---
+
+## Can't find or save log files
+
+- **Log location.** By default, logs are written to the same directory as
+  `kiln-controller.py`. Check `log_directory` in `config.py` if you've
+  changed it.
+- **Log format.** Logs are JSON lines (one JSON object per line). You can
+  view them with `cat` or parse them with `jq`:
+  ```
+  cat logs/kiln-log.json | jq .
+  ```
+- **No logs directory.** If `log_directory` points to a path that doesn't
+  exist, the controller won't create it. Create it manually:
+  ```
+  mkdir -p logs
+  ```
+  Then restart the controller.
+
+*Related: [#18](https://github.com/jbruce12000/kiln-controller/issues/18),
+[#214](https://github.com/jbruce12000/kiln-controller/issues/214),
+[#251](https://github.com/jbruce12000/kiln-controller/issues/251)*
+
+---
+
+## Temperature offset has no effect
+
+- **Restart required.** The `thermocouple_offset` value is read at startup.
+  Changes don't take effect until you restart the controller.
+- **Check the value.** The offset is added to the raw reading. If your TC
+  reads 10F low, set `thermocouple_offset = 10`. If it reads 10F high, set
+  `thermocouple_offset = -10`.
+- **Verify with a reference.** Use a known-accurate thermocouple or a
+  thermocouple calibrator to verify the offset. An ice bath (32F / 0C) is
+  a simple reference for checking accuracy.
+
+*Related: [#2](https://github.com/jbruce12000/kiln-controller/issues/2),
+[#154](https://github.com/jbruce12000/kiln-controller/issues/154),
+[#174](https://github.com/jbruce12000/kiln-controller/issues/174)*
+
+---
+
+## Raspberry Pi 5 or new OS version doesn't work
+
+- **Pi 5 GPIO library.** `RPi.GPIO` does not work on Pi 5. Use the blinka
+  branch which uses Adafruit Blinka, or use `gpiozero` / `lgpio` instead.
+- **Bookworm / Trixie OS.** Newer Raspberry Pi OS versions may break
+  `raspi-gpio` (used by `gpioreadall.py`). Update to the latest
+  controller version which uses `pinctrl` instead.
+- **Missing `libffi-dev`.** Newer OS images may not include this by
+  default. Install it with `sudo apt-get install libffi-dev` before running
+  `pip install -r requirements.txt`.
+- **GPIO library conflicts.** If you have both `RPi.GPIO` and `gpiozero`
+  installed, they may conflict. Uninstall one:
+  ```
+  pip uninstall RPi.GPIO
+  ```
+
+*Related: [#202](https://github.com/jbruce12000/kiln-controller/issues/202),
+[#201](https://github.com/jbruce12000/kiln-controller/issues/201),
+[#252](https://github.com/jbruce12000/kiln-controller/issues/252),
+[#260](https://github.com/jbruce12000/kiln-controller/issues/260)*
 
 ---
 
