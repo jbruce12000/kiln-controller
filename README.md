@@ -29,9 +29,9 @@ Turns a Raspberry Pi into an inexpensive, web-enabled kiln controller.
 
 A full single-page web app provides real-time kiln monitoring, profile
 editing, scheduling, and live config editing. See the
-[Web Interface Guide](docs/web-interface.md) for details on every tab,
-feature, API endpoint, and WebSocket.
-**Overview**
+[Web Interface Guide](docs/web-interface.md) for details. Below are screenshots of each tab:
+
+
 
 ![Image](public/assets/images/tab-overview.png)
 
@@ -153,12 +153,6 @@ If you want the server to autostart on boot, run the following command:
 
 Click http://127.0.0.1:8081 for local development or the IP
 of your PI and the port defined in config.py (default 8081).
-
-### Web Interface
-
-A full single-page web app provides real-time kiln monitoring, profile
-editing, scheduling, live config editing, and pid tuning. See the
-[Web Interface Guide](docs/web-interface.md) for details.
 
 ### Simulation
 
