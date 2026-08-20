@@ -25,6 +25,12 @@ Turns a Raspberry Pi into an inexpensive, web-enabled kiln controller.
   * easy scheduling of future kiln runs
 
 
+## Web Interface
+
+A full single-page web app provides real-time kiln monitoring, profile
+editing, scheduling, and live config editing. See the
+[Web Interface Guide](docs/web-interface.md) for details on every tab,
+feature, API endpoint, and WebSocket.
 **Overview**
 
 ![Image](public/assets/images/tab-overview.png)
@@ -100,9 +106,8 @@ All parameters are defined in config.py. You need to read through config.py care
 | -------- | ------- | ----------- |
 | sensor_time_wait | 2 seconds | It's the duty cycle for the entire system.  It's set to two seconds by default which means that a decision is made every 2s about whether to turn on relay[s] and for how long. If you use mechanical relays, you may want to increase this. At 2s, my SSR switches 11,000 times in 13 hours. |
 | temp_scale | f | f for farenheit, c for celcius |
-| pid parameters | | Used to tune your kiln. See PID Tuning. |
+| pid parameters | | Used to tune your kiln. See PID Tuning or Autotuner. |
 | simulate | True | Simulate a kiln. Used to test the software by new users so they can check out the features. |
- 
 
 ## Testing
 
@@ -124,16 +129,11 @@ and you can use this script to examine each pin's state including input/output/v
 
 ## PID Tuning
 
-The Config tab includes a built-in **PID Auto-Tuner** that heats the kiln at
-full power, records the heating curve, and calculates optimal PID values using
+The Config tab on the web interface includes a built-in **PID Auto-Tuner** that heats 
+the kiln at full power to 400F, records the heating curve, and calculates optimal PID values using
 the Ziegler-Nichols method. The new values are written to `config.py`
 automatically and the controller restarts. See the
 [Web Interface Guide](docs/web-interface.md) for details.
-
-There is also a Details tab that can help with tuning. It shows the P, I, and D
-parameters over time plus allows for a csv dump of data collected. It also shows
-lots of other details that might help with troubleshooting issues. Go to
-http://127.0.0.1:9099/#details.
 
 If you end up having to manually tune, here is a
 [PID Tuning Guide](docs/pid_tuning.md).
@@ -157,9 +157,8 @@ of your PI and the port defined in config.py (default 8081).
 ### Web Interface
 
 A full single-page web app provides real-time kiln monitoring, profile
-editing, scheduling, and live config editing. See the
-[Web Interface Guide](docs/web-interface.md) for details on every tab,
-feature, API endpoint, and WebSocket.
+editing, scheduling, live config editing, and pid tuning. See the
+[Web Interface Guide](docs/web-interface.md) for details.
 
 ### Simulation
 
@@ -167,7 +166,9 @@ In config.py, set **simulate=True**. Start the server and select a profile and c
 
 ### Scheduling a Kiln run
 
-You can schedule a firing to start at a specific date and time from the **Profiles** tab or the **Schedule** button next to Start on the Overview tab. Scheduled runs are saved to disk so they survive a reboot, and are fired by the running kiln-controller process. See the [api docs](docs/api.md) for the api commands that power scheduling.
+You can schedule a firing to start at a specific date and time from the **Profiles** tab or 
+the **Schedule** button next to Start on the Overview tab. 
+Scheduled runs are saved to disk so they survive a reboot, and are managed by the running kiln-controller process.
 
 ### Watcher
 
