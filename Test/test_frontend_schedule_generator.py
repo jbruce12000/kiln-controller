@@ -53,6 +53,9 @@ def extract(src, pattern):
 def js():
     src = open(JS_PATH).read()
     context = quickjs.Context()
+    ambient = re.search(r'\nvar SG_AMBIENT_F = (\d+);', src)
+    assert ambient, 'SG_AMBIENT_F not found'
+    context.eval('var SG_AMBIENT_F = %s;' % ambient.group(1))
     context.eval(extract(src, r'\nvar SG_CONE_PEAKS_C = \{'))
     context.eval(extract(src, r'\nfunction sgCToF\([^)]*\)\s*\{'))
     context.eval(extract(src, r'\nfunction sgRateCToF\([^)]*\)\s*\{'))
@@ -134,14 +137,14 @@ def test_candling_hold_tiers(js, mm, hold):
 REFERENCE_GLAZE_CONE6 = {
     "units": "f",
     "segments": [
-        {"from": 20, "to": 120, "rate": 50, "hold": 0},
+        {"from": 70, "to": 120, "rate": 50, "hold": 0},   # room temp
         {"from": 120, "to": 500, "rate": 80, "hold": 0},
         {"from": 500, "to": 600, "rate": 60, "hold": 0},
         {"from": 600, "to": 2132, "rate": 120, "hold": 0},   # peak - 100
         {"from": 2132, "to": 2232, "rate": 40, "hold": 15},
     ],
     "peak_temp": 2232,
-    "total_hours": 23.9,
+    "total_hours": 22.9,
     "segment_count": 5,
 }
 
@@ -149,13 +152,13 @@ REFERENCE_GLAZE_CONE6 = {
 REFERENCE_BISQUE_CONE6 = {
     "units": "f",
     "segments": [
-        {"from": 20, "to": 120, "rate": 50, "hold": 0},
+        {"from": 70, "to": 120, "rate": 50, "hold": 0},   # room temp
         {"from": 120, "to": 500, "rate": 80, "hold": 0},
         {"from": 500, "to": 600, "rate": 60, "hold": 0},
         {"from": 600, "to": 2232, "rate": 100, "hold": 20},
     ],
     "peak_temp": 2232,
-    "total_hours": 25.1,
+    "total_hours": 24.1,
     "segment_count": 4,
 }
 
@@ -186,7 +189,7 @@ def test_bisque_cone6_reference(js):
 def test_glaze_cone06_reference(js):
     result = gen(js, '06', 'glaze', 8)          # cone 06 = 999 C = 1830 F
     assert result['peak_temp'] == 1830
-    assert abs(result['total_hours'] - 20.6) < 0.051
+    assert abs(result['total_hours'] - 19.6) < 0.051
     assert result['segments'][3]['to'] == 1730  # peak - 100
     assert result['segments'][4]['to'] == 1830
     assert result['segments'][4]['hold'] == 15
@@ -195,7 +198,7 @@ def test_glaze_cone06_reference(js):
 def test_glaze_cone10_reference(js):
     result = gen(js, '10', 'glaze', 8)          # cone 10 = 1305 C = 2381 F
     assert result['peak_temp'] == 2381
-    assert abs(result['total_hours'] - 25.2) < 0.051
+    assert abs(result['total_hours'] - 24.2) < 0.051
     assert result['segments'][3]['to'] == 2281  # peak - 100
 
 
@@ -233,7 +236,7 @@ def test_all_cones_monotonic_and_complete(js, cone):
     assert result['segment_count'] == len(segs)
     temps = [segs[0]['from']] + [s['to'] for s in segs]
     assert temps == sorted(temps)
-    assert segs[0]['from'] == 20
+    assert segs[0]['from'] == 70  # room temperature (SG_AMBIENT_F)
     for s in segs:
         assert s['rate'] > 0
         assert s['hold'] >= 0

@@ -29,6 +29,9 @@ var SG_CONE_PEAKS_C = {
     '5': 1196, '6': 1222, '7': 1240, '8': 1263, '9': 1280, '10': 1305
 };
 
+/* Schedules begin at room temperature (Fahrenheit). */
+var SG_AMBIENT_F = 70;
+
 /* ── conversions ────────────────────────────────────────────────────────── */
 
 
@@ -95,7 +98,7 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
     
     /* ---- Orton heating profile ----
        Both glaze and bisque start with:
-         1. 20°F → 120°F at 50°F/hr
+         1. room temp (70°F) → 120°F at 50°F/hr
          2. 120°F → 500°F at 80°F/hr
          3. 500°F → 600°F at 60°F/hr
        
@@ -108,7 +111,8 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
        >= 20 mm, 60 min plus a warning at >= 21 mm */
 
     
-    /* Segment 1: initial heat 20 -> 120 (may include candling hold in hold field) */
+    /* Segment 1: initial heat from room temperature up to 120
+       (may include candling hold in hold field) */
     var candlingHold = sgCandlingHoldMin(t);
     if (candlingHold >= 60) {
         warnings.push('Thick piece: added a 60 minute candling hold');
@@ -116,7 +120,7 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
 
     var seg1Hold = candlingHold;  /* 30 min or 60 min per tier */
     segments.push({
-        from: 20, to: 120, rate: 50, hold: seg1Hold,
+        from: SG_AMBIENT_F, to: 120, rate: 50, hold: seg1Hold,
         note: candlingHold > 0 ? 'Initial heat with candling hold' : 'Initial heat'
     });
     
