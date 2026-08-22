@@ -2,9 +2,15 @@
    Schedule Generator tab ── removable feature module
    
    Generates multi-segment pottery firing schedules entirely in the browser.
-   Segment structure, ramp rates, thickness-based candling holds, and
-   per-cone peak temperatures follow standard ceramic practice (Orton
-   cone data, quartz inversion at 573 degC).
+   The algorithm is a faithful port of ClayCalc's firing schedule generator
+   (https://claycalc.com/calculators/firing-schedule-generator), verified
+   against its live API in Aug 2026: segment structure, C/hr ramp rates,
+   thickness-based candling holds, warnings, and per-cone peak values.
+
+   Like ClayCalc's PHP engines, everything is generated in metric:
+   Celsius temperatures, C/hr rates. Schedules carry units:'c'; the UI
+   converts them for display to match config.temp_scale, and saved
+   profiles are stored in the active scale.
 
    The pure algorithm functions live at the top level (sg prefix) so the
    test suite can extract and execute them (see Test/test_frontend_
@@ -29,8 +35,8 @@ var SG_CONE_PEAKS_C = {
     '5': 1196, '6': 1222, '7': 1240, '8': 1263, '9': 1280, '10': 1305
 };
 
-/* Schedules begin at room temperature (Fahrenheit). */
-var SG_AMBIENT_F = 70;
+/* Room temperature where schedules begin (Celsius, per ClayCalc). */
+var SG_AMBIENT_C = 20;
 
 /* ── conversions ────────────────────────────────────────────────────────── */
 
@@ -55,8 +61,8 @@ function sgConvertRate(value, from, to) {
 /* ── candling hold minutes based on thickest piece in the load (millimeters) ──── */
 
 function sgCandlingHoldMin(mm) {
-    if (mm >= 21) { return 60; }
-    if (mm >= 20) { return 30; }
+    if (mm >= 16) { return 60; }
+    if (mm >= 9) { return 30; }
     return 0;
 }
 
@@ -67,11 +73,11 @@ function sgCandlingHoldMin(mm) {
    firingType: 'glaze' | 'bisque'
    thicknessIn: thickest piece thickness in millimeters (min 1)
    
-   Returns: {kind:'pottery', units:'f', segments, peak_temp, total_hours,
+   Returns: {kind:'pottery', units:'c', segments, peak_temp, total_hours,
             segment_count, warnings}
 
-   All temperatures/rates are Fahrenheit; callers convert for display
-   with sgConvertTemp/sgConvertRate to match config.temp_scale.
+   Temperatures are Celsius and rates C/hr (ClayCalc parity); callers
+   convert with sgConvertTemp/sgConvertRate to match config.temp_scale.
    
    Generates a multi-segment kiln firing schedule for pottery using Orton cone data.
    Segments follow standard Orton heating profile with candling hold for thick pieces.
@@ -81,85 +87,80 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
     var t = parseFloat(thicknessIn);
     
     if (isNaN(t) || t < 1) {
-        return {kind: 'pottery', units: 'f', segments: [], peak_temp: 0, total_hours: 0, segment_count: 0, warnings: []};
+        return {kind: 'pottery', units: 'c', segments: [], peak_temp: 0, total_hours: 0, segment_count: 0, warnings: []};
     }
     
     /* Look up the peak temperature using the exact cone string.
-       SG_CONE_PEAKS_C has keys like '06' (999 C) and '6' (1222 C);
-       schedules are generated in Fahrenheit, so convert once here. */
-    var peakC = SG_CONE_PEAKS_C[String(cone)];
-    if (peakC === undefined) {
-        return {kind: 'pottery', units: 'f', segments: [], peak_temp: 0, total_hours: 0, segment_count: 0, warnings: []};
+       SG_CONE_PEAKS_C has keys like '06' (999 C) and '6' (1222 C).
+       Values mirror ClayCalc's engine exactly; no conversion needed. */
+    var peak = SG_CONE_PEAKS_C[String(cone)];
+    if (peak === undefined) {
+        return {kind: 'pottery', units: 'c', segments: [], peak_temp: 0, total_hours: 0, segment_count: 0, warnings: []};
     }
-    var peak = Math.round(sgCToF(peakC));
     
     var segments = [];
     var warnings = [];
     
-    /* ---- Orton heating profile ----
-       Both glaze and bisque start with:
-         1. room temp (70°F) → 120°F at 50°F/hr
-         2. 120°F → 500°F at 80°F/hr
-         3. 500°F → 600°F at 60°F/hr
-       
-       Then differ:
-         Glaze: 600 -> (peak - 100) at 120 F/hr, then (peak - 100) -> peak
-                at 40 F/hr with a 15 min soak
-         Bisque: 600 -> peak at 100 F/hr with a 20 min soak
+    /* ---- ClayCalc firing stages (all values Celsius as published) ----
 
-       Candling hold on segment 1: 30 min when the thickest piece is
-       >= 20 mm, 60 min plus a warning at >= 21 mm */
+       Shared stages for glaze and bisque:
+         1. Candling:  20 -> 120 C at 50 C/hr; thickness hold on this
+                       segment (sgCandlingHoldMin: >=9 mm -> 30 min,
+                       >=16 mm -> 60 min)
+         2. Burnout:   120 -> 500 C at 80 C/hr
+         3. Inversion: 500 -> 600 C at 60 C/hr (quartz inversion at 573 C)
+       Then:
+         Glaze:  600 -> (peak - 100) at 120 C/hr, then (peak - 100) -> peak
+                 at 40 C/hr with a 15 min soak
+         Bisque: 600 -> peak at 100 C/hr with a 20 min soak */
 
-    
-    /* Segment 1: initial heat from room temperature up to 120
-       (may include candling hold in hold field) */
+    /* Segment 1: steam & mechanical water release; thick pieces get the
+       candling hold here */
     var candlingHold = sgCandlingHoldMin(t);
-    if (candlingHold >= 60) {
-        warnings.push('Thick piece: added a 60 minute candling hold');
+    if (t > 20) {
+        warnings.push({
+            severity: 'warning',
+            message: 'Very thick pieces (>20mm) need additional soaking time ' +
+                     'and may require a candling segment of 2\u20134 hours.'
+        });
     }
 
-    var seg1Hold = candlingHold;  /* 30 min or 60 min per tier */
     segments.push({
-        from: SG_AMBIENT_F, to: 120, rate: 50, hold: seg1Hold,
-        note: candlingHold > 0 ? 'Initial heat with candling hold' : 'Initial heat'
+        from: SG_AMBIENT_C, to: 120, rate: 50, hold: candlingHold,
+        note: 'Steam & mechanical water release'
     });
-    
-    /* Segment 2: ramp 120 -> 500 */
+
+    /* Segment 2: chemical water & organic burnout */
     segments.push({
         from: 120, to: 500, rate: 80, hold: 0,
-        note: 'Slow ramp through dehydration range'
+        note: 'Chemical water & organic burnout'
     });
-    
-    /* Segment 3: ramp 500 -> 600 */
+
+    /* Segment 3: quartz inversion zone */
     segments.push({
         from: 500, to: 600, rate: 60, hold: 0,
-        note: 'Ramp through quartz inversion (~573 °F equivalent)'
+        note: 'Quartz inversion zone \u2014 573\u00b0C critical'
     });
-    
-    /* Segment 4 & 5: glaze or bisque profile */
+
+    /* Remaining segments: glaze or bisque profile */
     if (firingType === 'glaze') {
-        /* Glaze: 600 -> (peak-100) at 120, then (peak-100) -> peak at 40 with 15 min soak */
-        /* Segment 4: 600 -> (peak - 100) */
         segments.push({
             from: 600, to: peak - 100, rate: 120, hold: 0,
-            note: 'Ramp to glaze peak intermediate temperature'
+            note: 'Approach peak temperature'
         });
-        /* Segment 5: (peak - 100) -> peak at 40 with 15 min soak */
         segments.push({
             from: peak - 100, to: peak, rate: 40, hold: 15,
-            note: 'Soak at cone ' + cone + ' peak'
+            note: 'Final approach & soak'
         });
     } else {
-        /* Bisque: 600 -> peak at 100 with 20 min soak */
-        /* Segment 4: 600 -> peak */
         segments.push({
             from: 600, to: peak, rate: 100, hold: 20,
-            note: 'Bisque soak at cone ' + cone + ' peak'
+            note: 'Final bisque temperature'
         });
     }
     
     /* ---- calculate total hours ---- */
-    /* Rates are in °F/hr, holds in minutes.
+    /* Rates are in °C/hr, holds in minutes.
        Time = (temperature_difference / rate) + (hold_minutes / 60) */
     /* All segments have rate > 0; hold minutes converted to hours */
     
@@ -177,7 +178,7 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
     
     return {
         kind: 'pottery',
-        units: 'f',
+        units: 'c',
         segments: segments,
         peak_temp: peak,
         total_hours: totalHours,
@@ -323,7 +324,7 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
     function render() {
         var v = lastValues;
         /* schedules carry their own units; display matches config.temp_scale
-           (global kept current by kiln-controller.js, defaults to Fahrenheit) */
+           (global kept current by kiln-controller.js; falls back to f) */
         var scale = (typeof temp_scale !== 'undefined' && temp_scale === 'c') ? 'c' : 'f';
         var units = v.units || 'f';
         var unitLabel = (scale === 'c') ? '&deg;C' : '&deg;F';
