@@ -28,7 +28,6 @@ var SG_CONE_PEAKS_C = {
     '01': 1137, '1': 1154, '2': 1162, '3': 1168, '4': 1186,
     '5': 1196, '6': 1222, '7': 1240, '8': 1263, '9': 1280, '10': 1305
 };
-;
 
 /* ── conversions ────────────────────────────────────────────────────────── */
 
@@ -83,18 +82,20 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
          3. 500°F → 600°F at 60°F/hr
        
        Then differ:
-         Glaze: 600°F → 1122°F at 120°F/hr, then 1122°F → 1222°F at 40°F/hr with 15 min soak
-         Bisque: 600°F → 1222°F at 100°F/hr with 20 min soak
-       
-       Candling hold: added to first segment hold when thickness >= 21mm
-       Cool down: 1222°F → 20°F at 50°F/hr */
+         Glaze: 600 -> (peak - 100) at 120 F/hr, then (peak - 100) -> peak
+                at 40 F/hr with a 15 min soak
+         Bisque: 600 -> peak at 100 F/hr with a 20 min soak
+
+       Candling hold on segment 1: 30 min when the thickest piece is
+       >= 20 mm, 60 min plus a warning at >= 21 mm */
+
     
     /* Segment 1: initial heat 20 -> 120 (may include candling hold in hold field) */
     var candlingHold = 0;
-    if (t >= 21) { candlingHold = 60; warnings.push(' thick piece candling hold'); }
+    if (t >= 21) { candlingHold = 60; warnings.push('Thick piece: added a 60 minute candling hold'); }
     else if (t >= 20) { candlingHold = 30; }
     
-    var seg1Hold = (candlingHold > 0) ? 60 : 0;
+    var seg1Hold = candlingHold;  /* 30 min or 60 min per tier */
     segments.push({
         from: 20, to: 120, rate: 50, hold: seg1Hold,
         note: 'Initial heat to 120°F' + (candlingHold > 0 ? ' + candling hold' : '')
@@ -310,7 +311,10 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
 
         /* render warnings */
         $('sg_warnings').innerHTML = (v.warnings || []).map(function (w) {
-            return '<div class="alert alert-' + w.severity + ' py-2 px-3 mt-2 mb-0 small">' + w.message + '</div>';
+            /* generator emits plain strings; tolerate {severity,message} objects too */
+            var severity = (w && typeof w === 'object') ? (w.severity || 'warning') : 'warning';
+            var message = (w && typeof w === 'object') ? w.message : String(w);
+            return '<div class="alert alert-' + severity + ' py-2 px-3 mt-2 mb-0 small">' + message + '</div>';
         }).join('');
 
         /* render segments */
