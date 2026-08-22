@@ -737,7 +737,7 @@ function defaultName(key, tr) {
             '    <div class="col-6 col-md-4"><label class="form-label small mb-1">Thickness (in)</label>' +
             '     <input id="sg_steel_thickness" type="number" min="0.01" max="12" step="0.125" class="form-control form-control-sm" /></div>' +
             '    <div class="col-6 col-md-4"><label class="form-label small mb-1">Target HRC</label>' +
-            '     <input id="sg_target_hrc" type="text" class="form-control form-control-sm" /></div>' +
+            '     <select id="sg_target_hrc" class="form-select form-select-sm"></select></div>' +
             '   </div>' +
             '   <div class="row g-2">' +
             '    <div class="col-6"><label class="form-label small mb-1">Soak min (at target)</label>' +
@@ -882,11 +882,12 @@ function defaultName(key, tr) {
             steelSel.selectedIndex = 0;
         }
 
-        /* rebuild treatment + target selects when steel changes */
+        /* rebuild treatment + target + HRC selects when steel changes */
         steelSel.addEventListener('change', function() {
             var steelId = this.value;
             rebuildTreatmentSelect(steelId);
             rebuildTargetSelect(steelId, $('sg_treatment').value);
+            rebuildHrcSelect(steelId);
             updateSteelBlurb();
         });
 
@@ -896,9 +897,10 @@ function defaultName(key, tr) {
             updateSteelBlurb();
         });
 
-        /* populate treatment + target selects for the selected steel */
+        /* populate treatment + target + HRC selects for the selected steel */
         rebuildTreatmentSelect(steelSel.value);
         rebuildTargetSelect(steelSel.value, $('sg_treatment').value);
+        rebuildHrcSelect(steelSel.value);
         updateSteelBlurb();
 
         /* thickness input */
@@ -977,6 +979,35 @@ function defaultName(key, tr) {
             opt.textContent = temps[i] + '\u00B0F';
             if (i === mid) { opt.selected = true; }
             fSel.appendChild(opt);
+        }
+    }
+
+    /* fill the HRC drop-down with the steel's advisable hardness range */
+    function rebuildHrcSelect(steelId) {
+        var hSel = $('sg_target_hrc');
+        while (hSel.length > 0) { hSel.remove(0); }
+
+        var steel = SG_STEELS[steelId];
+        var m = String((steel && steel.hrc) || '').match(/(\d+)(?:\s*-\s*(\d+))?/);
+
+        /* steels without a datasheet range get an empty marker option */
+        if (!m) {
+            var na = document.createElement('option');
+            na.value = '';
+            na.textContent = '\u2014';
+            hSel.appendChild(na);
+            return;
+        }
+
+        var lo = parseInt(m[1], 10);
+        var hi = m[2] !== undefined ? parseInt(m[2], 10) : lo;
+        var mid = Math.floor((lo + hi) / 2);
+        for (var v = lo; v <= hi; v++) {
+            var opt = document.createElement('option');
+            opt.value = String(v);
+            opt.textContent = v + ' HRC';
+            if (v === mid) { opt.selected = true; }
+            hSel.appendChild(opt);
         }
     }
 
