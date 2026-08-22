@@ -551,8 +551,8 @@ function sgGenerateSteelSchedule(key, tr, targetF, thicknessIn, soakMin) {
         }
     }
 
-    /* ---- temper (standalone, not after harden) ---- */
-    if (tr === 'temper' && availableTreatments.indexOf('harden') === -1) {
+    /* ---- standalone temper ---- */
+    if (tr === 'temper') {
         var defaultTemp = sgSteelDefaultTempF(key, 'temper');
         if (defaultTemp) {
             segments.push({
@@ -618,7 +618,10 @@ function sgGenerateSteelSchedule(key, tr, targetF, thicknessIn, soakMin) {
     var total = 0;
     for (var i = 0; i < segments.length; i++) {
         var s = segments[i];
-        total += (s.to - s.from) / s.rate * 3600;  // seconds
+        /* zero-rate rows (quench, air cool) contribute no ramp time */
+        if (s.rate > 0 && s.to !== s.from) {
+            total += Math.abs(s.to - s.from) / s.rate * 3600;  // seconds
+        }
         if (s.hold > 0) {
             total += s.hold * 60;  // seconds
         }
@@ -1184,7 +1187,9 @@ function defaultName(key, tr) {
             if (i === 0) {
                 data.push([0, Math.round(s.from)]);
             }
-            t += (s.to - s.from) / s.rate * 3600;  // seconds
+            if (s.rate > 0 && s.to !== s.from) {
+                t += (s.to - s.from) / s.rate * 3600;  // seconds
+            }
             data.push([Math.round(t), Math.round(s.to)]);
             if (s.hold > 0) {
                 t += s.hold * 60;
