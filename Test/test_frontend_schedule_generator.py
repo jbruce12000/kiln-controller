@@ -134,10 +134,13 @@ def test_candling_hold_tiers(js, mm, hold):
 ########################################################################
 # generated schedules vs reference outputs
 #
-# Every number below is Celsius, exactly as returned by ClayCalc's
-# engine. Glaze ends with a two-segment approach (peak - 100 C, then
-# peak); bisque ramps straight to peak. The 500 -> 600 C segment crosses
-# the quartz inversion at 573 C.
+# Every number below is Celsius. Values (waypoints, rates, hold minutes)
+# match ClayCalc's engine; representation differs deliberately: holds are
+# standalone segments with from == to and rate == 0 ("maintain this
+# temperature for hold minutes") rather than ClayCalc's hold field on the
+# arrival ramp. Glaze ends with approach + peak hold; bisque with ramp +
+# bisque hold. The 500 -> 600 C segment crosses the quartz inversion at
+# 573 C.
 ########################################################################
 
 # reference: glaze, cone 6, 8mm stoneware-equivalent input
@@ -148,11 +151,12 @@ REFERENCE_GLAZE_CONE6 = {
         {"from": 120, "to": 500, "rate": 80, "hold": 0},
         {"from": 500, "to": 600, "rate": 60, "hold": 0},
         {"from": 600, "to": 1122, "rate": 120, "hold": 0},   # peak - 100
-        {"from": 1122, "to": 1222, "rate": 40, "hold": 15},
+        {"from": 1122, "to": 1222, "rate": 40, "hold": 0},   # final approach
+        {"from": 1222, "to": 1222, "rate": 0, "hold": 15},   # hold segment
     ],
     "peak_temp": 1222,
     "total_hours": 15.5,
-    "segment_count": 5,
+    "segment_count": 6,
 }
 
 # reference: bisque, cone 6, 8mm
@@ -162,11 +166,12 @@ REFERENCE_BISQUE_CONE6 = {
         {"from": 20, "to": 120, "rate": 50, "hold": 0},
         {"from": 120, "to": 500, "rate": 80, "hold": 0},
         {"from": 500, "to": 600, "rate": 60, "hold": 0},
-        {"from": 600, "to": 1222, "rate": 100, "hold": 20},
+        {"from": 600, "to": 1222, "rate": 100, "hold": 0},
+        {"from": 1222, "to": 1222, "rate": 0, "hold": 20},   # hold segment
     ],
     "peak_temp": 1222,
     "total_hours": 15,
-    "segment_count": 4,
+    "segment_count": 5,
 }
 
 
@@ -197,9 +202,11 @@ def test_glaze_cone06_reference(js):
     result = gen(js, '06', 'glaze', 8)
     assert result['peak_temp'] == 999
     assert abs(result['total_hours'] - 13.7) < 0.051
-    assert result['segments'][3]['to'] == 899   # peak - 100
-    assert result['segments'][4]['to'] == 999
-    assert result['segments'][4]['hold'] == 15
+    assert result['segments'][3]['to'] == 899          # peak - 100
+    assert result['segments'][4]['to'] == 999          # arrival ramp
+    last = result['segments'][5]
+    assert (last['from'], last['to']) == (999, 999)    # hold segment
+    assert last['rate'] == 0 and last['hold'] == 15
 
 
 def test_glaze_cone10_reference(js):
@@ -211,18 +218,23 @@ def test_glaze_cone10_reference(js):
 
 def test_bisque_thick_piece_gets_candling(js):
     result = gen(js, '6', 'bisque', 25)
-    assert result['segments'][0]['hold'] == 60
-    assert len(result['segments']) == 4         # bisque stays 4 segments
-    assert result['segments'][3]['hold'] == 20  # bisque soak unchanged
+    hold_seg = result['segments'][1]
+    assert (hold_seg['from'], hold_seg['to']) == (120, 120)
+    assert hold_seg['rate'] == 0 and hold_seg['hold'] == 60
+    assert len(result['segments']) == 6         # bisque stays 6 segments
+    assert result['segments'][5]['hold'] == 20  # bisque soak unchanged
 
 
 def test_quartz_inversion_is_crossed_slowly(js):
-    # the 500 -> 600 C segment must bracket the 573 C inversion point
+    # some ramp segment must bracket the 573 C inversion point slowly
     for cone in ('06', '6', '10'):
         for ftype in ('glaze', 'bisque'):
-            s = gen(js, cone, ftype, 8)['segments'][2]
-            assert s['from'] <= 573 <= s['to']
-            assert s['rate'] == 60
+            for mm in (8, 16):  # with and without candling hold inserted
+                covering = [s for s in gen(js, cone, ftype, mm)['segments']
+                            if s['from'] <= 573 <= s['to']]
+                assert len(covering) == 1, (cone, ftype, mm)
+                s = covering[0]
+                assert s['rate'] == 60 and s['hold'] == 0
 
 
 def test_segment_notes_match_claycalc(js):
@@ -231,7 +243,29 @@ def test_segment_notes_match_claycalc(js):
     assert notes[1] == 'Chemical water & organic burnout'
     assert notes[2] == 'Quartz inversion zone \u2014 573\u00b0C critical'
     assert notes[3] == 'Approach peak temperature'
-    assert notes[4] == 'Final approach & soak'
+    assert notes[4] == 'Final approach'
+    assert notes[5] == 'Soak at cone 6 peak'
+
+
+def test_hold_is_explicit_maintain_segment(js):
+    # A hold means the arrival temperature must be MAINTAINED for the given
+    # minutes: its own zero-rate segment with from == to.
+    segs = gen(js, '6', 'glaze', 8)['segments']
+    last = segs[-1]
+    assert (last['from'], last['to'], last['rate'], last['hold']) == \
+        (1222, 1222, 0, 15)
+    # arrival point precedes it as its own ramp segment
+    assert segs[-2]['to'] == 1222 and segs[-2]['rate'] == 40
+
+
+def test_candling_hold_segment_only_when_needed(js):
+    thin = gen(js, '6', 'glaze', 8)['segments']
+    assert not any(s['note'] == 'Candling hold' for s in thin)
+    thick = gen(js, '6', 'glaze', 12)['segments']
+    candling = [s for s in thick if s['note'] == 'Candling hold']
+    assert len(candling) == 1
+    assert (candling[0]['from'], candling[0]['to']) == (120, 120)
+    assert candling[0]['rate'] == 0 and candling[0]['hold'] == 30
 
 
 ########################################################################
@@ -248,10 +282,14 @@ EXPECTED_PEAKS_C = {
 @pytest.mark.parametrize('cone', list(EXPECTED_PEAKS_C.keys()))
 def test_all_cones_peak_temps(js, cone):
     result = gen(js, cone, 'glaze', 8)
+    peak = EXPECTED_PEAKS_C[cone]
     assert result['units'] == 'c'
-    assert result['peak_temp'] == EXPECTED_PEAKS_C[cone]
-    assert result['segments'][-1]['to'] == EXPECTED_PEAKS_C[cone]
-    assert result['segments'][-2]['to'] == EXPECTED_PEAKS_C[cone] - 100
+    assert result['peak_temp'] == peak
+    hold_seg = result['segments'][-1]
+    assert (hold_seg['from'], hold_seg['to']) == (peak, peak)
+    assert hold_seg['rate'] == 0 and hold_seg['hold'] == 15
+    assert result['segments'][-2]['to'] == peak   # arrival ramp
+    assert result['segments'][-3]['to'] == peak - 100
 
 
 @pytest.mark.parametrize('cone', list(EXPECTED_PEAKS_C.keys()))
@@ -260,10 +298,13 @@ def test_all_cones_monotonic_and_complete(js, cone):
     segs = result['segments']
     assert result['segment_count'] == len(segs)
     temps = [segs[0]['from']] + [s['to'] for s in segs]
-    assert temps == sorted(temps)
+    assert temps == sorted(temps)               # non-decreasing: holds plateau
     assert segs[0]['from'] == 20
     for s in segs:
-        assert s['rate'] > 0
+        if s['from'] == s['to']:
+            assert s['rate'] == 0 and s['hold'] > 0   # hold segment
+        else:
+            assert s['rate'] > 0 and s['hold'] == 0   # ramp segment
         assert s['hold'] >= 0
 
 
@@ -292,8 +333,11 @@ def test_thick_piece_warning_shape(js):
 ########################################################################
 
 def test_total_hours_is_sum_of_segment_durations(js):
-    result = gen(js, '6', 'glaze', 16)  # 16mm adds a 60 min candling hold
+    result = gen(js, '6', 'glaze', 16)  # candling hold + peak soak present
     manual = 0.0
     for s in result['segments']:
-        manual += (s['to'] - s['from']) / s['rate'] + s['hold'] / 60
+        if s['to'] != s['from']:            # hold segments add no ramp time
+            manual += (s['to'] - s['from']) / s['rate']
+        manual += s['hold'] / 60
+    assert manual == manual                 # no NaN from zero-rate division
     assert abs(result['total_hours'] - round(manual * 10) / 10) < 1e-9

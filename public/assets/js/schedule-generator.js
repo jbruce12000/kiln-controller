@@ -103,19 +103,20 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
     
     /* ---- ClayCalc firing stages (all values Celsius as published) ----
 
+       Holds/soaks are their own segments: a hold segment has from == to
+       and rate == 0, meaning "maintain this temperature for hold minutes".
        Shared stages for glaze and bisque:
-         1. Candling:  20 -> 120 C at 50 C/hr; thickness hold on this
-                       segment (sgCandlingHoldMin: >=9 mm -> 30 min,
+         1. Candling:  20 -> 120 C at 50 C/hr; thick loads add a candling
+                       hold segment (sgCandlingHoldMin: >=9 mm -> 30 min,
                        >=16 mm -> 60 min)
          2. Burnout:   120 -> 500 C at 80 C/hr
          3. Inversion: 500 -> 600 C at 60 C/hr (quartz inversion at 573 C)
        Then:
-         Glaze:  600 -> (peak - 100) at 120 C/hr, then (peak - 100) -> peak
-                 at 40 C/hr with a 15 min soak
-         Bisque: 600 -> peak at 100 C/hr with a 20 min soak */
+         Glaze:  600 -> (peak - 100) at 120 C/hr, (peak - 100) -> peak at
+                 40 C/hr, then a 15 min hold segment at peak
+         Bisque: 600 -> peak at 100 C/hr, then a 20 min hold segment */
 
-    /* Segment 1: steam & mechanical water release; thick pieces get the
-       candling hold here */
+    /* Segment 1: steam & mechanical water release */
     var candlingHold = sgCandlingHoldMin(t);
     if (t > 20) {
         warnings.push({
@@ -126,9 +127,17 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
     }
 
     segments.push({
-        from: SG_AMBIENT_C, to: 120, rate: 50, hold: candlingHold,
+        from: SG_AMBIENT_C, to: 120, rate: 50, hold: 0,
         note: 'Steam & mechanical water release'
     });
+
+    /* Candling hold: maintain 120 C for the thickness-derived time */
+    if (candlingHold > 0) {
+        segments.push({
+            from: 120, to: 120, rate: 0, hold: candlingHold,
+            note: 'Candling hold'
+        });
+    }
 
     /* Segment 2: chemical water & organic burnout */
     segments.push({
@@ -149,25 +158,34 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
             note: 'Approach peak temperature'
         });
         segments.push({
-            from: peak - 100, to: peak, rate: 40, hold: 15,
-            note: 'Final approach & soak'
+            from: peak - 100, to: peak, rate: 40, hold: 0,
+            note: 'Final approach'
+        });
+        segments.push({
+            from: peak, to: peak, rate: 0, hold: 15,
+            note: 'Soak at cone ' + cone + ' peak'
         });
     } else {
         segments.push({
-            from: 600, to: peak, rate: 100, hold: 20,
+            from: 600, to: peak, rate: 100, hold: 0,
             note: 'Final bisque temperature'
+        });
+        segments.push({
+            from: peak, to: peak, rate: 0, hold: 20,
+            note: 'Bisque soak'
         });
     }
     
     /* ---- calculate total hours ---- */
-    /* Rates are in °C/hr, holds in minutes.
-       Time = (temperature_difference / rate) + (hold_minutes / 60) */
-    /* All segments have rate > 0; hold minutes converted to hours */
+    /* Rates are in °C/hr, holds in minutes. Hold segments have
+       rate == 0 and from == to, contributing only their hold time. */
     
     var total = 0;
     for (var i = 0; i < segments.length; i++) {
         var s = segments[i];
-        var segmentTime = (s.to - s.from) / s.rate;  /* hours */
+        var segmentTime = (s.to !== s.from)
+            ? (s.to - s.from) / s.rate   /* hours */
+            : 0;                         /* hold segment: no ramp time */
         var holdHours = 0;
         if (s.hold > 0) {
             holdHours = s.hold / 60;  /* convert minutes to hours */
@@ -357,7 +375,7 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
                 '<td>' + (i + 1) + '</td>' +
                 '<td>' + fromD + unitLabel + '</td>' +
                 '<td>' + toD + unitLabel + '</td>' +
-                '<td>' + rateD + unitLabel + '/hr</td>' +
+                '<td>' + (s.rate > 0 ? rateD + unitLabel + '/hr' : '&mdash;') + '</td>' +
                 '<td>' + (s.hold ? s.hold + ' min' : '&mdash;') + '</td>' +
                 '<td class="small text-muted">' + s.note + '</td>' +
                 '</tr>';
@@ -400,8 +418,10 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
             }
             data.push([Math.round(t), Math.round(sgConvertTemp(s.to, units, scale))]);
             if (s.hold > 0) {
+                /* hold: maintain the arrival temperature for hold minutes;
+                   emit a plateau keypoint converted to the active scale */
                 t += s.hold * 60;
-                data.push([Math.round(t), Math.round(s.to)]);
+                data.push([Math.round(t), Math.round(sgConvertTemp(s.to, units, scale))]);
             }
         }
 
