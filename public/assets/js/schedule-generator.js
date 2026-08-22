@@ -728,7 +728,7 @@ function defaultName(key, tr) {
             '    <div class="col-6 col-md-4"><label class="form-label small mb-1">Treatment</label>' +
             '     <select id="sg_treatment" class="form-select form-select-sm"></select></div>' +
             '    <div class="col-6 col-md-4"><label class="form-label small mb-1">Target °F</label>' +
-            '     <input id="sg_target_f" type="number" min="100" max="2500" step="5" class="form-control form-control-sm" /></div>' +
+            '     <select id="sg_target_f" class="form-select form-select-sm"></select></div>' +
             '   </div>' +
             '   <div class="row g-2">' +
             '    <div class="col-6 col-md-4"><label class="form-label small mb-1">Thickness (in)</label>' +
@@ -879,25 +879,28 @@ function defaultName(key, tr) {
             steelSel.selectedIndex = 0;
         }
 
-        /* rebuild treatment select when steel changes */
+        /* rebuild treatment + target selects when steel changes */
         steelSel.addEventListener('change', function() {
             var steelId = this.value;
             rebuildTreatmentSelect(steelId);
+            rebuildTargetSelect(steelId, $('sg_treatment').value);
             updateSteelBlurb();
         });
 
-        /* rebuild treatment select initially for default steel */
-        rebuildTreatmentSelect('O1');
+        /* rebuild target select when treatment changes */
+        $('sg_treatment').addEventListener('change', function() {
+            rebuildTargetSelect($('sg_steel').value, this.value);
+            updateSteelBlurb();
+        });
+
+        /* populate treatment + target selects for the selected steel */
+        rebuildTreatmentSelect(steelSel.value);
+        rebuildTargetSelect(steelSel.value, $('sg_treatment').value);
         updateSteelBlurb();
 
         /* thickness input */
         $('sg_steel_thickness').addEventListener('input', function() {
             updateThicknessHint(this.value);
-        });
-
-        /* target F input */
-        $('sg_target_f').addEventListener('input', function() {
-            updateTargetHint(this.value);
         });
 
         /* soak min input */
@@ -943,6 +946,37 @@ function defaultName(key, tr) {
         }
     }
 
+    /* fill the target temperature drop-down with the selected steel's
+       datasheet range for the chosen treatment, in 25 degF steps */
+    function rebuildTargetSelect(steelId, tr) {
+        var fSel = $('sg_target_f');
+        while (fSel.length > 0) { fSel.remove(0); }
+
+        var steel = SG_STEELS[steelId];
+        var range = steel && steel[tr];
+        if (!range || range.length < 2) { return; }
+
+        var lo = range[0];
+        var hi = range[1];
+        var temps = [];
+        if (hi > lo) {
+            for (var t = lo; t <= hi; t += 25) { temps.push(t); }
+            if (temps[temps.length - 1] !== hi) { temps.push(hi); }
+        } else {
+            temps.push(lo);
+        }
+
+        /* preselect the middle of the datasheet range */
+        var mid = Math.floor((temps.length - 1) / 2);
+        for (var i = 0; i < temps.length; i++) {
+            var opt = document.createElement('option');
+            opt.value = String(temps[i]);
+            opt.textContent = temps[i] + '\u00B0F';
+            if (i === mid) { opt.selected = true; }
+            fSel.appendChild(opt);
+        }
+    }
+
     function updateSteelBlurb() {
         var steelId = $('sg_steel').value;
         var tr = $('sg_treatment').value;
@@ -983,19 +1017,6 @@ function defaultName(key, tr) {
         var tr = $('sg_treatment').value;
         if (tr) {
             updateSteelBlurb();
-        }
-    }
-
-    function updateTargetHint(val) {
-        if (!val) { return; }
-        var num = parseFloat(val);
-        if (isNaN(num)) return;
-        var steelId = $('sg_steel').value;
-        var tr = $('sg_treatment').value;
-        var steel = SG_STEELS[steelId];
-        var hintEl = $('sg_soak_hint');
-        if (steel && steel.normalize && tr === 'normalize' && steel.normalize[0]) {
-            hintEl.textContent = 'Datasheet normalize: ' + steel.normalize[0] + '-' + steel.normalize[1] + '°F';
         }
     }
 
