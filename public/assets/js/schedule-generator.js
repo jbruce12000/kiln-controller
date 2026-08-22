@@ -1262,7 +1262,10 @@ function defaultName(key, tr) {
             var key = $('sg_steel').value;
             var tr = $('sg_treatment').value;
             var tin = $('sg_steel_thickness').value;
-            return sgSteelTags(key, tr, tin);
+            var tags = sgSteelTags(key, tr, tin);
+            var hrc = $('sg_target_hrc').value;
+            if (hrc) { tags.push(hrc + 'hrc'); }
+            return tags;
         }
     }
 
