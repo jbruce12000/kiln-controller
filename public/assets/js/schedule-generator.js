@@ -36,12 +36,24 @@ function sgCToF(c) { return c * 9 / 5 + 32; }
 
 function sgRateCToF(r) { return r * 9 / 5; }
 
+/* Convert a temperature/rate between unit systems ('f' or 'c').
+   Rates convert by ratio only; temperatures carry the 32-degree offset. */
+function sgConvertTemp(value, from, to) {
+    if (from === to) { return value; }
+    return (from === 'f') ? (value - 32) * 5 / 9 : value * 9 / 5 + 32;
+}
 
-/* ── candling hold at 120 degF based on thickest piece in the load (inches) ──── */
+function sgConvertRate(value, from, to) {
+    if (from === to) { return value; }
+    return (from === 'f') ? value * 5 / 9 : value * 9 / 5;
+}
+
+
+/* ── candling hold minutes based on thickest piece in the load (millimeters) ──── */
 
 function sgCandlingHoldMin(mm) {
-    if (mm >= 20) { return 60; }
-    if (mm >= 12) { return 30; }
+    if (mm >= 21) { return 60; }
+    if (mm >= 20) { return 30; }
     return 0;
 }
 
@@ -52,7 +64,11 @@ function sgCandlingHoldMin(mm) {
    firingType: 'glaze' | 'bisque'
    thicknessIn: thickest piece thickness in millimeters (min 1)
    
-   Returns: {kind:'pottery', units:'c', segments, peak_temp_c, total_hours, segment_count, warnings}
+   Returns: {kind:'pottery', units:'f', segments, peak_temp, total_hours,
+            segment_count, warnings}
+
+   All temperatures/rates are Fahrenheit; callers convert for display
+   with sgConvertTemp/sgConvertRate to match config.temp_scale.
    
    Generates a multi-segment kiln firing schedule for pottery using Orton cone data.
    Segments follow standard Orton heating profile with candling hold for thick pieces.
@@ -62,15 +78,17 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
     var t = parseFloat(thicknessIn);
     
     if (isNaN(t) || t < 1) {
-        return {kind: 'pottery', units: 'c', segments: [], peak_temp_c: 0, total_hours: 0, segment_count: 0, warnings: []};
+        return {kind: 'pottery', units: 'f', segments: [], peak_temp: 0, total_hours: 0, segment_count: 0, warnings: []};
     }
     
-    /* Look up peak temperature using the exact cone string.
-       SG_CONE_PEAKS_C has keys like '06' (→999) and '6' (→1222). */
-    var peakF = SG_CONE_PEAKS_C[String(cone)];
-    if (peakF === undefined) {
-        return {kind: 'pottery', units: 'c', segments: [], peak_temp_c: 0, total_hours: 0, segment_count: 0, warnings: []};
+    /* Look up the peak temperature using the exact cone string.
+       SG_CONE_PEAKS_C has keys like '06' (999 C) and '6' (1222 C);
+       schedules are generated in Fahrenheit, so convert once here. */
+    var peakC = SG_CONE_PEAKS_C[String(cone)];
+    if (peakC === undefined) {
+        return {kind: 'pottery', units: 'f', segments: [], peak_temp: 0, total_hours: 0, segment_count: 0, warnings: []};
     }
+    var peak = Math.round(sgCToF(peakC));
     
     var segments = [];
     var warnings = [];
@@ -91,26 +109,27 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
 
     
     /* Segment 1: initial heat 20 -> 120 (may include candling hold in hold field) */
-    var candlingHold = 0;
-    if (t >= 21) { candlingHold = 60; warnings.push('Thick piece: added a 60 minute candling hold'); }
-    else if (t >= 20) { candlingHold = 30; }
-    
+    var candlingHold = sgCandlingHoldMin(t);
+    if (candlingHold >= 60) {
+        warnings.push('Thick piece: added a 60 minute candling hold');
+    }
+
     var seg1Hold = candlingHold;  /* 30 min or 60 min per tier */
     segments.push({
         from: 20, to: 120, rate: 50, hold: seg1Hold,
-        note: 'Initial heat to 120°F' + (candlingHold > 0 ? ' + candling hold' : '')
+        note: candlingHold > 0 ? 'Initial heat with candling hold' : 'Initial heat'
     });
     
     /* Segment 2: ramp 120 -> 500 */
     segments.push({
         from: 120, to: 500, rate: 80, hold: 0,
-        note: 'Ramp to 500°F'
+        note: 'Slow ramp through dehydration range'
     });
     
     /* Segment 3: ramp 500 -> 600 */
     segments.push({
         from: 500, to: 600, rate: 60, hold: 0,
-        note: 'Ramp to 600°F'
+        note: 'Ramp through quartz inversion (~573 °F equivalent)'
     });
     
     /* Segment 4 & 5: glaze or bisque profile */
@@ -118,20 +137,20 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
         /* Glaze: 600 -> (peak-100) at 120, then (peak-100) -> peak at 40 with 15 min soak */
         /* Segment 4: 600 -> (peak - 100) */
         segments.push({
-            from: 600, to: peakF - 100, rate: 120, hold: 0,
+            from: 600, to: peak - 100, rate: 120, hold: 0,
             note: 'Ramp to glaze peak intermediate temperature'
         });
         /* Segment 5: (peak - 100) -> peak at 40 with 15 min soak */
         segments.push({
-            from: peakF - 100, to: peakF, rate: 40, hold: 15,
-            note: 'Soak at cone ' + cone + ' glaze peak temperature 15 min'
+            from: peak - 100, to: peak, rate: 40, hold: 15,
+            note: 'Soak at cone ' + cone + ' peak'
         });
     } else {
         /* Bisque: 600 -> peak at 100 with 20 min soak */
         /* Segment 4: 600 -> peak */
         segments.push({
-            from: 600, to: peakF, rate: 100, hold: 20,
-            note: 'Soak at cone ' + cone + ' bisque peak temperature 20 min'
+            from: 600, to: peak, rate: 100, hold: 20,
+            note: 'Bisque soak at cone ' + cone + ' peak'
         });
     }
     
@@ -154,9 +173,9 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
     
     return {
         kind: 'pottery',
-        units: 'c',
+        units: 'f',
         segments: segments,
-        peak_temp_c: peakF,
+        peak_temp: peak,
         total_hours: totalHours,
         segment_count: segments.length,
         warnings: warnings
@@ -299,13 +318,18 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
 
     function render() {
         var v = lastValues;
+        /* schedules carry their own units; display matches config.temp_scale
+           (global kept current by kiln-controller.js, defaults to Fahrenheit) */
+        var scale = (typeof temp_scale !== 'undefined' && temp_scale === 'c') ? 'c' : 'f';
+        var units = v.units || 'f';
+        var unitLabel = (scale === 'c') ? '&deg;C' : '&deg;F';
 
         /* render summary */
         $('sg_summary').innerHTML = '';
 
-        var peakF = Math.round(sgCToF(v.peak_temp_c));
+        var peakDisp = Math.round(sgConvertTemp(v.peak_temp, units, scale));
         $('sg_summary').innerHTML =
-            summaryCard('Peak Temp', peakF + '&deg;F') +
+            summaryCard('Peak Temp', peakDisp + unitLabel) +
             summaryCard('Total Time', v.total_hours + ' hrs') +
             summaryCard('Segments', v.segment_count);
 
@@ -321,11 +345,14 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
         var rows = '';
         for (var i = 0; i < v.segments.length; i++) {
             var s = v.segments[i];
+            var fromD = Math.round(sgConvertTemp(s.from, units, scale));
+            var toD = Math.round(sgConvertTemp(s.to, units, scale));
+            var rateD = Math.round(sgConvertRate(s.rate, units, scale));
             rows += '<tr>' +
                 '<td>' + (i + 1) + '</td>' +
-                '<td>' + s.from + '&deg;F</td>' +
-                '<td>' + s.to + '&deg;F</td>' +
-                '<td>' + s.rate + '&deg;F/hr</td>' +
+                '<td>' + fromD + unitLabel + '</td>' +
+                '<td>' + toD + unitLabel + '</td>' +
+                '<td>' + rateD + unitLabel + '/hr</td>' +
                 '<td>' + (s.hold ? s.hold + ' min' : '&mdash;') + '</td>' +
                 '<td class="small text-muted">' + s.note + '</td>' +
                 '</tr>';
@@ -354,17 +381,19 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
 
     function segmentsToProfile(name) {
         var segs = lastValues.segments;
+        var scale = (typeof temp_scale !== 'undefined' && temp_scale === 'c') ? 'c' : 'f';
+        var units = (lastValues && lastValues.units) || 'f';
         var t = 0;
         var data = [];
         for (var i = 0; i < segs.length; i++) {
             var s = segs[i];
             if (i === 0) {
-                data.push([0, Math.round(s.from)]);
+                data.push([0, Math.round(sgConvertTemp(s.from, units, scale))]);
             }
             if (s.rate > 0 && s.to !== s.from) {
-                t += (s.to - s.from) / s.rate * 3600;  // seconds
+                t += (s.to - s.from) / s.rate * 3600;  // seconds (rate ratio is scale-independent)
             }
-            data.push([Math.round(t), Math.round(s.to)]);
+            data.push([Math.round(t), Math.round(sgConvertTemp(s.to, units, scale))]);
             if (s.hold > 0) {
                 t += s.hold * 60;
                 data.push([Math.round(t), Math.round(s.to)]);

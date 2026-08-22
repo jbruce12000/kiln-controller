@@ -3,7 +3,11 @@
 top-level in that file, so they are extracted from the real file and
 executed with quickjs, matching the approach in
 test_frontend_schedule_display.py. Skipped if the quickjs module is not
-installed.'''
+installed.
+
+All generated schedules are in Fahrenheit (units == 'f'): Orton cone peak
+temperatures are published in Celsius and converted once at generation
+time. The UI converts values for display to match config.temp_scale.'''
 
 import json
 import os
@@ -52,6 +56,8 @@ def js():
     context.eval(extract(src, r'\nvar SG_CONE_PEAKS_C = \{'))
     context.eval(extract(src, r'\nfunction sgCToF\([^)]*\)\s*\{'))
     context.eval(extract(src, r'\nfunction sgRateCToF\([^)]*\)\s*\{'))
+    context.eval(extract(src, r'\nfunction sgConvertTemp\([^)]*\)\s*\{'))
+    context.eval(extract(src, r'\nfunction sgConvertRate\([^)]*\)\s*\{'))
     context.eval(extract(src, r'\nfunction sgCandlingHoldMin\([^)]*\)\s*\{'))
     context.eval(extract(src, r'\nfunction sgGenerateSchedule\([^)]*\)\s*\{'))
     return context
@@ -77,14 +83,40 @@ def test_rate_c_to_f(js):
     assert js.eval('sgRateCToF(40)') == 72
 
 
+def test_convert_temp(js):
+    # same-unit conversion is a no-op
+    assert js.eval("sgConvertTemp(212, 'f', 'f')") == 212
+    assert js.eval("sgConvertTemp(100, 'c', 'c')") == 100
+    # offset conversions
+    assert js.eval("sgConvertTemp(32, 'f', 'c')") == 0
+    assert js.eval("sgConvertTemp(212, 'f', 'c')") == 100
+    assert js.eval("sgConvertTemp(0, 'c', 'f')") == 32
+    assert js.eval("sgConvertTemp(999, 'c', 'f')") == 1830.2
+
+
+def test_convert_temp_roundtrip(js):
+    back = "sgConvertTemp(sgConvertTemp(%d, 'f', 'c'), 'c', 'f')"
+    for value in (20, 120, 500, 600, 2232):
+        assert abs(js.eval(back % value) - value) < 1e-9
+
+
+def test_convert_rate(js):
+    # rates scale by ratio only, no 32-degree offset
+    assert js.eval("sgConvertRate(90, 'f', 'c')") == 50
+    assert js.eval("sgConvertRate(50, 'c', 'f')") == 90
+    assert js.eval("sgConvertRate(120, 'f', 'f')") == 120
+
+
 ########################################################################
-# candling hold tiers (thickness -> hold minutes)
+# candling hold tiers (thickness of thickest piece -> hold minutes)
+#
+# sgCandlingHoldMin is the single source of truth: sgGenerateSchedule
+# calls it, so these tiers are exactly what generated schedules get.
 ########################################################################
 
 @pytest.mark.parametrize('mm,hold', [
-    (1, 0), (8, 0), (11, 0),
-    (12, 30), (13, 30), (19, 30),
-    (20, 60), (25, 60), (40, 60),
+    (1, 0), (8, 0), (11, 0), (12, 0), (19, 0),
+    (20, 30), (21, 60), (25, 60), (40, 60),
 ])
 def test_candling_hold_tiers(js, mm, hold):
     assert js.eval('sgCandlingHoldMin(%d)' % mm) == hold
@@ -92,32 +124,38 @@ def test_candling_hold_tiers(js, mm, hold):
 
 ########################################################################
 # generated schedules vs reference outputs
+#
+# Every number below is Fahrenheit. Cone peaks originate as Orton °C data
+# in SG_CONE_PEAKS_C and are rounded to whole °F at generation time
+# (e.g. cone 6 = 1222 C -> 2232 F), so glaze ramps end at peak - 100 F.
 ########################################################################
 
 # reference: glaze, cone 6, 8mm stoneware-equivalent input
 REFERENCE_GLAZE_CONE6 = {
+    "units": "f",
     "segments": [
         {"from": 20, "to": 120, "rate": 50, "hold": 0},
         {"from": 120, "to": 500, "rate": 80, "hold": 0},
         {"from": 500, "to": 600, "rate": 60, "hold": 0},
-        {"from": 600, "to": 1122, "rate": 120, "hold": 0},
-        {"from": 1122, "to": 1222, "rate": 40, "hold": 15},
+        {"from": 600, "to": 2132, "rate": 120, "hold": 0},   # peak - 100
+        {"from": 2132, "to": 2232, "rate": 40, "hold": 15},
     ],
-    "peak_temp_c": 1222,
-    "total_hours": 15.5,
+    "peak_temp": 2232,
+    "total_hours": 23.9,
     "segment_count": 5,
 }
 
 # reference: bisque, cone 6, 8mm
 REFERENCE_BISQUE_CONE6 = {
+    "units": "f",
     "segments": [
         {"from": 20, "to": 120, "rate": 50, "hold": 0},
         {"from": 120, "to": 500, "rate": 80, "hold": 0},
         {"from": 500, "to": 600, "rate": 60, "hold": 0},
-        {"from": 600, "to": 1222, "rate": 100, "hold": 20},
+        {"from": 600, "to": 2232, "rate": 100, "hold": 20},
     ],
-    "peak_temp_c": 1222,
-    "total_hours": 15,
+    "peak_temp": 2232,
+    "total_hours": 25.1,
     "segment_count": 4,
 }
 
@@ -146,19 +184,19 @@ def test_bisque_cone6_reference(js):
 
 
 def test_glaze_cone06_reference(js):
-    result = gen(js, '06', 'glaze', 8)
-    assert result['peak_temp_c'] == 999
-    assert abs(result['total_hours'] - 13.7) < 0.051
-    assert result['segments'][3]['to'] == 899   # peak - 100
-    assert result['segments'][4]['to'] == 999
+    result = gen(js, '06', 'glaze', 8)          # cone 06 = 999 C = 1830 F
+    assert result['peak_temp'] == 1830
+    assert abs(result['total_hours'] - 20.6) < 0.051
+    assert result['segments'][3]['to'] == 1730  # peak - 100
+    assert result['segments'][4]['to'] == 1830
     assert result['segments'][4]['hold'] == 15
 
 
 def test_glaze_cone10_reference(js):
-    result = gen(js, '10', 'glaze', 8)
-    assert result['peak_temp_c'] == 1305
-    assert abs(result['total_hours'] - 16.2) < 0.051
-    assert result['segments'][3]['to'] == 1205  # peak - 100
+    result = gen(js, '10', 'glaze', 8)          # cone 10 = 1305 C = 2381 F
+    assert result['peak_temp'] == 2381
+    assert abs(result['total_hours'] - 25.2) < 0.051
+    assert result['segments'][3]['to'] == 2281  # peak - 100
 
 
 def test_bisque_thick_piece_gets_candling(js):
@@ -172,22 +210,23 @@ def test_bisque_thick_piece_gets_candling(js):
 # all cones produce sane schedules
 ########################################################################
 
-EXPECTED_PEAKS_C = {
-    '06': 999, '05': 1031, '04': 1063, '03': 1101, '02': 1120,
-    '01': 1137, '1': 1154, '2': 1162, '3': 1168, '4': 1186,
-    '5': 1196, '6': 1222, '7': 1240, '8': 1263, '9': 1280, '10': 1305,
+EXPECTED_PEAKS_F = {
+    '06': 1830, '05': 1888, '04': 1945, '03': 2014, '02': 2048,
+    '01': 2079, '1': 2109, '2': 2124, '3': 2134, '4': 2167,
+    '5': 2185, '6': 2232, '7': 2264, '8': 2305, '9': 2336, '10': 2381,
 }
 
 
-@pytest.mark.parametrize('cone', list(EXPECTED_PEAKS_C.keys()))
+@pytest.mark.parametrize('cone', list(EXPECTED_PEAKS_F.keys()))
 def test_all_cones_peak_temps(js, cone):
     result = gen(js, cone, 'glaze', 8)
-    assert result['peak_temp_c'] == EXPECTED_PEAKS_C[cone]
-    assert result['segments'][-1]['to'] == EXPECTED_PEAKS_C[cone]
-    assert result['segments'][-2]['to'] == EXPECTED_PEAKS_C[cone] - 100
+    assert result['units'] == 'f'
+    assert result['peak_temp'] == EXPECTED_PEAKS_F[cone]
+    assert result['segments'][-1]['to'] == EXPECTED_PEAKS_F[cone]
+    assert result['segments'][-2]['to'] == EXPECTED_PEAKS_F[cone] - 100
 
 
-@pytest.mark.parametrize('cone', list(EXPECTED_PEAKS_C.keys()))
+@pytest.mark.parametrize('cone', list(EXPECTED_PEAKS_F.keys()))
 def test_all_cones_monotonic_and_complete(js, cone):
     result = gen(js, cone, 'glaze', 8)
     segs = result['segments']
@@ -216,7 +255,7 @@ def test_thick_piece_warning(js, mm, warned):
 ########################################################################
 
 def test_total_hours_is_sum_of_segment_durations(js):
-    result = gen(js, '6', 'glaze', 12)  # 12mm adds a 30 min candling hold
+    result = gen(js, '6', 'glaze', 21)  # 21mm adds a 60 min candling hold
     manual = 0.0
     for s in result['segments']:
         manual += (s['to'] - s['from']) / s['rate'] + s['hold'] / 60
