@@ -8,7 +8,6 @@
 
  <link rel="stylesheet" href="assets/css/bootstrap.min.css"/>
 <link rel="stylesheet" href="assets/css/bootstrap-icons.min.css"/>
-<link rel="stylesheet" href="assets/css/tabulator.min.css"/>
 <link rel="stylesheet" href="assets/css/picoreflow.css"/>
 <script>
     try {
@@ -270,6 +269,14 @@
       <div class="stat-bottom" id="catching-up">--</div>
      </div>
     </div>
+
+    <div class="stat-box" id="cost-stats">
+     <div class="stat-tag">COST</div>
+     <div class="stat-cell">
+      <div class="stat-top" id="cost-currency">$</div>
+      <div class="stat-bottom" id="cost">--</div>
+     </div>
+    </div>
    </div>
 
    <div class="charts">
@@ -291,6 +298,10 @@
      <div class="chart-body"><canvas id="chart-heat"></canvas></div>
     </div>
     <div class="chart-panel">
+     <div class="chart-title">Heat Rate (<span id="heat-rate-units">&deg;C/hr</span>)</div>
+     <div class="chart-body"><canvas id="chart-heat-rate"></canvas></div>
+    </div>
+    <div class="chart-panel">
      <div class="chart-title">P</div>
      <div class="chart-body"><canvas id="chart-p"></canvas></div>
     </div>
@@ -302,22 +313,9 @@
      <div class="chart-title">D</div>
      <div class="chart-body"><canvas id="chart-d"></canvas></div>
     </div>
-   </div>
-
-   <div class="panel panel-default mt-3">
-    <div class="panel-heading">
-     <strong>State Table</strong>
-     <a href="javascript: void(0)" onclick="csv_string();">Export CSV</a>
-    </div>
-    <div class="panel-body">
-     <div id="state-table"></div>
-    </div>
-   </div>
-
-   <div class="panel panel-default mt-3">
-    <div class="panel-heading"><strong>Raw State</strong></div>
-    <div class="panel-body">
-     <div id="raw_state"></div>
+    <div class="chart-panel">
+     <div class="chart-title">Thermocouple Errors</div>
+     <div class="chart-body"><canvas id="chart-temp-errors"></canvas></div>
     </div>
    </div>
 
@@ -407,7 +405,6 @@
 
  <script src="assets/js/chart.umd.min.js"></script>
  <script src="assets/js/chartjs-plugin-dragdata.min.js"></script>
- <script src="assets/js/tabulator.min.js"></script>
  <script src="assets/js/bootstrap.bundle.min.js"></script>
   <script src="assets/js/kiln-controller.js"></script>
  <!-- SCHEDULE GENERATOR TAB: remove this line + assets/js/schedule-generator.js to uninstall -->

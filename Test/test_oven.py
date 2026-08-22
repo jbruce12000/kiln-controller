@@ -32,8 +32,14 @@ def get_profile(file="test-fast.json"):
 
 
 class FakeThermocoupleStatus:
+    def __init__(self):
+        self.errors = 0
+
     def over_error_limit(self):
         return False
+
+    def duty_cycle_errors(self):
+        return self.errors
 
 
 class FakeTempSensor:
@@ -334,8 +340,15 @@ def test_get_state():
     assert state['pidstats'] == {}
     for key in ('cost', 'runtime', 'temperature', 'target', 'heat',
                 'heat_rate', 'totaltime', 'kwh_rate', 'currency_type',
-                'profile', 'pidstats', 'catching_up'):
+                'profile', 'pidstats', 'catching_up', 'temp_errors'):
         assert key in state
+
+
+def test_get_state_reports_duty_cycle_read_errors():
+    oven = Oven()
+    oven.board = FakeBoard(250)
+    oven.board.temp_sensor.status.errors = 4
+    assert oven.get_state()['temp_errors'] == 4
 
 
 def test_get_state_reports_display_scale(monkeypatch):
@@ -1067,6 +1080,24 @@ def test_thermocouple_tracker_good_resets():
     for _ in range(tracker.size):
         tracker.good()
     assert tracker.error_percent() == 0
+
+
+def test_thermocouple_tracker_duty_cycle_errors_counts_current_cycle():
+    # window spans two duty cycles; only the newest half counts
+    tracker = ThermocoupleTracker()
+    half = int(tracker.size / 2)
+    for _ in range(tracker.size):
+        tracker.bad()
+    for _ in range(half - 3):               # most of the current cycle recovers
+        tracker.good()
+    assert tracker.duty_cycle_errors() == 3
+
+
+def test_thermocouple_tracker_duty_cycle_errors_zero_when_all_good():
+    tracker = ThermocoupleTracker()
+    for _ in range(tracker.size):
+        tracker.good()
+    assert tracker.duty_cycle_errors() == 0
 
 
 ########################################################################

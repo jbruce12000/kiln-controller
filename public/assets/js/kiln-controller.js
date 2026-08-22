@@ -41,8 +41,6 @@ try {
 } catch (e) {
     all = [];
 }
-var table = "";
-var tableBuilt = false;
 var charts = {};
 var detailsInited = false;
 
@@ -75,8 +73,7 @@ function clear_persisted_all() {
     try {
         localStorage.removeItem(STORAGE_KEY);
     } catch (e) {}
-    if (detailsInited && table) {
-        table.replaceData(latest(20));
+    if (detailsInited) {
         drawall(windowed_data());
     }
 }
@@ -93,8 +90,7 @@ function prune_persisted_all(cutoff) {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify(all.slice(-6000)));
     } catch (e) {}
-    if (detailsInited && table) {
-        table.replaceData(latest(20));
+    if (detailsInited) {
         drawall(windowed_data());
     }
 }
@@ -259,7 +255,6 @@ function initDetails() {
     if (!detailsInited) {
         create_charts();
         drawall(all);
-        create_table([]);
         detailsInited = true;
         return;
     }
@@ -268,9 +263,6 @@ function initDetails() {
         if (charts.hasOwnProperty(k)) {
             charts[k].resize();
         }
-    }
-    if (table) {
-        table.redraw();
     }
 }
 
@@ -1619,8 +1611,14 @@ function create_charts() {
   charts.error = make_line_chart('chart-error');
   charts.error.data.datasets = [line_dataset('error', '#ff8a80')];
 
+  charts.temperrors = make_line_chart('chart-temp-errors');
+  charts.temperrors.data.datasets = [line_dataset('read errors', '#ff8a80')];
+
   charts.heat = make_line_chart('chart-heat');
   charts.heat.data.datasets = [line_dataset('heat', '#ffb14e')];
+
+  charts.heatrate = make_line_chart('chart-heat-rate');
+  charts.heatrate.data.datasets = [line_dataset('heat rate', '#ffb14e')];
 
   charts.p = make_line_chart('chart-p');
   charts.p.data.datasets = [line_dataset('p', '#6ec6ff')];
@@ -1656,13 +1654,33 @@ function set_chart_data(chart, rows, key) {
   chart.update('none');
 }
 
+// rates are derived between consecutive samples and reported in
+// degrees/hour to match how firing schedules specify ramp rates; a gap
+// larger than this (reconnects, pruned history) says nothing about the
+// current slope
+var RATE_MAX_GAP = 15;
+
+function rate_series(data, field) {
+  var out = [];
+  var i;
+  for (i = 1; i < data.length; i++) {
+    var dt = data[i].time - data[i - 1].time;
+    if (dt > 0 && dt <= RATE_MAX_GAP) {
+      out.push({ x: data[i].time, y: (data[i][field] - data[i - 1][field]) / dt * 3600 });
+    }
+  }
+  return out;
+}
+
 function drawall(data) {
   draw_temps(data);
   draw_error(data);
   draw_heat(data);
+  draw_heat_rate(data);
   draw_p(data);
   draw_i(data);
   draw_d(data);
+  draw_temp_errors(data);
 }
 
 function draw_temps(data) {
@@ -1688,8 +1706,18 @@ function draw_error(data) {
   set_chart_data(charts.error, data, 'err');
 }
 
+function draw_temp_errors(data) {
+  set_chart_data(charts.temperrors, data, 'temp_errors');
+}
+
 function draw_heat(data) {
   set_chart_data(charts.heat, data, 'out');
+}
+
+function draw_heat_rate(data) {
+  var pts = rate_series(data, 'ispoint');
+  charts.heatrate.data.datasets[0].data = pts;
+  charts.heatrate.update('none');
 }
 
 function draw_p(data) {
@@ -1708,10 +1736,6 @@ function unix_to_yymmdd_hhmmss(t) {
   var date = new Date(t * 1000);
   var newd = new Date(date.getTime() - date.getTimezoneOffset()*60000);
   return newd.toISOString().replace("T"," ").substring(0, 19);
-}
-
-function latest(n) {
-  return all.slice(-n).reverse();
 }
 
 var window_minutes = 2;
@@ -1742,36 +1766,6 @@ function tune_window_change() {
     label.innerHTML = v + ' min';
   }
   drawall(windowed_data());
-}
-
-function create_table(data) {
-  table = new Tabulator("#state-table", {
-    height: 300,
-    data: data,
-    layout: "fitColumns",
-    columns: [
-      { title: "DateTime", field: "datetime" },
-      { title: "Target", field: "setpoint" },
-      { title: "Temp", field: "ispoint" },
-      { title: "Error", field: "err" },
-      { title: "P", field: "p" },
-      { title: "I", field: "i" },
-      { title: "D", field: "d" },
-      { title: "Heat", field: "out" },
-      { title: "Catching Up", field: "catching_up" },
-      { title: "Time Delta", field: "timeDelta" }
-    ]
-  });
-  table.on("tableBuilt", function() {
-    tableBuilt = true;
-    if (all.length > 0) {
-      table.replaceData(latest(20));
-    }
-  });
-}
-
-function csv_string() {
-  table.download("csv", "kiln-state.csv");
 }
 
 function download_dump() {
@@ -1962,14 +1956,14 @@ function init()
             x.pidstats.err = x.pidstats.err * -1;
             x.pidstats.out = x.pidstats.out * 100;
             x.pidstats.catching_up = x.catching_up;
+            x.pidstats.temp_errors = x.temp_errors;
             if (x.catching_up == true) {
                 x.pidstats.catchingup = x.pidstats.ispoint;
             }
             all.push(x.pidstats);
             persist_all();
 
-            if (detailsInited && tableBuilt) {
-                table.replaceData(latest(20));
+            if (detailsInited) {
                 drawall(windowed_data());
             }
 
@@ -1991,7 +1985,12 @@ function init()
             $("heat-pct").innerHTML = rnd((x.heat || 0) / ts * 100);
         }
 
-        $("raw_state").innerHTML = "<pre>" + JSON.stringify(x, null, 2) + "</pre>";
+        // run cost: kwh_rate * kw_elements accumulated element-on seconds,
+        // computed server-side each tick (see Oven.update_cost)
+        if (x.cost !== undefined && x.cost !== null) {
+            $("cost").innerHTML = Number(x.cost).toFixed(2);
+            $("cost-currency").innerHTML = x.currency_type || '$';
+        }
     };
 
     // Config Socket /////////////////////////////////
@@ -2018,6 +2017,10 @@ function init()
         currency_type = x.currency_type;
 
         if (temp_scale == "c") {temp_scale_display = "C";} else {temp_scale_display = "F";}
+        var heatRateUnits = $('heat-rate-units');
+        if (heatRateUnits) {
+            heatRateUnits.innerHTML = '&deg;' + temp_scale_display + '/hr';
+        }
 
         simulate = x.simulate;
         toggleSimBadge(simulate);

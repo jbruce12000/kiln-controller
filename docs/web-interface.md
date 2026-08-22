@@ -41,12 +41,12 @@ numbers that control how the kiln heats.
 | ERROR | How far off the kiln is from the target (now, 1-min avg, 5-min avg, 15-min avg) |
 | HEAT | What percentage of heater power is being used |
 | CATCH UP | How much time the kiln has spent behind schedule |
+| COST | Running cost of the firing so far (element wattage x hours on, at your electricity rate) |
 
-**Charts** show temperature, error, heat output, and PID components over time.
-Use the **Window** slider to zoom into recent data or view the entire run.
-
-**State Table** shows the most recent readings in a sortable table. You can
-export it as a CSV file with the **Export CSV** link.
+**Charts** show temperature, error, heat output, heat rate (how fast the
+temperature is climbing or falling, in degrees per hour), PID components,
+and thermocouple read errors over time. Use the **Window** slider to zoom
+into recent data or view the entire run.
 
 **Config Dump** downloads a zip of your config, profiles, state, and logs --
 useful when asking for help on the forum or filing a bug report.

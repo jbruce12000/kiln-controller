@@ -206,6 +206,13 @@ class ThermocoupleTracker(object):
         errors = sum(i == False for i in self.status) 
         return (errors/self.size)*100
 
+    def duty_cycle_errors(self):
+        '''number of failed reads within the most recent duty cycle.
+           the window holds temperature_average_samples * 2 reads (two
+           duty cycles); the newest half is the current one.'''
+        samples = int(self.size / 2)
+        return sum(1 for ok in self.status[-samples:] if ok == False)
+
     def over_error_limit(self):
         if self.error_percent() > self.limit:
             return True
@@ -540,6 +547,13 @@ class Oven(threading.Thread):
 
         self.set_heat_rate(self.runtime,temp)
 
+        temp_errors = 0
+        try:
+            temp_errors = self.board.temp_sensor.status.duty_cycle_errors()
+        except AttributeError:
+            # start-up with a simulated oven
+            pass
+
         state = {
             'cost': self.cost,
             'runtime': self.runtime,
@@ -556,6 +570,7 @@ class Oven(threading.Thread):
             'run_id': self.run_sequence,
             'pidstats': self.get_display_pidstats(),
             'catching_up': self.catching_up,
+            'temp_errors': temp_errors,
         }
         return state
 

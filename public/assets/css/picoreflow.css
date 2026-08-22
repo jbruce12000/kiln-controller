@@ -45,8 +45,6 @@ body {
     --ds-input-fg: #d8d3c5;
     --ds-input-border: #5a5853;
     --ds-input-shadow: inset 0 0 12px 0 #000;
-    --raw-bg: #1f1f1f;
-    --raw-fg: #9d9;
     --run-green-top: rgba(164,179,87,1);
     --run-green-bottom: rgba(117,137,12,1);
 }
@@ -76,8 +74,6 @@ body {
     --ds-input-fg: #2c2a26;
     --ds-input-border: #c9c6bf;
     --ds-input-shadow: inset 0 0 8px 0 rgba(0,0,0,0.12);
-    --raw-bg: #f2f0eb;
-    --raw-fg: #2c5c2c;
 }
 
 #theme_toggle {
@@ -633,90 +629,6 @@ body {
     min-width: 46px;
     text-align: right;
     white-space: nowrap;
-}
-
-/* ---------------------------------------------------------------------------
-   Tuning: tabulator table (dark)
---------------------------------------------------------------------------- */
-
-.tabulator {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    color: var(--fg);
-    border-radius: 6px;
-    overflow: hidden;
-}
-
-.tabulator .tabulator-header {
-    background: var(--panel-bg);
-    color: var(--fg);
-    border-bottom: 1px solid var(--border);
-}
-
-.tabulator .tabulator-header .tabulator-col {
-    background: var(--panel-bg);
-}
-
-.tabulator .tabulator-header .tabulator-col .tabulator-col-content {
-    color: var(--fg);
-}
-
-.tabulator .tabulator-header .tabulator-col .tabulator-col-content .tabulator-col-title {
-    color: var(--fg);
-}
-
-.tabulator .tabulator-tableHolder {
-    background: var(--surface);
-}
-
-.tabulator .tabulator-tableHolder .tabulator-table {
-    background: var(--surface);
-    color: var(--fg);
-}
-
-.tabulator .tabulator-tableHolder .tabulator-table .tabulator-row {
-    background: var(--surface);
-    color: var(--fg);
-}
-
-.tabulator .tabulator-tableHolder .tabulator-table .tabulator-row.tabulator-row-even {
-    background: var(--surface-2);
-}
-
-.tabulator .tabulator-tableHolder .tabulator-table .tabulator-row.tabulator-row-odd {
-    background: var(--surface);
-}
-
-.tabulator .tabulator-tableHolder .tabulator-table .tabulator-row:hover {
-    background: var(--surface-3);
-}
-
-.tabulator .tabulator-footer {
-    background: var(--panel-bg);
-    color: var(--fg);
-    border-top: 1px solid var(--border);
-}
-
-.tabulator .tabulator-footer .tabulator-page {
-    color: var(--fg);
-}
-
-.tabulator .tabulator-footer .tabulator-page.active {
-    color: #9cb310;
-}
-
-/* ---------------------------------------------------------------------------
-   Tuning: raw state
---------------------------------------------------------------------------- */
-
-#raw_state pre {
-    background: var(--raw-bg);
-    color: var(--raw-fg);
-    border-radius: 6px;
-    padding: 12px;
-    font-size: 11px;
-    overflow-x: auto;
-    margin: 0;
 }
 
 /* ---------------------------------------------------------------------------
