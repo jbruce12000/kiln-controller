@@ -5,12 +5,11 @@ executed with quickjs, matching the approach in
 test_frontend_schedule_display.py. Skipped if the quickjs module is not
 installed.
 
-The generator is a faithful port of ClayCalc's firing schedule generator
-(https://claycalc.com/calculators/firing-schedule-generator). Like
-ClayCalc's engines it works natively in Celsius: schedules carry
-units == 'c', and the UI converts them for display to match
-config.temp_scale. All expected values below were captured from
-ClayCalc's live API in August 2026.'''
+The generator works natively in Celsius: schedules carry units == 'c',
+and the UI converts them for display to match config.temp_scale.
+Holds/soaks are standalone zero-rate segments (from == to). An optional
+controlled cool-down through the quartz (573 C) and cristobalite
+(~225 C) inversion zones is appended when requested via a checkbox.'''
 
 import json
 import os
@@ -25,15 +24,19 @@ JS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
                                        'schedule-generator.js'))
 
 
+_DELIMITERS = {'{': '}', '[': ']'}
+
+
 def _balanced_end(src, open_idx):
-    '''return the index just past the brace block opening at open_idx,
-    including any trailing semicolon'''
+    '''return the index just past the brace/bracket block opening at
+    open_idx, including any trailing semicolon'''
+    closer = _DELIMITERS[src[open_idx]]
     depth = 1
     i = open_idx + 1
     while depth > 0:
-        if src[i] == '{':
+        if src[i] == src[open_idx]:
             depth += 1
-        elif src[i] == '}':
+        elif src[i] == closer:
             depth -= 1
         i += 1
     if i < len(src) and src[i] == ';':
@@ -47,9 +50,16 @@ def extract(src, pattern):
     if not m:
         raise AssertionError('pattern %r not found in %s' % (pattern, JS_PATH))
     if m.group(0).lstrip().startswith('function'):
-        return src[m.start():_balanced_end(src, m.end() - 1)]
-    # var declaration: from match through the closing brace of the object
-    return src[m.start():_balanced_end(src, src.index('{', m.start()))]
+        # body brace follows the parameter list
+        body = src.index('{', m.end() - 1)
+        return src[m.start():_balanced_end(src, body)]
+    # var declaration: from match through the closing delimiter of its
+    # object/array literal (first non-space char after '=')
+    eq = src.index('=', m.start())
+    j = eq + 1
+    while src[j] in ' \t':
+        j += 1
+    return src[m.start():_balanced_end(src, j)]
 
 
 @pytest.fixture(scope='module')
@@ -60,7 +70,11 @@ def js():
     ambient = re.search(r'\nvar SG_AMBIENT_C = (\d+);', src)
     assert ambient, 'SG_AMBIENT_C not found'
     context.eval('var SG_AMBIENT_C = %s;' % ambient.group(1))
+    end_c = re.search(r'\nvar SG_COOLDOWN_END_C = (\d+);', src)
+    assert end_c, 'SG_COOLDOWN_END_C not found'
+    context.eval('var SG_COOLDOWN_END_C = %s;' % end_c.group(1))
     context.eval(extract(src, r'\nvar SG_CONE_PEAKS_C = \{'))
+    context.eval(extract(src, r'\nvar SG_COOLDOWN_STAGES = \['))
     context.eval(extract(src, r'\nfunction sgCToF\([^)]*\)\s*\{'))
     context.eval(extract(src, r'\nfunction sgRateCToF\([^)]*\)\s*\{'))
     context.eval(extract(src, r'\nfunction sgConvertTemp\([^)]*\)\s*\{'))
@@ -70,9 +84,10 @@ def js():
     return context
 
 
-def gen(js, cone, firing_type, mm):
+def gen(js, cone, firing_type, mm, cooldown=False):
     return json.loads(js.eval(
-        'JSON.stringify(sgGenerateSchedule(%r, %r, %d))' % (cone, firing_type, mm)))
+        'JSON.stringify(sgGenerateSchedule(%r, %r, %d, %s))'
+        % (cone, firing_type, mm, 'true' if cooldown else 'false')))
 
 
 ########################################################################
@@ -117,9 +132,9 @@ def test_convert_rate(js):
 ########################################################################
 # candling hold tiers (thickness of thickest piece -> hold minutes)
 #
-# Boundaries probed from ClayCalc's live API (Aug 2026): 8 mm -> no hold,
-# 9 mm -> 30 min, 15 mm -> 30 min, 16 mm -> 60 min. sgGenerateSchedule
-# calls this helper, so these tiers are exactly what schedules get.
+# Boundaries: 8 mm and under -> none, 9-15 mm -> 30 min,
+# 16 mm and up -> 60 min. sgGenerateSchedule calls this helper, so these
+# tiers are exactly what schedules get.
 ########################################################################
 
 @pytest.mark.parametrize('mm,hold', [
@@ -134,11 +149,9 @@ def test_candling_hold_tiers(js, mm, hold):
 ########################################################################
 # generated schedules vs reference outputs
 #
-# Every number below is Celsius. Values (waypoints, rates, hold minutes)
-# match ClayCalc's engine; representation differs deliberately: holds are
-# standalone segments with from == to and rate == 0 ("maintain this
-# temperature for hold minutes") rather than ClayCalc's hold field on the
-# arrival ramp. Glaze ends with approach + peak hold; bisque with ramp +
+# Every number below is Celsius. Holds are standalone segments with
+# from == to and rate == 0 ("maintain this temperature for hold
+# minutes"). Glaze ends with approach + peak hold; bisque with ramp +
 # bisque hold. The 500 -> 600 C segment crosses the quartz inversion at
 # 573 C.
 ########################################################################
@@ -237,7 +250,7 @@ def test_quartz_inversion_is_crossed_slowly(js):
                 assert s['rate'] == 60 and s['hold'] == 0
 
 
-def test_segment_notes_match_claycalc(js):
+def test_segment_notes(js):
     notes = [s['note'] for s in gen(js, '6', 'glaze', 8)['segments']]
     assert notes[0] == 'Steam & mechanical water release'
     assert notes[1] == 'Chemical water & organic burnout'
@@ -309,6 +322,101 @@ def test_all_cones_monotonic_and_complete(js, cone):
 
 
 ########################################################################
+# optional controlled cool-down
+#
+# When requested, four descending ramp segments are appended after the
+# peak hold. They cross both dunting-critical zones slowly: quartz
+# inversion (573 C) at 100 C/hr and cristobalite (~225 C) at 60 C/hr.
+########################################################################
+
+COOLDOWN_TAIL_STEPS = [(650, 300), (550, 100), (250, 150), (150, 60)]
+COOLDOWN_END_C = 150
+
+
+def test_cooldown_off_by_default(js):
+    result = gen(js, '6', 'glaze', 8)
+    assert result['segments'][-1]['hold'] == 15          # peak soak last
+    assert not any(s['note'].startswith('Cool-down')
+                   for s in result['segments'])
+
+
+@pytest.mark.parametrize('cone', ['06', '5', '10'])
+@pytest.mark.parametrize('ftype', ['glaze', 'bisque'])
+def test_cooldown_appended_when_requested(js, cone, ftype):
+    peak = EXPECTED_PEAKS_C[cone]
+    segs = gen(js, cone, ftype, 8, cooldown=True)['segments']
+    tail = [(s['from'], s['to'], s['rate']) for s in segs[-4:]]
+    assert tail == [(peak, 650, 300), (650, 550, 100),
+                    (550, 250, 150), (250, COOLDOWN_END_C, 60)]
+    assert all(s['hold'] == 0 for s in segs[-4:])
+    assert segs[-1]['to'] == COOLDOWN_END_C
+
+
+def test_cooldown_crosses_inversion_zones_slowly(js):
+    down = gen(js, '6', 'glaze', 8, cooldown=True)['segments'][6:]
+    quartz = [s for s in down if s['from'] >= 573 >= s['to']]
+    assert len(quartz) == 1 and quartz[0]['rate'] <= 100
+    cristobalite = [s for s in down if s['from'] >= 225 >= s['to']]
+    assert len(cristobalite) == 1 and cristobalite[0]['rate'] <= 90
+
+
+def test_cooldown_totals(js):
+    base = gen(js, '6', 'glaze', 8)
+    with_cool = gen(js, '6', 'glaze', 8, cooldown=True)
+    extra = ((1222 - 650) / 300 + (650 - 550) / 100 +
+             (550 - 250) / 150 + (250 - 150) / 60)
+    assert abs(with_cool['total_hours']
+               - base['total_hours'] - extra) < 0.051
+    assert abs(with_cool['total_hours'] - 22.09) < 0.051
+
+
+def test_cooldown_temperature_profile_is_unimodal(js):
+    segs = gen(js, '10', 'bisque', 8, cooldown=True)['segments']
+    temps = [segs[0]['from']] + [s['to'] for s in segs]
+    top = temps.index(max(temps))
+    assert temps[:top + 1] == sorted(temps[:top + 1])
+    assert temps[top:] == sorted(temps[top:], reverse=True)
+
+
+def test_cooldown_with_candling_hold(js):
+    segs = gen(js, '6', 'bisque', 25, cooldown=True)['segments']
+    kinds = ['hold' if s['from'] == s['to'] else 'ramp' for s in segs]
+    assert kinds == ['ramp', 'hold', 'ramp', 'ramp',
+                     'ramp', 'hold', 'ramp', 'ramp', 'ramp', 'ramp']
+
+
+def _profile_for(result, scale):
+    '''evaluate the closure-internal segmentsToProfile against result'''
+    src = open(JS_PATH).read()
+    ctx = quickjs.Context()
+    ctx.eval(extract(src, r'\nfunction sgConvertTemp\([^)]*\)\s*\{'))
+    ctx.eval(extract(src, r'\nfunction sgConvertRate\([^)]*\)\s*\{'))
+    m = re.search(r'function segmentsToProfile\(', src)
+    body = src.index('{', m.end() - 1)
+    ctx.eval('function formTags() { return []; }')
+    ctx.eval(src[m.start():_balanced_end(src, body)])
+    ctx.eval('var lastValues = %s; var temp_scale = %s;'
+             % (json.dumps(result), json.dumps(scale)))
+    return json.loads(ctx.eval("JSON.stringify(segmentsToProfile('t'))"))
+
+
+def test_cooldown_profile_keypoints_advance_and_convert(js):
+    # cool-down segments descend, so raw (to - from) would move time
+    # backwards and the strict-increase filter would drop them silently
+    result = gen(js, '6', 'glaze', 8, cooldown=True)
+    data = _profile_for(result, 'f')['data']
+    seconds = [p[0] for p in data]
+    assert seconds == sorted(seconds)
+    assert len(set(seconds)) == len(seconds)
+    # peak soak ends at 15.5166667 h; cool-down adds 6.5733333 h -> 79524 s
+    assert data[-1] == [79524, 302]          # 150 C in F, program end
+    assert data[-5] == [55860, 2232]         # peak maintained through soak
+    temps = [p[1] for p in data]
+    top = temps.index(max(temps))
+    assert temps[top:] == sorted(temps[top:], reverse=True)
+
+
+########################################################################
 # thickness warnings
 ########################################################################
 
@@ -320,8 +428,8 @@ def test_thick_piece_warning(js, mm, warned):
 
 
 def test_thick_piece_warning_shape(js):
-    # ClayCalc returns {message, severity} objects; we mirror that so the
-    # renderer can style by severity
+    # warnings carry {message, severity} so the renderer can style by
+    # severity
     w = gen(js, '6', 'bisque', 25)['warnings']
     assert len(w) == 1
     assert w[0]['severity'] == 'warning'

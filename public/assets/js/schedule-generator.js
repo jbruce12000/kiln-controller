@@ -2,15 +2,15 @@
    Schedule Generator tab ── removable feature module
    
    Generates multi-segment pottery firing schedules entirely in the browser.
-   The algorithm is a faithful port of ClayCalc's firing schedule generator
-   (https://claycalc.com/calculators/firing-schedule-generator), verified
-   against its live API in Aug 2026: segment structure, C/hr ramp rates,
-   thickness-based candling holds, warnings, and per-cone peak values.
+   Stages follow standard electric-kiln practice: candling / water smoke,
+   burnout, slow ramp through quartz inversion (573 C), approach to a
+   self-supporting cone peak, and thickness-based candling holds. An
+   optional controlled cool-down (checkbox in the UI) ramps slowly through
+   the two inversion zones on the way down, where dunting risk lives.
 
-   Like ClayCalc's PHP engines, everything is generated in metric:
-   Celsius temperatures, C/hr rates. Schedules carry units:'c'; the UI
-   converts them for display to match config.temp_scale, and saved
-   profiles are stored in the active scale.
+   Everything is generated in metric: Celsius temperatures, C/hr rates.
+   Schedules carry units:'c'; the UI converts them for display to match
+   config.temp_scale, and saved profiles are stored in the active scale.
 
    The pure algorithm functions live at the top level (sg prefix) so the
    test suite can extract and execute them (see Test/test_frontend_
@@ -35,8 +35,27 @@ var SG_CONE_PEAKS_C = {
     '5': 1196, '6': 1222, '7': 1240, '8': 1263, '9': 1280, '10': 1305
 };
 
-/* Room temperature where schedules begin (Celsius, per ClayCalc). */
+/* Room temperature where schedules begin (Celsius). */
 var SG_AMBIENT_C = 20;
+
+/* ── optional controlled cool-down ───────────────────────────────────────────
+
+   Appended only when the user asks for it. Each stage descends from the
+   previous stop to `to` at `rate` C/hr, starting at peak. The two zones
+   that must be crossed slowly on the way down (dunting risk):
+
+   - quartz inversion at 573 C: beta -> alpha quartz contraction
+   - cristobalite inversion at ~225 C: ~1-3 % contraction where
+     cristobalite formed during firing
+
+   Below SG_COOLDOWN_END_C the kiln cools naturally with the lid cracked. */
+var SG_COOLDOWN_END_C = 150;
+var SG_COOLDOWN_STAGES = [
+    { to: 650,               rate: 300, note: 'Cool-down: controlled descent' },
+    { to: 550,               rate: 100, note: 'Cool-down: quartz inversion zone (573°C)' },
+    { to: 250,               rate: 150, note: 'Cool-down: steady cooling' },
+    { to: SG_COOLDOWN_END_C, rate: 60,  note: 'Cool-down: cristobalite inversion (~225°C)' }
+];
 
 /* ── conversions ────────────────────────────────────────────────────────── */
 
@@ -72,18 +91,17 @@ function sgCandlingHoldMin(mm) {
    cone: cone number string (e.g. '6', '06', '10')
    firingType: 'glaze' | 'bisque'
    thicknessIn: thickest piece thickness in millimeters (min 1)
+   includeCooldown: truthy -> append the controlled cool-down segments
    
    Returns: {kind:'pottery', units:'c', segments, peak_temp, total_hours,
             segment_count, warnings}
 
-   Temperatures are Celsius and rates C/hr (ClayCalc parity); callers
-   convert with sgConvertTemp/sgConvertRate to match config.temp_scale.
-   
-   Generates a multi-segment kiln firing schedule for pottery using Orton cone data.
-   Segments follow standard Orton heating profile with candling hold for thick pieces.
+   Temperatures are Celsius and rates C/hr; callers convert with
+   sgConvertTemp/sgConvertRate to match config.temp_scale. Holds are
+   standalone segments with from == to and rate == 0.
    */ 
 
-function sgGenerateSchedule(cone, firingType, thicknessIn) {
+function sgGenerateSchedule(cone, firingType, thicknessIn, includeCooldown) {
     var t = parseFloat(thicknessIn);
     
     if (isNaN(t) || t < 1) {
@@ -91,8 +109,8 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
     }
     
     /* Look up the peak temperature using the exact cone string.
-       SG_CONE_PEAKS_C has keys like '06' (999 C) and '6' (1222 C).
-       Values mirror ClayCalc's engine exactly; no conversion needed. */
+       Self-supporting cone peak temperatures in Celsius, keyed by the
+       exact cone string ('06' vs '6'). No conversion needed. */
     var peak = SG_CONE_PEAKS_C[String(cone)];
     if (peak === undefined) {
         return {kind: 'pottery', units: 'c', segments: [], peak_temp: 0, total_hours: 0, segment_count: 0, warnings: []};
@@ -101,7 +119,7 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
     var segments = [];
     var warnings = [];
     
-    /* ---- ClayCalc firing stages (all values Celsius as published) ----
+    /* ---- firing stages (all Celsius) ----
 
        Holds/soaks are their own segments: a hold segment has from == to
        and rate == 0, meaning "maintain this temperature for hold minutes".
@@ -175,6 +193,21 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
             note: 'Bisque soak'
         });
     }
+
+    /* Optional controlled cool-down from peak through the inversion zones */
+    if (includeCooldown) {
+        var coolFrom = peak;
+        for (var ci = 0; ci < SG_COOLDOWN_STAGES.length; ci++) {
+            segments.push({
+                from: coolFrom,
+                to: SG_COOLDOWN_STAGES[ci].to,
+                rate: SG_COOLDOWN_STAGES[ci].rate,
+                hold: 0,
+                note: SG_COOLDOWN_STAGES[ci].note
+            });
+            coolFrom = SG_COOLDOWN_STAGES[ci].to;
+        }
+    }
     
     /* ---- calculate total hours ---- */
     /* Rates are in °C/hr, holds in minutes. Hold segments have
@@ -184,8 +217,9 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
     for (var i = 0; i < segments.length; i++) {
         var s = segments[i];
         var segmentTime = (s.to !== s.from)
-            ? (s.to - s.from) / s.rate   /* hours */
-            : 0;                         /* hold segment: no ramp time */
+            ? Math.abs(s.to - s.from) / s.rate   /* hours; abs since
+                                                    cool-down descends */
+            : 0;                                 /* hold segment: no ramp */
         var holdHours = 0;
         if (s.hold > 0) {
             holdHours = s.hold / 60;  /* convert minutes to hours */
@@ -253,6 +287,12 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
             '    <div class="col-6 col-md-4"><label class="form-label small mb-1">Thickest Piece (mm)</label>' +
             '     <input id="sg_thickness" type="number" min="1" step="1" value="8" class="form-control form-control-sm" />' +
             '     <div class="small text-muted" id="sg_thickness_in"></div></div>' +
+            '    <div class="col-6 col-md-4"><label class="form-label small mb-1">Cool-down</label>' +
+            '     <div class="form-check">' +
+            '      <input class="form-check-input" type="checkbox" id="sg_cooldown" />' +
+            '      <label class="form-check-label small" for="sg_cooldown">Slow cool-down</label>' +
+            '     </div>' +
+            '     <div class="small text-muted">through quartz &amp; cristobalite zones</div></div>' +
             '   </div>' +
             '   <div class="btn-group btn-group-sm mt-3">' +
             '    <button id="sg_calculate" type="button" class="btn btn-success"><i class="bi bi-magic"></i> Generate Schedule</button>' +
@@ -333,7 +373,8 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
         }
         setError('');
 
-        lastValues = sgGenerateSchedule(cone, firingType, mm);
+        var includeCooldown = !!($('sg_cooldown') && $('sg_cooldown').checked);
+        lastValues = sgGenerateSchedule(cone, firingType, mm, includeCooldown);
         render();
     }
 
@@ -414,7 +455,8 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
                 data.push([0, Math.round(sgConvertTemp(s.from, units, scale))]);
             }
             if (s.rate > 0 && s.to !== s.from) {
-                t += (s.to - s.from) / s.rate * 3600;  // seconds (rate ratio is scale-independent)
+                // seconds; abs since cool-down segments descend
+                t += Math.abs(s.to - s.from) / s.rate * 3600;
             }
             data.push([Math.round(t), Math.round(sgConvertTemp(s.to, units, scale))]);
             if (s.hold > 0) {
@@ -452,6 +494,9 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
         var tags = ['cone' + cone, type];
         if (!isNaN(mm) && mm > 0) {
             tags.push(mm + 'mm');
+        }
+        if ($('sg_cooldown') && $('sg_cooldown').checked) {
+            tags.push('cooldown');
         }
         return tags;
     }
