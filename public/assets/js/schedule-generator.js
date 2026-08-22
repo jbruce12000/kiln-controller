@@ -54,20 +54,20 @@ var SG_STEELS = {
         harden: [1475,1500], temper: [300,450], anneal: null, normalize: [1600,1600],
         quench: 'Fast oil', soak: [5,10], normHold: [10,10],
         hrc: '65', cryo: '' },
-    1080SQ: { name: '1080-SQ', family: 'Carbon',
+    '1080SQ': { name: '1080-SQ', family: 'Carbon',
         harden: [1475,1500], temper: [300,450], anneal: null, normalize: [1600,1600],
         quench: 'Fast oil', soak: [5,10], normHold: [10,10],
         hrc: '64-65', cryo: '' },
     /* Carbon-Alloy */
-    125CRL: { name: '125CRL', family: 'Carbon-Alloy',
+    '125CRL': { name: '125CRL', family: 'Carbon-Alloy',
         harden: [1500,1550], temper: [375,425], anneal: null, normalize: [1650,1650],
         quench: 'Oil', soak: [5,10], normHold: [15,15],
         hrc: '65-67', cryo: '' },
-    15N20: { name: '15N20', family: 'Carbon-Alloy',
+    '15N20': { name: '15N20', family: 'Carbon-Alloy',
         harden: [1475,1480], temper: [375,475], anneal: null, normalize: [1600,1600],
         quench: 'Fast oil (Parks-50)', soak: [5,15], normHold: [10,10],
         hrc: '64-65', cryo: '' },
-    80CRV2: { name: '80CRV2', family: 'Carbon-Alloy',
+    '80CRV2': { name: '80CRV2', family: 'Carbon-Alloy',
         harden: [1475,1480], temper: [375,475], anneal: null, normalize: [1600,1600],
         quench: 'Fast oil (Parks-50)', soak: [5,10], normHold: [15,15],
         hrc: '61-63', cryo: '' },
@@ -137,7 +137,7 @@ var SG_STEELS = {
         quench: 'Air, oil or salt', soak: null, normHold: null,
         hrc: '', cryo: '' },
     /* Stainless */
-    440C: { name: '440C', family: 'Stainless',
+    '440C': { name: '440C', family: 'Stainless',
         harden: [1900,1950], temper: [375,450], anneal: null, normalize: [1850,1850],
         quench: 'Plate quench or oil', soak: [30,30], normHold: [20,30],
         hrc: '60-61', cryo: '-320 °F for 4-6 hr' },
@@ -145,7 +145,7 @@ var SG_STEELS = {
         harden: [1900,1900], temper: [350,425], anneal: null, normalize: [1850,1850],
         quench: 'Plate quench', soak: [5,10], normHold: [15,20],
         hrc: '64-65', cryo: '-100 °F for 1 hr' },
-    154CM: { name: '154-CM', family: 'Stainless',
+    '154CM': { name: '154-CM', family: 'Stainless',
         harden: [1950,2050], temper: [400,500], anneal: null, normalize: null,
         quench: 'Plate quench or oil', soak: [30,30], normHold: null,
         hrc: '62-63', cryo: '-100 °F for 1-2 hr' },
@@ -153,15 +153,15 @@ var SG_STEELS = {
         harden: [1950,2050], temper: [375,475], anneal: null, normalize: null,
         quench: 'Plate quench', soak: [10,15], normHold: null,
         hrc: '62-63', cryo: '-100 °F for 30-60 min' },
-    420HC: { name: '420-HC', family: 'Stainless',
+    '420HC': { name: '420-HC', family: 'Stainless',
         harden: [1850,1950], temper: [350,400], anneal: null, normalize: null,
         quench: 'Air or oil', soak: [20,30], normHold: null,
         hrc: '56-58', cryo: '' },
-    440A: { name: '440-A', family: 'Stainless',
+    '440A': { name: '440-A', family: 'Stainless',
         harden: [1850,1950], temper: [350,400], anneal: null, normalize: null,
         quench: 'Air or oil', soak: [30,30], normHold: null,
         hrc: '55-58', cryo: '' },
-    440B: { name: '440-B', family: 'Stainless',
+    '440B': { name: '440-B', family: 'Stainless',
         harden: [1850,1950], temper: [350,400], anneal: null, normalize: null,
         quench: 'Air or oil', soak: [30,30], normHold: null,
         hrc: '58-60', cryo: '' },
@@ -701,6 +701,10 @@ function defaultName(key, tr) {
             '  <span class="text-muted fw-normal small">&nbsp;runs locally in your browser</span></div>' +
             ' <div class="panel-body">' +
             '  <p class="text-muted mb-2">Generates firing schedules for pottery or steel heat treatments. Schedules are tagged pottery or steel on save.</p>' +
+            '  <div class="btn-group btn-group-sm mb-3" role="group" aria-label="Schedule type">' +
+            '   <button id="sg_kind_pottery" type="button" class="btn btn-outline-secondary active"><i class="bi bi-cup-hot"></i> Pottery</button>' +
+            '   <button id="sg_kind_steel" type="button" class="btn btn-outline-secondary"><i class="bi bi-hammer"></i> Steel</button>' +
+            '  </div>' +
             '  <div id="sg-pottery-form" class="sg-form pottery-form">' +
             '   <div class="row g-2">' +
             '    <div class="col-6 col-md-4"><label class="form-label small mb-1">Target Cone</label>' +
@@ -747,6 +751,9 @@ function defaultName(key, tr) {
             '   <div class="text-center mt-2">' +
             '    <button id="sg_steel_preset" type="button" class="btn btn-outline-secondary btn-sm">Select blade stock...</button>' +
             '   </div>' +
+            '   <div class="btn-group btn-group-sm mt-3">' +
+            '    <button id="sg_steel_calculate" type="button" class="btn btn-success"><i class="bi bi-magic"></i> Generate Schedule</button>' +
+            '   </div>' +
             '   <div class="small text-muted mt-1" id="sg_steel_info"></div>' +
             '  </div>' +
             '  <div class="sg-blade-stocks mt-3" style="display:none">' +
@@ -784,6 +791,43 @@ function defaultName(key, tr) {
 
         /* init steel form */
         initSteelForm();
+
+        /* kind switcher */
+        $('sg_kind_pottery').addEventListener('click', function () { setKind('pottery'); });
+        $('sg_kind_steel').addEventListener('click', function () { setKind('steel'); });
+    }
+
+    /* ── shared UI state helpers ─────────────────────────────────────────── */
+
+    function setError(msg) {
+        var el = $('sg_error');
+        if (!msg) { el.style.display = 'none'; el.innerHTML = ''; return; }
+        el.innerHTML = msg;
+        el.style.display = '';
+    }
+
+    function updateInches() {
+        var mm = parseFloat($('sg_thickness').value);
+        if (isNaN(mm) || mm <= 0) { $('sg_thickness_in').textContent = ''; return; }
+        $('sg_thickness_in').textContent = '\u2248 ' + (mm / 25.4).toFixed(2) + ' in';
+    }
+
+    function cancelSchedule() {
+        lastValues = null;
+        setError('');
+        $('sg_results').style.display = 'none';
+        $('sg_name').value = '';
+    }
+
+    /* toggle between the pottery and steel forms */
+    function setKind(kind) {
+        currentKind = kind;
+        setError('');
+        $('sg_results').style.display = 'none';
+        $('sg-pottery-form').style.display = kind === 'pottery' ? '' : 'none';
+        $('sg-steel-form').style.display = kind === 'steel' ? '' : 'none';
+        $('sg_kind_pottery').classList.toggle('active', kind === 'pottery');
+        $('sg_kind_steel').classList.toggle('active', kind === 'steel');
     }
 
     /* ── pottery form initialization ─────────────────────────────────────── */
@@ -798,15 +842,11 @@ function defaultName(key, tr) {
             coneSel.appendChild(opt);
         }
 
-        var typeSel = $('sg_type');
-        typeSel.addEventListener('change', updateBlurb);
-
         $('sg_thickness').addEventListener('input', updateInches);
         $('sg_calculate').addEventListener('click', calculatePottery);
         $('sg_save').addEventListener('click', saveAsSchedule);
         $('sg_cancel').addEventListener('click', cancelSchedule);
         updateInches();
-        updateBlurb();
     }
 
     /* ── steel form initialization ───────────────────────────────────────── */
@@ -834,9 +874,9 @@ function defaultName(key, tr) {
             opt.textContent = s.name;
             steelSel.appendChild(opt);
         }
-        /* select O1 by default */
+        /* first entry selected by default */
         if (steelSel.options.length > 0) {
-            steelSel.selectedIndex = 0;  // O1 is first (Tool family)
+            steelSel.selectedIndex = 0;
         }
 
         /* rebuild treatment select when steel changes */
@@ -873,11 +913,8 @@ function defaultName(key, tr) {
             });
         });
 
-        /* calculate button */
-        $('sg_calculate').addEventListener('click', calculateSteel);
-
-        /* save button */
-        $('sg_save').addEventListener('click', saveAsSchedule);
+        /* calculate button (steel form has its own; sg_calculate is the pottery one) */
+        $('sg_steel_calculate').addEventListener('click', calculateSteel);
 
         /* update blurb initially */
         updateSteelBlurb();
