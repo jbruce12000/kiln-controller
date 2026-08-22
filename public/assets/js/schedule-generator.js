@@ -196,8 +196,7 @@ function sgGenerateSchedule(cone, firingType, thicknessIn) {
         section.style.display = 'none';
         section.innerHTML =
             '<div class="panel panel-default">' +
-            ' <div class="panel-heading"><strong>Schedule Generator</strong>' +
-            '  <span class="text-muted fw-normal small">&nbsp;runs locally in your browser</span></div>' +
+            ' <div class="panel-heading"><strong>Schedule Generator</strong></div>' +
             ' <div class="panel-body">' +
             '  <p class="text-muted mb-2">Generates pottery firing schedules entirely in your browser.</p>' +
             '  <div id="sg-pottery-form" class="sg-form pottery-form">' +
