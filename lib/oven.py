@@ -952,9 +952,15 @@ class PID():
     # instead of what used to be binary on/off control.
     def compute(self, setpoint, ispoint, now):
         # epoch deltas keep the PID insensitive to local-time
-        # (daylight-saving) changes between calls
-        now_epoch = time.mktime(now.timetuple())
-        timeDelta = now_epoch - time.mktime(self.lastNow.timetuple())
+        # (daylight-saving) changes between calls. keep sub-second
+        # precision: truncating to whole seconds made consecutive stamps
+        # land unevenly once the control loop's real period drifted past
+        # time_step, so pairs were recorded as e.g. dt=3 when only ~2s
+        # elapsed. clients derive the heat-rate graph from these stamps,
+        # which showed up as a recurring dip to ~2/3 of the true rate,
+        # and it quantized errDelta for the kd term.
+        now_epoch = now.timestamp()
+        timeDelta = now_epoch - self.lastNow.timestamp()
 
         window_size = 100
 
