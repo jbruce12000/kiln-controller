@@ -104,10 +104,18 @@ def handle_api():
 
     if bottle.request.json['cmd'] == 'pause':
         log.info("api pause command received")
+        # pausing from any other state would leave the oven thread in a
+        # PAUSED state with no profile, which it cannot run
+        if oven.state != 'RUNNING':
+            return { "success" : False,
+                     "error" : "cannot pause, oven state is %s" % (oven.state) }
         oven.state = 'PAUSED'
 
     if bottle.request.json['cmd'] == 'resume':
         log.info("api resume command received")
+        if oven.state != 'PAUSED':
+            return { "success" : False,
+                     "error" : "cannot resume, oven state is %s" % (oven.state) }
         oven.state = 'RUNNING'
 
     if bottle.request.json['cmd'] == 'stop':

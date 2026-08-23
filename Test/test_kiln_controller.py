@@ -1114,6 +1114,23 @@ def test_handle_api_resume(monkeypatch):
     assert controller.oven.state == 'RUNNING'
 
 
+def test_handle_api_pause_rejected_when_not_running(monkeypatch):
+    # pausing while idle used to crash the oven control thread
+    for state in ('IDLE', 'TUNING'):
+        monkeypatch.setattr(controller.oven, 'state', state)
+        resp = api_call({'cmd': 'pause'}, monkeypatch)
+        assert resp['success'] is False
+        assert controller.oven.state == state
+
+
+def test_handle_api_resume_rejected_when_not_paused(monkeypatch):
+    for state in ('IDLE', 'RUNNING'):
+        monkeypatch.setattr(controller.oven, 'state', state)
+        resp = api_call({'cmd': 'resume'}, monkeypatch)
+        assert resp['success'] is False
+        assert controller.oven.state == state
+
+
 def test_handle_api_stop(monkeypatch):
     abort_called = []
 

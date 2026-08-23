@@ -813,6 +813,7 @@ def test_run_idle_waits_when_no_restart_wanted(monkeypatch):
 def test_run_paused_branch(monkeypatch):
     oven = Oven()
     oven.state = "PAUSED"
+    oven.profile = Profile('{"name":"t","data":[[0, 20],[600, 100]]}')
     calls = []
 
     monkeypatch.setattr(oven_module().Oven, 'update_runtime', lambda self: calls.append('runtime'))
@@ -837,6 +838,7 @@ def test_run_paused_branch(monkeypatch):
 def test_run_running_branch(monkeypatch):
     oven = Oven()
     oven.state = "RUNNING"
+    oven.profile = Profile('{"name":"t","data":[[0, 20],[600, 100]]}')
     calls = []
 
     monkeypatch.setattr(oven_module().Oven, 'update_cost', lambda self: calls.append('cost'))
@@ -859,6 +861,54 @@ def test_run_running_branch(monkeypatch):
         oven.run()
 
     assert calls == (['cost', 'save', 'catch', 'runtime', 'target', 'heat', 'emergency', 'ended'] * 2)
+
+
+def test_run_paused_or_running_without_profile_returns_to_idle(monkeypatch):
+    '''pause/resume requested while idle must not crash the control
+    thread on a missing profile; the oven goes back to IDLE instead'''
+    for state in ("PAUSED", "RUNNING"):
+        oven = Oven()
+        oven.state = state
+
+        def fake_sleep(secs):
+            raise StopIteration
+
+        monkeypatch.setattr(oven_module().time, 'sleep', fake_sleep)
+
+        with pytest.raises(StopIteration):
+            oven.run()
+
+        assert oven.state == "IDLE"
+
+
+def test_run_survives_control_loop_error(monkeypatch):
+    '''an unhandled error must not kill the control thread: the oven is
+    reset to a safe idle state and the loop keeps running'''
+    oven = Oven()
+    oven.state = "RUNNING"
+    oven.profile = Profile('{"name":"t","data":[[0, 20],[600, 100]]}')
+    aborts = []
+    sleeps = []
+
+    def boom(self):
+        raise RuntimeError("simulated control loop failure")
+
+    monkeypatch.setattr(oven_module().Oven, 'update_cost', boom)
+    monkeypatch.setattr(oven_module().Oven, 'abort_run', lambda self: aborts.append(1))
+
+    def fake_sleep(secs):
+        sleeps.append(secs)
+        if len(sleeps) >= 2:
+            raise StopIteration
+
+    monkeypatch.setattr(oven_module().time, 'sleep', fake_sleep)
+
+    with pytest.raises(StopIteration):
+        oven.run()
+
+    # the loop recovered from the first error and kept going
+    assert aborts == [1, 1]
+    assert sleeps == [1, 1]
 
 
 def oven_module():

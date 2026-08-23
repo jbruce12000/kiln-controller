@@ -638,34 +638,60 @@ class Oven(threading.Thread):
 
     def run(self):
         while True:
-            log.debug('Oven running on ' + threading.current_thread().name)
-            if self.state == "IDLE":
-                if self.should_i_automatic_restart() == True:
-                    self.automatic_restart()
+            # never let an unhandled error kill this thread: that would
+            # silently stop heater control while the ui keeps looking
+            # normal. log the error, get back to a safe idle state (relay
+            # off), and keep going.
+            try:
+                self._run_once()
+            except StopIteration:
+                # loop-termination sentinel, not an error
+                raise
+            except Exception as e:
+                log.error("oven control loop error: %s" % (e))
+                try:
+                    self.abort_run()
+                except Exception as abort_error:
+                    log.error("could not reset oven after control loop "
+                              "error: %s" % (abort_error))
                 time.sleep(1)
-                continue
-            if self.state == "PAUSED":
-                self.start_time = self.get_start_time()
-                self.update_runtime()
-                self.update_target_temp()
-                self.heat_then_cool()
-                self.reset_if_emergency()
-                self.reset_if_schedule_ended()
-                continue
-            if self.state == "RUNNING":
-                self.update_cost()
-                self.save_automatic_restart_state()
-                self.kiln_must_catch_up()
-                self.update_runtime()
-                self.update_target_temp()
-                self.heat_then_cool()
-                self.reset_if_emergency()
-                self.reset_if_schedule_ended()
-                continue
 
-            # unrecognized state (e.g. "TUNING" while the autotuner is
-            # driving the oven directly): do nothing, just wait quietly
-            time.sleep(self.time_step)
+    def _run_once(self):
+        log.debug('Oven running on ' + threading.current_thread().name)
+        if self.state == "IDLE":
+            if self.should_i_automatic_restart() == True:
+                self.automatic_restart()
+            time.sleep(1)
+            return
+        if self.state in ("PAUSED", "RUNNING") and self.profile is None:
+            # inconsistent state, e.g. pause/resume requested while idle.
+            # return to idle instead of crashing on the missing profile
+            log.error("%s state without a profile, returning to IDLE" % (self.state))
+            self.reset()
+            time.sleep(1)
+            return
+        if self.state == "PAUSED":
+            self.start_time = self.get_start_time()
+            self.update_runtime()
+            self.update_target_temp()
+            self.heat_then_cool()
+            self.reset_if_emergency()
+            self.reset_if_schedule_ended()
+            return
+        if self.state == "RUNNING":
+            self.update_cost()
+            self.save_automatic_restart_state()
+            self.kiln_must_catch_up()
+            self.update_runtime()
+            self.update_target_temp()
+            self.heat_then_cool()
+            self.reset_if_emergency()
+            self.reset_if_schedule_ended()
+            return
+
+        # unrecognized state (e.g. "TUNING" while the autotuner is
+        # driving the oven directly): do nothing, just wait quietly
+        time.sleep(self.time_step)
 
 class SimulatedOven(Oven):
 
