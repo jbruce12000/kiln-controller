@@ -73,6 +73,15 @@ def load_controller():
 controller = load_controller()
 
 
+@pytest.fixture(autouse=True)
+def fast_sleeps(monkeypatch):
+    '''handler/poll loops yield via gevent.sleep (fix #4) or legacy
+    time.sleep; stub both so websocket and fork tests never really
+    wait their delay seconds'''
+    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    monkeypatch.setattr(controller.gevent, 'sleep', lambda secs: None)
+
+
 ########################################################################
 # routes
 ########################################################################
