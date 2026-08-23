@@ -382,6 +382,38 @@ def test_delete_profile_missing_raises(tmp_path, monkeypatch):
         controller.delete_profile({'name': 'nope'})
 
 
+@pytest.mark.parametrize('bad', ['../evil', 'foo/bar', '', ' ', 'a b', None, 5, {'x': 1}])
+def test_save_profile_rejects_unsafe_names(tmp_path, monkeypatch, bad):
+    '''profile names become filenames; a crafted name must not be able to
+    write outside the profiles directory'''
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    assert controller.save_profile({'name': bad, 'data': [[0, 200]]}) is False
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_save_profile_rejects_non_dict(tmp_path, monkeypatch):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    assert controller.save_profile(None) is False
+    assert controller.save_profile("{'name': '../evil'}") is False
+    assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize('bad', ['../evil', 'foo/bar', '', None, 5])
+def test_delete_profile_rejects_unsafe_names(tmp_path, monkeypatch, bad):
+    '''a crafted name must not delete files outside the profiles directory'''
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    keep = tmp_path / 'keep.json'
+    keep.write_text('{}')
+
+    assert controller.delete_profile({'name': bad, 'data': []}) is False
+    assert keep.exists()
+
+
+def test_delete_profile_rejects_non_dict(tmp_path, monkeypatch):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    assert controller.delete_profile(None) is False
+
+
 ########################################################################
 # scheduled runs
 ########################################################################

@@ -604,12 +604,11 @@ def import_profile(profile):
     on invalid profiles.'''
     if not isinstance(profile, dict):
         raise ValueError("invalid profile")
-    name = profile.get("name")
-    if not name or not re.match(r"^[A-Za-z0-9._-]+$", str(name)):
+    if not valid_profile_name(profile.get("name")):
         raise ValueError("invalid profile name")
     if not isinstance(profile.get("data"), list):
         raise ValueError("profile has no data")
-    profile["name"] = str(name)
+    profile["name"] = str(profile["name"])
     if profile.get("temp_units") != "c":
         profile = convert_to_c(profile)
         profile["temp_units"] = "c"
@@ -671,7 +670,7 @@ def api_profiles_remote_upload():
                                    status=400,
                                    headers={"Content-Type": "application/json"})
     name = str(profile["name"])
-    if not re.match(r"^[A-Za-z0-9._-]+$", name):
+    if not valid_profile_name(name):
         return bottle.HTTPResponse(json.dumps({"success": False, "error": "invalid profile name"}),
                                    status=400,
                                    headers={"Content-Type": "application/json"})
@@ -853,6 +852,8 @@ def handle_storage():
                 profile_obj = msgdict.get('profile')
                 if delete_profile(profile_obj):
                   msgdict["resp"] = "OK"
+                else:
+                  msgdict["resp"] = "FAIL"
                 wsock.send(json.dumps(msgdict))
                 #wsock.send(get_profiles())
             elif msgdict.get("cmd") == "PUT":
@@ -905,6 +906,15 @@ def handle_status():
     log.info("websocket (status) closed")
 
 
+def valid_profile_name(name):
+    '''profile names become filenames under the profiles directory; keep
+    them to a safe character set so a crafted name like "../foo" cannot
+    read or write outside that directory'''
+    if not name or not isinstance(name, str):
+        return False
+    return bool(re.match(r"^[A-Za-z0-9._-]+$", name))
+
+
 def get_profiles():
     try:
         profile_files = os.listdir(profile_path)
@@ -919,6 +929,9 @@ def get_profiles():
 
 
 def save_profile(profile, force=False):
+    if not isinstance(profile, dict) or not valid_profile_name(profile.get('name')):
+        log.error("refusing to save profile with unsafe name %r" % (profile.get('name') if isinstance(profile, dict) else profile,))
+        return False
     profile=add_temp_units(profile)
     profile_json = json.dumps(profile)
     filename = profile['name']+".json"
@@ -970,6 +983,9 @@ def normalize_temp_units(profiles):
     return normalized
 
 def delete_profile(profile):
+    if not isinstance(profile, dict) or not valid_profile_name(profile.get('name')):
+        log.error("refusing to delete profile with unsafe name %r" % (profile.get('name') if isinstance(profile, dict) else profile,))
+        return False
     filename = profile['name']+".json"
     filepath = os.path.join(profile_path, filename)
     os.remove(filepath)
