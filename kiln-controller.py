@@ -468,7 +468,11 @@ def handle_tune():
         if oven.state not in ("IDLE", "TUNING"):
             return {"success": False,
                     "error": "cannot tune while a schedule is running (state: %s)" % oven.state}
-        if tuner.state != Tuner.IDLE:
+        # only reject while a tuning run is actually in flight; DONE and
+        # ERROR are terminal states that must allow starting again
+        # (previously anything but IDLE was rejected, which locked the
+        # tuner up after its first run)
+        if tuner.state in (Tuner.HEATING, Tuner.COOLING, Tuner.CALCULATING):
             return {"success": False, "error": "tuner is already running"}
 
         target_temp = body.get('target_temp')

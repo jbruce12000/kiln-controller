@@ -5,6 +5,7 @@ import json
 import os
 import tarfile
 import time
+import threading
 import types
 import base64
 
@@ -1129,6 +1130,43 @@ def test_handle_api_resume_rejected_when_not_paused(monkeypatch):
         resp = api_call({'cmd': 'resume'}, monkeypatch)
         assert resp['success'] is False
         assert controller.oven.state == state
+
+
+def tune_call(payload, monkeypatch):
+    monkeypatch.setattr(bottle, 'request', types.SimpleNamespace(json=payload))
+    return controller.handle_tune()
+
+
+def test_handle_tune_start_rejected_while_tuning(monkeypatch):
+    monkeypatch.setattr(controller, 'tuner',
+                        types.SimpleNamespace(state='HEATING'))
+    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
+    resp = tune_call({'cmd': 'start', 'target_temp': 200}, monkeypatch)
+    assert resp['success'] is False
+    assert resp['error'] == 'tuner is already running'
+
+
+def test_handle_tune_start_allowed_after_done(monkeypatch):
+    '''DONE is a terminal state; starting another run must be allowed
+    (the old gate required IDLE and locked the tuner up after one use)'''
+    started = []
+    done = threading.Event()
+
+    class StubTuner:
+        state = 'DONE'
+
+        def start(self, *args, **kwargs):
+            started.append(args)
+            done.set()
+
+    monkeypatch.setattr(controller, 'tuner', StubTuner())
+    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
+    resp = tune_call({'cmd': 'start', 'target_temp': 200}, monkeypatch)
+    assert resp['success'] is True
+    assert done.wait(2)
+    # 200 display degF converted to internal celsius
+    assert started == [(pytest.approx((5 / 9) * (200 - 32)),
+                        'critically_damped', 8)]
 
 
 def test_handle_api_stop(monkeypatch):

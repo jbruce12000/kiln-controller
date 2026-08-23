@@ -158,6 +158,10 @@ class Tuner:
             self._record(target_temp_c)
 
             if self._stop_requested:
+                log.info("tuning stopped by user")
+                # back to idle so another tuning run can be started;
+                # leaving this at HEATING made the tuner un-startable
+                self.state = self.IDLE
                 return
 
             self.state = self.CALCULATING
