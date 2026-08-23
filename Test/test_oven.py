@@ -1120,11 +1120,25 @@ def test_sim_runtime_survives_dst(monkeypatch):
 
 def test_temp_tracker_window():
     tracker = TempTracker()
-    assert len(tracker.temps) == config.temperature_average_samples
+    assert tracker.temps == []
     for i in range(20):
         tracker.add(1)
     assert len(tracker.temps) == config.temperature_average_samples
     assert tracker.get_avg_temp() == 1
+
+
+def test_temp_tracker_empty_reports_zero():
+    '''no reading yet: report zero instead of crashing on an empty median'''
+    tracker = TempTracker()
+    assert tracker.get_avg_temp() == 0
+
+
+def test_temp_tracker_first_reading_is_not_hidden_by_zero_seed():
+    '''the window used to be seeded with zeros, so the median reported
+    0 degC until the whole window had filled with real readings'''
+    tracker = TempTracker()
+    tracker.add(500.0)
+    assert tracker.get_avg_temp() == 500.0
 
 
 def test_temp_tracker_median():
@@ -1133,8 +1147,7 @@ def test_temp_tracker_median():
     tracker.add(20)
     tracker.add(30)
     tracker.add(1000)  # outlier, median ignores it
-    temps = sorted(tracker.temps)
-    assert tracker.get_avg_temp() == temps[len(temps) // 2]
+    assert tracker.get_avg_temp() == 25.0
 
 
 def test_thermocouple_tracker_error_percent():

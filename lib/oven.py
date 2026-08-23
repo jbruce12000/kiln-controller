@@ -169,8 +169,10 @@ class TempTracker(object):
     '''
     def __init__(self):
         self.size = config.temperature_average_samples
-        self.temps = [0 for i in range(self.size)]
-  
+        # start empty: seeding with zeros made the median report 0 degC
+        # until the window filled, hiding the first real readings
+        self.temps = []
+
     def add(self,temp):
         self.temps.append(temp)
         while(len(self.temps) > self.size):
@@ -181,6 +183,9 @@ class TempTracker(object):
         take the median of the given values. this used to take an avg
         after getting rid of outliers. median works better.
         '''
+        if not self.temps:
+            # no reading yet; report zero rather than crash
+            return 0
         return statistics.median(self.temps)
 
 class ThermocoupleTracker(object):
