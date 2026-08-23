@@ -390,7 +390,8 @@ def test_get_profiles_skips_corrupt_files(tmp_path, monkeypatch):
     (tmp_path / 'd.json').write_text(json.dumps({'data': [[0, 0]]}))
 
     profiles = json.loads(controller.get_profiles())
-    assert [p.get('name') for p in profiles] == ['a', None]
+    # missing name sorts as ''
+    assert [p.get('name') for p in profiles] == [None, 'a']
 
 
 def test_delete_profile(tmp_path, monkeypatch):
