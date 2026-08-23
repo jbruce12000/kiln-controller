@@ -1,5 +1,6 @@
 import datetime
 import importlib.util
+import inspect
 import io
 import json
 import os
@@ -1167,6 +1168,18 @@ def test_handle_api_resume_rejected_when_not_paused(monkeypatch):
 def tune_call(payload, monkeypatch):
     monkeypatch.setattr(bottle, 'request', types.SimpleNamespace(json=payload))
     return controller.handle_tune()
+
+
+@pytest.mark.parametrize('handler', ['handle_control', 'handle_storage',
+                                     'handle_config', 'handle_status',
+                                     '_ensure_fork'])
+def test_greenlet_handlers_yield_not_block(handler):
+    '''gevent is not monkey-patched here, so time.sleep() inside a request
+    or websocket greenlet freezes the whole server; these must yield via
+    gevent.sleep instead'''
+    source = inspect.getsource(getattr(controller, handler))
+    assert 'time.sleep(' not in source
+    assert 'gevent.sleep(' in source
 
 
 def test_handle_tune_start_rejected_while_tuning(monkeypatch):

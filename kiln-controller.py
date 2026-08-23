@@ -718,7 +718,9 @@ def _ensure_fork(owner_repo, token):
         # forking is asynchronous; poll until the fork is ready
         deadline = time.time() + 60
         while time.time() < deadline:
-            time.sleep(2)
+            # yield to the gevent hub instead of blocking it: this runs in
+            # a request greenlet and gevent is not monkey-patched here
+            gevent.sleep(2)
             if requests.get(_github_api_url("repos/%s" % fork_repo), headers=_github_headers(token),
                             timeout=15).status_code == 200:
                 break
@@ -821,7 +823,7 @@ def handle_control():
                 elif msgdict.get("cmd") == "STOP":
                     log.info("Stop command received")
                     oven.abort_run()
-            time.sleep(1)
+            gevent.sleep(1)
         except WebSocketError as e:
             log.error(e)
             break
@@ -871,7 +873,7 @@ def handle_storage():
 
                     wsock.send(json.dumps(msgdict))
                     wsock.send(get_profiles())
-            time.sleep(1) 
+            gevent.sleep(1)
         except WebSocketError:
             break
     log.info("websocket (storage) closed")
@@ -887,7 +889,7 @@ def handle_config():
             wsock.send(get_config())
         except WebSocketError:
             break
-        time.sleep(1)
+        gevent.sleep(1)
     log.info("websocket (config) closed")
 
 
@@ -902,7 +904,7 @@ def handle_status():
             wsock.send("Your message was: %r" % message)
         except WebSocketError:
             break
-        time.sleep(1)
+        gevent.sleep(1)
     log.info("websocket (status) closed")
 
 
