@@ -581,7 +581,7 @@ The firing stops when you close your SSH session or the network drops.
 
 If none of the above fixes your issue:
 
-1. Download a **Config Dump** from the Details tab.
+1. Download a **Config Dump** from the Config tab.
 2. Check the [Web Interface Guide](web-interface.md) for feature documentation.
 3. Open an issue on the [GitHub issue tracker](https://github.com/jbruce12000/kiln-controller/issues)
    and attach the config dump.

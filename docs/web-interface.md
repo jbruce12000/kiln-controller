@@ -48,9 +48,6 @@ temperature is climbing or falling, in degrees per hour), PID components,
 and thermocouple read errors over time. Use the **Window** slider to zoom
 into recent data or view the entire run.
 
-**Config Dump** downloads a zip of your config, profiles, state, and logs --
-useful when asking for help on the forum or filing a bug report.
-
 ---
 
 ## Schedules
@@ -174,6 +171,12 @@ the server. This will change how your kiln heats.
 | `kwh_rate`, `currency_type` | Cost settings for the firing cost estimate |
 
 See the full `config.py` file and its comments for every available setting.
+
+### Config Dump
+
+At the very bottom of the Config tab, **Config Dump** downloads a zip of your
+config, profiles, state, and logs -- useful when asking for help on the forum
+or filing a bug report.
 
 ---
 
@@ -367,7 +370,7 @@ This shouldn't happen -- all clients receive the same live data. If it does:
 
 If none of the above fixes your issue:
 
-1. Download a **Config Dump** from the Details tab.
+1. Download a **Config Dump** from the Config tab.
 2. Check the [troubleshooting guide](troubleshooting.md) for hardware issues.
 3. Open an issue on the [GitHub issue tracker](https://github.com/jbruce12000/kiln-controller/issues)
    and attach the config dump.

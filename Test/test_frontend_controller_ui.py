@@ -393,6 +393,20 @@ def test_config_tab_loads_editor_on_show():
     assert "if (!r.ok)" in src  # non-200 responses are surfaced as errors
 
 
+def test_config_dump_button_lives_at_bottom_of_config_tab():
+    # the debug panel holding the config dump moved off the details tab
+    # to the bottom of the config tab
+    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
+                                             'public', 'index.html'))).read()
+    m = re.search(r'id="tab-config"(.*?)id="tab-details"', html, re.S)
+    assert m, 'config tab must appear before details tab in index.html'
+    assert 'download_dump()' in m.group(1), \
+        'config dump button must live in the config tab'
+    m = re.search(r'id="tab-details".*?</section>', html, re.S)
+    assert 'download_dump()' not in m.group(0), \
+        'config dump button must not remain in the details tab'
+
+
 ########################################################################
 # community schedules (kiln-profiles repo)
 ########################################################################
