@@ -1409,6 +1409,47 @@ def test_handle_control_run_and_stop(monkeypatch):
     assert stops == [True]
 
 
+def test_handle_control_run_without_profile_is_ignored(monkeypatch):
+    '''a RUN with no profile used to raise NameError on an undefined
+    variable and kill the websocket silently'''
+    ws = FakeWebSocket([
+        json.dumps({'cmd': 'RUN'}),
+        json.dumps({'cmd': 'STOP'}),
+    ])
+    runs = []
+    stops = []
+    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
+    monkeypatch.setattr(controller.oven, 'run_profile', lambda profile: runs.append(profile.name))
+    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
+    monkeypatch.setattr(controller.oven, 'abort_run', lambda: stops.append(True))
+
+    controller.handle_control()  # must not raise
+
+    assert runs == []
+    assert stops == [True]  # the loop survived and kept serving commands
+
+
+def test_handle_control_survives_bad_messages(monkeypatch):
+    '''malformed json and malformed profiles must be logged and skipped,
+    not tear down the connection'''
+    ws = FakeWebSocket([
+        'not json at all',
+        json.dumps({'cmd': 'RUN', 'profile': {'name': 'broken'}}),  # no data
+        json.dumps({'cmd': 'STOP'}),
+    ])
+    runs = []
+    stops = []
+    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
+    monkeypatch.setattr(controller.oven, 'run_profile', lambda profile: runs.append(profile.name))
+    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
+    monkeypatch.setattr(controller.oven, 'abort_run', lambda: stops.append(True))
+
+    controller.handle_control()  # must not raise
+
+    assert runs == []
+    assert stops == [True]
+
+
 def test_handle_storage_get_and_put(monkeypatch, tmp_path):
     monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
     (tmp_path / 'cone-05.json').write_text(

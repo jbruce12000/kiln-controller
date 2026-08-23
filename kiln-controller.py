@@ -807,18 +807,29 @@ def handle_control():
             message = wsock.receive()
             if message:
                 log.info("Received (control): %s" % message)
-                msgdict = json.loads(message)
+                try:
+                    msgdict = json.loads(message)
+                except ValueError as e:
+                    # one bad message must not kill the control greenlet
+                    log.error("ignoring malformed message: %s" % (e))
+                    msgdict = {}
                 if msgdict.get("cmd") == "RUN":
                     log.info("RUN command received")
                     profile_obj = msgdict.get('profile')
-                    if profile_obj:
-                        # the profile comes in display scale from the ui,
-                        # store/use it internally in celsius
-                        profile_obj = add_temp_units(profile_obj)
-                        profile_json = json.dumps(profile_obj)
-                        profile = Profile(profile_json)
-                    oven.run_profile(profile)
-                    ovenWatcher.record(profile)
+                    if not profile_obj:
+                        # previously this fell through and raised
+                        # NameError on the undefined profile variable,
+                        # silently killing the websocket
+                        log.error("RUN command without a profile, ignoring")
+                    else:
+                        try:
+                            # the profile comes in display scale from the ui,
+                            # store/use it internally in celsius
+                            profile = Profile(json.dumps(add_temp_units(profile_obj)))
+                            oven.run_profile(profile)
+                            ovenWatcher.record(profile)
+                        except Exception as e:
+                            log.error("could not start run from control socket: %s" % (e))
                 elif msgdict.get("cmd") == "SIMULATE":
                     log.info("SIMULATE command received")
                     #profile_obj = msgdict.get('profile')
