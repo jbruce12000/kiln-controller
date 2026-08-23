@@ -168,6 +168,10 @@ Scheduled runs are saved to disk so they survive a reboot, and are managed by th
 
 If you're busy and do not want to sit around watching the web interface for problems, there is a watcher.py script which you can run on any machine in your local network or even on the raspberry pi which will watch the kiln-controller process to make sure it is running a schedule, and staying within a pre-defined temperature range. When things go bad, it sends messages to a slack channel you define. I have alerts set on my android phone for that specific slack channel. Here are detailed [instructions](docs/watcher.md).
 
+### Logging
+
+Daemon logs land in /var/log/daemon.log, and the **kiln-logger.py** script records a full firing to csv for graphing and analysis. See the [logging guide](docs/logs.md) for details.
+
 ## License
 
 This program is free software: you can redistribute it and/or modify
