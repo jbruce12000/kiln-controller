@@ -153,6 +153,21 @@ def test_notify_all_removes_dead_socket():
     assert sock not in watcher.observers
 
 
+def test_notify_all_removes_adjacent_dead_sockets():
+    '''removing while iterating used to skip the socket right after a
+    dead one, leaving it in the list for another round'''
+    watcher = make_watcher()
+    alive = FakeSocket()
+    dead1, dead2 = FakeSocket(), FakeSocket()
+    dead1.dead = dead2.dead = True
+    watcher.observers.extend([dead1, dead2, alive])
+
+    watcher.notify_all({'temperature': 123})
+
+    assert watcher.observers == [alive]
+    assert json.loads(alive.sent[-1]) == {'temperature': 123}
+
+
 def test_add_observer_then_notify_all():
     watcher = make_watcher()
     sock = FakeSocket()

@@ -71,7 +71,9 @@ class OvenWatcher(threading.Thread):
         message_json = json.dumps(message)
         log.debug("sending to %d clients: %s"%(len(self.observers),message_json))
 
-        for wsock in self.observers:
+        # iterate over a copy: removing a dead socket mid-loop would
+        # otherwise skip the socket right after it
+        for wsock in list(self.observers):
             if wsock:
                 try:
                     wsock.send(message_json)
