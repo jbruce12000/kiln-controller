@@ -369,6 +369,30 @@ def test_get_profiles_returns_description(tmp_path, monkeypatch):
     assert profiles[0]['description'] == 'my bisque schedule'
 
 
+def test_find_profile_skips_corrupt_files(tmp_path, monkeypatch):
+    '''one corrupt profile file must not break running a good profile'''
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    (tmp_path / 'good.json').write_text(
+        json.dumps({'name': 'good', 'data': [[0, 100]]}))
+    (tmp_path / 'corrupt.json').write_text('{"name": "half-wri')  # truncated
+    (tmp_path / 'notanobject.json').write_text('[1, 2, 3]')       # json, not an object
+
+    assert controller.find_profile('good')['name'] == 'good'
+    assert controller.find_profile('missing') is None
+
+
+def test_get_profiles_skips_corrupt_files(tmp_path, monkeypatch):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    (tmp_path / 'a.json').write_text(json.dumps({'name': 'a', 'data': [[0, 0]]}))
+    (tmp_path / 'b.json').write_text('{oops')
+    (tmp_path / 'c.json').write_text('"just a string"')
+    # a profile without a name must not break sorting either
+    (tmp_path / 'd.json').write_text(json.dumps({'data': [[0, 0]]}))
+
+    profiles = json.loads(controller.get_profiles())
+    assert [p.get('name') for p in profiles] == ['a', None]
+
+
 def test_delete_profile(tmp_path, monkeypatch):
     monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
     (tmp_path / 'bar.json').write_text(

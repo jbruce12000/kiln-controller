@@ -200,15 +200,25 @@ def find_profile(wanted):
     json profile object or None.
     profiles are stored in celsius, so the raw file is returned
     without any display-scale conversion.
+    unreadable or invalid files are skipped so one corrupt profile
+    cannot break running or scheduling a firing.
     '''
     try:
         profile_files = os.listdir(profile_path)
-    except:
+    except OSError:
         profile_files = []
     for filename in profile_files:
-        with open(os.path.join(profile_path, filename), 'r') as f:
-            profile = json.load(f)
-        if profile['name'] == wanted:
+        path = os.path.join(profile_path, filename)
+        try:
+            with open(path, 'r') as f:
+                profile = json.load(f)
+        except Exception as e:
+            log.error("skipping unreadable profile %s: %s" % (path, e))
+            continue
+        if not isinstance(profile, dict):
+            log.error("skipping malformed profile %s" % (path))
+            continue
+        if profile.get('name') == wanted:
             return profile
     return None
 
@@ -918,16 +928,28 @@ def valid_profile_name(name):
 
 
 def get_profiles():
+    '''return all readable profiles in the display scale. corrupt or
+    malformed files are skipped so one bad file cannot break the
+    storage websocket for every client.'''
     try:
         profile_files = os.listdir(profile_path)
-    except:
+    except OSError:
         profile_files = []
     profiles = []
     for filename in profile_files:
-        with open(os.path.join(profile_path, filename), 'r') as f:
-            profiles.append(json.load(f))
+        path = os.path.join(profile_path, filename)
+        try:
+            with open(path, 'r') as f:
+                profile = json.load(f)
+        except Exception as e:
+            log.error("skipping unreadable profile %s: %s" % (path, e))
+            continue
+        if not isinstance(profile, dict):
+            log.error("skipping malformed profile %s" % (path))
+            continue
+        profiles.append(profile)
     profiles = normalize_temp_units(profiles)
-    return json.dumps(sorted(profiles, key=lambda x: x["name"]))
+    return json.dumps(sorted(profiles, key=lambda x: x.get("name", "")))
 
 
 def save_profile(profile, force=False):
