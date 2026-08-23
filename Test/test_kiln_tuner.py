@@ -21,6 +21,30 @@ def load_tuner():
 tuner = load_tuner()
 
 
+class FakeClock:
+    '''deterministic clock for recordprofile(): the fake ovens do not
+    sleep, so with the real clock every sample lands microseconds apart
+    and the tangent fit can degenerate (negative L) depending on timer
+    jitter and machine load. Evenly spaced stamps give the recorded
+    curve a meaningful time axis.'''
+    def __init__(self, start=1000000.0, step=1.0):
+        self.now = start
+        self.step = step
+
+    def time(self):
+        now = self.now
+        self.now += self.step
+        return now
+
+
+def fake_clock(monkeypatch):
+    '''replace the time module kiln-tuner.py stamps rows with; it only
+    ever calls time.time()'''
+    clock = FakeClock()
+    monkeypatch.setattr(tuner, 'time', types.SimpleNamespace(time=clock.time))
+    return clock
+
+
 def write_curve(tmp_path, filename="tuning.csv", with_cooling=True):
     '''two-segment heating curve:
        t 0..60:  temp = 5*t      (0..300)
@@ -261,6 +285,7 @@ def test_recordprofile_simulated(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(config, 'simulate', True)
     monkeypatch.setattr(config, 'automatic_restarts', True)
     monkeypatch.setattr(oven_mod, 'SimulatedOven', FakeSimOven)
+    fake_clock(monkeypatch)
 
     csvfile = tmp_path / 'recorded.csv'
     tuner.recordprofile(str(csvfile), 100.0)
@@ -314,6 +339,7 @@ def test_recordprofile_real_oven_always_cools_down(tmp_path, monkeypatch, capsys
     monkeypatch.setattr(config, 'simulate', False)
     monkeypatch.setattr(config, 'automatic_restarts', True)
     monkeypatch.setattr(oven_mod, 'RealOven', FakeRealOven)
+    fake_clock(monkeypatch)
 
     csvfile = tmp_path / 'recorded-real.csv'
     tuner.recordprofile(str(csvfile), 100.0)
@@ -346,6 +372,7 @@ def test_main_records_then_calculates(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(config, 'simulate', True)
     monkeypatch.setattr(config, 'automatic_restarts', True)
     monkeypatch.setattr(oven_mod, 'SimulatedOven', FakeSimOven)
+    fake_clock(monkeypatch)
     monkeypatch.setattr(sys, 'argv',
                         ['kiln-tuner.py', '--target_temp', '300', '--csvfile', str(tmp_path / 'tuning.csv')])
 
