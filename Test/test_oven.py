@@ -125,6 +125,21 @@ def test_get_surrounding_points():
     assert profile.get_surrounding_points(20000) == (None, None)
 
 
+def test_get_surrounding_points_before_first_point_holds_start():
+    '''a time before the profile's first point must hold the starting
+    temperature, not wrap around to the last point of the profile'''
+    profile = Profile('{"name": "x", "data": [[600, 100], [1200, 200]]}')
+
+    assert profile.get_surrounding_points(0) == ([600, 100], [600, 100])
+    # used to compute a garbage (here negative) target from wrapped points
+    assert profile.get_target_temperature(0) == 100
+
+
+def test_get_target_temperature_before_first_point_never_negative():
+    profile = Profile('{"name": "x", "data": [[600, 100], [1800, 400]]}')
+    assert profile.get_target_temperature(0) == 100
+
+
 def test_profile_sorts_data():
     profile = Profile('{"name": "x", "data": [[3600, 200], [0, 100]]}')
     assert profile.data == [[0, 100], [3600, 200]]

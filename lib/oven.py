@@ -897,8 +897,15 @@ class Profile():
 
         for i in range(len(self.data)):
             if time < self.data[i][0]:
-                prev_point = self.data[i-1]
-                next_point = self.data[i]
+                if i == 0:
+                    # before the first point: hold the starting
+                    # temperature. data[i-1] here would be data[-1],
+                    # wrongly wrapping around to the profile's LAST point
+                    prev_point = self.data[0]
+                    next_point = self.data[0]
+                else:
+                    prev_point = self.data[i-1]
+                    next_point = self.data[i]
                 break
 
         return (prev_point, next_point)
