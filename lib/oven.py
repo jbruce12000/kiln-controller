@@ -914,6 +914,11 @@ class Profile():
         if time > self.get_duration():
             return 0
 
+        if time == self.get_duration():
+            # exactly at the end there is no next point to interpolate
+            # from; hold the final temperature instead of crashing
+            return self.data[-1][1]
+
         (prev_point, next_point) = self.get_surrounding_points(time)
 
         dt = float(next_point[0] - prev_point[0])

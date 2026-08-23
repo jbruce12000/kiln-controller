@@ -78,6 +78,20 @@ def test_get_target_temperature_after_end_is_zero():
     assert profile.get_target_temperature(20000) == 0
 
 
+def test_get_target_temperature_at_exact_end_holds_final_temp():
+    '''at t == duration there is no next point to interpolate from; this
+    used to crash with TypeError instead of holding the final temp'''
+    profile = Profile('{"name": "x", "data": [[0, 100], [600, 200]]}')
+    assert profile.get_target_temperature(profile.get_duration()) == 200
+
+
+def test_get_target_temperature_single_point_profile():
+    '''a one-point profile must work at and after its only timestamp'''
+    profile = Profile('{"name": "x", "data": [[600, 150]]}')
+    assert profile.get_target_temperature(300) == 150
+    assert profile.get_target_temperature(profile.get_duration()) == 150
+
+
 def test_get_duration():
     profile = get_profile()
     assert profile.get_duration() == 19400
