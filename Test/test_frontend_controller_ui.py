@@ -408,6 +408,66 @@ def test_config_dump_button_lives_at_bottom_of_config_tab():
 
 
 ########################################################################
+# schedules tab: profile rows during a run
+########################################################################
+
+def _setup_profiles_context(js):
+    '''load renderProfiles() with a minimal DOM: two profiles, a stubbed
+    profiles_list element, and a no-op listScheduledRuns().'''
+    src = open(JS_PATH).read()
+    js.eval(extract_function(src, 'profileDuration'))
+    js.eval(extract_function(src, 'renderProfiles'))
+    js.eval('var el = { innerHTML: "" };')
+    js.eval("$ = function (id) { return id === 'profiles_list' ? el : null; };")
+    js.eval('var profiles = ['
+            '  { name: "bisque", data: [[0, 65], [3600, 500]] },'
+            '  { name: "glaze", data: [[0, 65], [1800, 400]] }'
+            '];')
+    js.eval('var selected_profile_name = null;')
+    js.eval('var listScheduledRuns = function () {};')
+
+
+def _render_profiles(js):
+    js.eval('renderProfiles();')
+    return js.eval('el.innerHTML')
+
+
+def test_running_profile_row_hides_run_edit_and_delete(js):
+    # the running row's Stop button is the only stop control in the ui,
+    # so edit/delete are hidden: deleting the row would leave an active
+    # firing unstoppable until it finished
+    _setup_profiles_context(js)
+    js.eval('running_profile_name = "bisque";')
+    html = _render_profiles(js)
+
+    assert 'abortTask()' in html                 # Stop stays
+    assert 'selectProfile(0, true)' not in html  # Run swapped for Stop
+    assert 'editProfile(0)' not in html          # Edit hidden
+    assert 'selectProfile(0, null)' not in html  # Delete hidden
+
+    # rows that are not running keep every button
+    assert 'selectProfile(1, true)' in html      # Run
+    assert 'scheduleProfile(1)' in html          # Schedule
+    assert 'editProfile(1)' in html              # Edit
+    assert 'selectProfile(1, null)' in html      # Delete
+
+
+def test_edit_and_delete_return_when_the_run_ends(js):
+    _setup_profiles_context(js)
+    js.eval('running_profile_name = "bisque";')
+    _render_profiles(js)
+
+    # the firing completes (or is stopped): running_profile_name clears
+    # and the buttons must come back without a page reload
+    js.eval('running_profile_name = null;')
+    html = _render_profiles(js)
+
+    assert 'abortTask()' not in html
+    assert 'editProfile(0)' in html
+    assert 'selectProfile(0, null)' in html
+
+
+########################################################################
 # community schedules (kiln-profiles repo)
 ########################################################################
 

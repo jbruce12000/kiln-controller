@@ -68,6 +68,11 @@ Lists all profiles stored on the controller. For each one you can:
 - **Edit** -- open the profile in the editor
 - **Delete** -- remove the profile (with confirmation)
 
+While a profile is running, its **Run**, **Edit**, and **Delete** buttons are
+replaced by a single **Stop** button. The row carries the only stop control,
+so hiding edit and delete guarantees a firing cannot be left running with no
+way to stop it from the interface. The buttons return when the run finishes.
+
 ### Editing a Profile
 
 Click **New Schedule** or **Edit** on an existing profile to open the editor.
