@@ -76,6 +76,21 @@ body {
     --ds-input-shadow: inset 0 0 8px 0 rgba(0,0,0,0.12);
 }
 
+/* bootstrap's .text-muted resolves --bs-secondary-color, which defaults
+   to a light-theme gray (rgba(33,37,41,.75)) because our custom dark
+   theme does not set data-bs-theme=dark. remap it to our own muted
+   variable so muted text stays readable on dark panels; light mode
+   keeps bootstrap's original value. modals keep their light background
+   even in dark mode, so they are exempted and stay with bootstrap's
+   darker gray. */
+:root:not(.light) .text-muted {
+    --bs-secondary-color: var(--muted-2);
+}
+
+:root:not(.light) .modal-content .text-muted {
+    --bs-secondary-color: rgba(33, 37, 41, 0.75);
+}
+
 #theme_toggle {
     margin-left: 8px;
 }
