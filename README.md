@@ -21,7 +21,7 @@ Turns a Raspberry Pi into an inexpensive, web-enabled kiln controller.
   * support for skipping first part of profile to match current kiln temperature
   * prevents integral wind-up when temperatures not near the set point
   * automatic restarts if there is a power outage or other event
-  * support for a watcher to page you via slack if you kiln is out of whack
+  * web-configurable alerts for every safety and run-lifecycle event
   * easy scheduling of future kiln runs
 
 
@@ -164,9 +164,29 @@ You can schedule a firing to start at a specific date and time from the **Profil
 the **Schedule** button next to Start on the Overview tab. 
 Scheduled runs are saved to disk so they survive a reboot, and are managed by the running kiln-controller process.
 
-### Watcher
+### Alerts
 
-If you're busy and do not want to sit around watching the web interface for problems, there is a watcher.py script which you can run on any machine in your local network or even on the raspberry pi which will watch the kiln-controller process to make sure it is running a schedule, and staying within a pre-defined temperature range. When things go bad, it sends messages to a slack channel you define. I have alerts set on my android phone for that specific slack channel. Here are detailed [instructions](docs/watcher.md).
+The **Alerts** panel on the Config tab lets you choose which conditions raise an
+alert: safety-critical events (emergency shutoff, relay stuck on, thermocouple
+failure), run lifecycle events (started, completed, aborted, power-outage
+restart), and informational events. Selections are saved to disk and survive a
+reboot. See the [Alerts Guide](docs/alerts.md) for the full registry,
+detection thresholds, and delivery setup.
+
+All of these conditions are detected live while the controller runs, and each
+fired alert is written to the daemon log tagged `ALERT` with the details.
+
+**Delivery** -- the bottom of the Alerts panel chooses where fired alerts go
+beyond the log:
+
+- **MQTT** -- publishes each alert as json to its own topic (default
+  `kiln/alert`) on the same broker as the live state stream. Requires
+  `mqtt_enable = True` in `config.py`.
+- **Webhook** -- posts each alert as json to any url: ntfy, discord, slack,
+  home assistant, pushover, or your own receiver.
+
+Both take effect immediately when toggled (no restart) and their settings are
+saved with the alert checkboxes.
 
 ### Logging
 

@@ -19,6 +19,18 @@ stats for currently running schedule
 
     curl -X GET http://0.0.0.0:8081/api/stats
 
+list the alert registry with enabled flags and delivery settings, ordered most critical first
+
+    curl -X GET http://0.0.0.0:8081/api/alerts
+
+enable or disable alerts (any subset)
+
+    curl -d '{"enabled": {"relay_stuck_on": true, "run_started": false}}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api/alerts
+
+update alert delivery settings (any subset; see [alerts.md](alerts.md))
+
+    curl -d '{"delivery": {"webhook_enabled": true, "webhook_url": "https://ntfy.sh/my-kiln", "mqtt_enabled": true, "mqtt_topic": "kiln/alert"}}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api/alerts
+
 pause a run (maintain current temperature until resume)
 
     curl -d '{"cmd":"pause"}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api

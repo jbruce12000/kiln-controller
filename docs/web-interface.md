@@ -125,6 +125,68 @@ simulation options, and more.
 **Be careful** -- incorrect changes can prevent the controller from starting.
 Keep a backup of a known-working config.
 
+### Alerts
+
+The **Alerts** panel lists every condition that can raise an alert, ordered
+most critical first:
+
+- **Critical** -- safety events: emergency shutoff, kiln not heating fast
+  enough, relay stuck on, thermocouple failure, implausible temperature
+  readings.
+- **Warning** -- degraded runs: aborted firings, power-outage restarts,
+  falling behind schedule, missed scheduled runs.
+- **Info** -- normal lifecycle events worth knowing about: run started,
+  run completed, cooled to safe temperature, controller restarted.
+
+Toggle any checkbox to enable or disable that alert. Changes are saved
+immediately to `storage/alerts.json` (no restart required) and survive a
+reboot.
+
+All of these conditions are detected live by the controller. When a
+detected alert fires it is written to the daemon log, tagged
+`ALERT [CRITICALITY]`, with details about the run (profile, temperature,
+reason). Repeating conditions are rate limited to at most one alert every
+5 minutes; lifecycle events (run started/completed/aborted, restarts)
+always come through. Disabling an alert silences it completely -- the
+detector still runs, but nothing is announced.
+
+#### Alert delivery
+
+The **Delivery** section at the bottom of the panel chooses where fired
+alerts go beyond the daemon log. Both options take effect immediately when
+toggled (no restart) and their settings are saved in the same
+`storage/alerts.json` file as the alert checkboxes.
+
+- **Send alerts over MQTT** -- publishes each alert as json on its own
+  topic (default `kiln/alert`), next to the live state stream, so Home
+  Assistant or Node-RED can trigger notifications or automations. Requires
+  the broker settings (`mqtt_enable`, `mqtt_host`, ...) in `config.py`;
+  until those exist the panel shows a hint.
+- **Post alerts to a webhook** -- posts each alert as json to any url that
+  accepts a POST: ntfy (`https://ntfy.sh/<your-topic>`), Discord or Slack
+  incoming webhooks, Home Assistant webhooks, Pushover, or your own
+  receiver. Posts run on a background thread with a timeout
+  (`alert_webhook_timeout` in `config.py`) so a slow endpoint can never
+  stall heater control.
+
+Every delivery carries the same json payload:
+
+```json
+{
+  "source": "kiln-controller",
+  "alert_id": "relay_stuck_on",
+  "label": "Relay stuck on",
+  "criticality": "critical",
+  "context": {"rise": 31.2, "minutes": 10, "temperature": 212},
+  "time": "2026-08-23T14:43:50",
+  "epoch": 1787485430
+}
+```
+
+Detection thresholds live in the alerts section of `config.py`
+(`cooled_safe_temp`, `relay_stuck_on_rise`, `relay_stuck_on_window`,
+`temp_implausible_jump`, `catch_up_stalled_minutes`).
+
 ### PID Auto-Tuner
 
 At the bottom of the Config tab, the **PID Auto-Tuner** calculates optimal PID
@@ -172,6 +234,7 @@ the server. This will change how your kiln heats.
 | `listening_port` | Port the web server runs on (default 9099) |
 | `pid_kp`, `pid_ki`, `pid_kd` | PID tuning parameters (run the auto-tuner first) |
 | `emergency_shutoff_temp` | Temperature at which the firing is aborted for safety |
+| `cooled_safe_temp` | Below this temperature a finished kiln counts as safe to open (Alerts panel) |
 | `automatic_restarts` | Resume firing automatically after a power outage |
 | `kwh_rate`, `currency_type` | Cost settings for the firing cost estimate |
 
