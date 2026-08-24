@@ -246,6 +246,7 @@ function showTab(name) {
         loadRemoteProfiles();
     } else if (name === 'config') {
         loadConfigEditor();
+        loadAlerts();
     } else if (name === 'overview' && chart) {
         chart.resize();
     }
@@ -1091,6 +1092,181 @@ function loadConfigEditor() {
     })
     .catch(function(err) {
         showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> <b>ERROR 95:</b><br/>Could not load config.py: ' + err, 'error', 5000);
+    });
+}
+
+/* ---------------------------------------------------------------------------
+   Alerts panel
+--------------------------------------------------------------------------- */
+
+var ALERT_TIER_LABELS = {
+    critical: 'Critical',
+    warning: 'Warning',
+    info: 'Info'
+};
+
+// pure so it can be unit tested: builds the panel body from the api
+// payload, grouping alerts under criticality headings, highest first,
+// then the delivery settings (mqtt / webhook).
+function renderAlertsHtml(alerts, delivery, mqttConfigured) {
+    var tiers = {};
+    var order = ['critical', 'warning', 'info'];
+    for (var i = 0; i < alerts.length; i++) {
+        var alert = alerts[i];
+        if (!tiers[alert.criticality]) { tiers[alert.criticality] = []; }
+        tiers[alert.criticality].push(alert);
+    }
+    var html = '';
+    for (var t = 0; t < order.length; t++) {
+        var tier = order[t];
+        var rows = tiers[tier];
+        if (!rows || !rows.length) { continue; }
+        html += '<div class="alert-tier small text-muted text-uppercase fw-bold mt-2 mb-1">' +
+            escHtml(ALERT_TIER_LABELS[tier] || tier) + '</div>';
+        for (var r = 0; r < rows.length; r++) {
+            var a = rows[r];
+            html += '<div class="form-check form-switch py-1">' +
+                '<input class="form-check-input" type="checkbox" role="switch" id="alert_' + escHtml(a.id) + '"' +
+                (a.enabled ? ' checked' : '') +
+                ' onchange="toggleAlert(\'' + escHtml(a.id) + '\', this)" />' +
+                '<label class="form-check-label" for="alert_' + escHtml(a.id) + '">' +
+                escHtml(a.label) +
+                '<div class="small text-muted">' + escHtml(a.description) + '</div>' +
+                '</label></div>';
+        }
+    }
+    return html + renderDeliveryHtml(delivery, mqttConfigured);
+}
+
+// pure: the delivery part of the panel. toggles save immediately like
+// the alert switches; text fields save when edited.
+function renderDeliveryHtml(delivery, mqttConfigured) {
+    delivery = delivery || {};
+    var mqttOn = delivery.mqtt_enabled === true;
+    var webhookOn = delivery.webhook_enabled === true;
+    var html = '<div class="alert-tier small text-muted text-uppercase fw-bold mt-3 mb-1">Delivery</div>' +
+        '<p class="small text-muted mb-2">Where fired alerts go beyond the daemon log. Changes take effect immediately.</p>';
+
+    html += '<div class="form-check form-switch py-1">' +
+        '<input class="form-check-input" type="checkbox" role="switch" id="delivery_mqtt"' +
+        (mqttOn ? ' checked' : '') +
+        ' onchange="toggleDelivery(\'mqtt_enabled\', this)" />' +
+        '<label class="form-check-label" for="delivery_mqtt">Send alerts over MQTT' +
+        (!mqttConfigured ?
+            '<div class="small text-muted">The mqtt broker is not configured in config.py (mqtt_enable).</div>'
+            : '<div class="small text-muted">Published as json on their own topic, next to the live state stream.</div>') +
+        '</label></div>';
+    html += '<div class="mb-2 ps-4">' +
+        '<label class="form-label small mb-1" for="delivery_mqtt_topic">Topic</label>' +
+        '<input type="text" class="form-control form-control-sm" id="delivery_mqtt_topic" ' +
+        'value="' + escHtml(delivery.mqtt_topic || '') + '" spellcheck="false" ' +
+        'onchange="saveDeliveryField(\'mqtt_topic\', this)" /></div>';
+
+    html += '<div class="form-check form-switch py-1">' +
+        '<input class="form-check-input" type="checkbox" role="switch" id="delivery_webhook"' +
+        (webhookOn ? ' checked' : '') +
+        ' onchange="toggleDelivery(\'webhook_enabled\', this)" />' +
+        '<label class="form-check-label" for="delivery_webhook">Post alerts to a webhook' +
+        '<div class="small text-muted">Any url that accepts json posts: ntfy, discord, slack, home assistant&hellip;</div>' +
+        '</label></div>';
+    html += '<div class="mb-2 ps-4">' +
+        '<label class="form-label small mb-1" for="delivery_webhook_url">Webhook URL</label>' +
+        '<input type="text" class="form-control form-control-sm" id="delivery_webhook_url" ' +
+        'value="' + escHtml(delivery.webhook_url || '') + '" placeholder="https://ntfy.sh/my-kiln" spellcheck="false" ' +
+        'onchange="saveDeliveryField(\'webhook_url\', this)" /></div>';
+    return html;
+}
+
+function loadAlerts() {
+    fetch('/api/alerts')
+    .then(function(r) {
+        if (!r.ok) {
+            throw new Error('HTTP ' + r.status);
+        }
+        return r.json();
+    })
+    .then(function(resp) {
+        if (!resp.success) {
+            throw new Error(resp.error || 'unknown error');
+        }
+        $('alerts_list').innerHTML = renderAlertsHtml(resp.alerts,
+                                                      resp.delivery,
+                                                      resp.mqtt_configured);
+    })
+    .catch(function(err) {
+        showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> <b>ERROR 89:</b><br/>Could not load alerts: ' + err, 'error', 5000);
+    });
+}
+
+function toggleAlert(id, checkbox) {
+    var wanted = checkbox.checked;
+    var updates = {};
+    updates[id] = wanted;
+    fetch('/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enabled: updates })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+        if (!resp.success) {
+            throw new Error(resp.error || 'unknown error');
+        }
+    })
+    .catch(function(err) {
+        // revert the switch so the ui does not lie about saved state
+        checkbox.checked = !wanted;
+        showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> <b>ERROR 87:</b><br/>Could not save alert change: ' + err, 'error', 5000);
+    });
+}
+
+// delivery toggles: same instant-save + revert-on-failure contract as
+// the alert switches
+function toggleDelivery(field, checkbox) {
+    var wanted = checkbox.checked;
+    var update = {};
+    update[field] = wanted;
+    postDelivery(update, function(err) {
+        if (err) {
+            checkbox.checked = !wanted;
+            showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> <b>ERROR 87:</b><br/>Could not save delivery change: ' + err, 'error', 5000);
+        }
+    });
+}
+
+// delivery text fields (topic, webhook url): saved when edited. on
+// failure the input reverts to the value it had before the edit.
+function saveDeliveryField(field, input) {
+    var wanted = input.value;
+    var previous = input.defaultValue;
+    var update = {};
+    update[field] = wanted;
+    postDelivery(update, function(err, resp) {
+        if (err) {
+            input.value = previous;
+            showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> <b>ERROR 87:</b><br/>Could not save delivery change: ' + err, 'error', 5000);
+        } else if (resp && resp.delivery) {
+            // keep defaultValue in sync with what the server accepted
+            input.defaultValue = resp.delivery[field];
+        }
+    });
+}
+
+function postDelivery(update, cb) {
+    fetch('/api/alerts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ delivery: update })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+        if (!resp.success) {
+            throw new Error(resp.error || 'unknown error');
+        }
+        cb(null, resp);
+    })
+    .catch(function(err) {
+        cb(err);
     });
 }
 

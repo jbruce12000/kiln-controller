@@ -21,6 +21,9 @@ class Scheduler(object):
         self.lock = threading.Lock()
         self.schedules = []
         self.fire_callback = None
+        # optional alert emission callback (AlertManager.emit), set by
+        # kiln-controller so a skipped run can raise scheduled_run_missed
+        self.alert_emit = None
         self.load()
 
     def load(self):
@@ -145,6 +148,14 @@ class Scheduler(object):
             self.mark_waiting(entry)
         else:
             self.mark_fired(entry, fired=True, status='skipped')
+            if self.alert_emit:
+                try:
+                    self.alert_emit('scheduled_run_missed',
+                                    context={'profile': entry.get('profile'),
+                                             'schedule_id': entry.get('id'),
+                                             'start_time': entry.get('start_time')})
+                except Exception as e:
+                    log.error("could not emit scheduled_run_missed: %s" % e)
 
     def fire_due(self):
         '''attempt to fire every scheduled run whose time has arrived'''

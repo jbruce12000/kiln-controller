@@ -54,6 +54,9 @@ def js():
     context.eval(extract_function(src, 'escHtml'))
     context.eval(extract_function(src, 'remoteFilterMatches'))
     context.eval(extract_function(src, 'renderRemoteProfiles'))
+    context.eval(extract_function(src, 'renderAlertsHtml'))
+    context.eval(extract_function(src, 'renderDeliveryHtml'))
+    context.eval('var ALERT_TIER_LABELS = { critical: "Critical", warning: "Warning", info: "Info" };')
     context.eval(extract_function(src, 'isoLocal'))
     context.eval(extract_function(src, 'pad2'))
     context.eval(extract_function(src, 'formatDuration'))
@@ -868,3 +871,123 @@ def test_render_schedule_after_list_hides_when_nothing_to_chain(js):
     js.eval('renderScheduleAfterList();')
     assert js.eval('sched_after.style.display') == 'none'
     assert js.eval('sched_list.innerHTML') == ''
+
+
+########################################################################
+# alerts panel rendering
+########################################################################
+
+def _alert(id, label, description, criticality, enabled=True):
+    return {'id': id, 'label': label, 'description': description,
+            'criticality': criticality, 'enabled': enabled}
+
+
+def test_render_alerts_orders_criticality_descending(js):
+    # deliberately pass the registry in reverse to prove grouping wins
+    payload = [
+        _alert('run_started', 'Run started', 'desc', 'info'),
+        _alert('catch_up_stalled', 'Behind', 'desc', 'warning'),
+        _alert('tc_failure', 'TC failure', 'desc', 'critical'),
+    ]
+    html = js.eval('renderAlertsHtml(%s)' % json.dumps(payload))
+    assert html.index('Critical') < html.index('Warning') < html.index('Info')
+    assert html.index('tc_failure') < html.index('catch_up_stalled') < html.index('run_started')
+
+
+def test_render_alerts_checkbox_reflects_enabled(js):
+    payload = [
+        _alert('a_one', 'One', 'd', 'critical', True),
+        _alert('b_two', 'Two', 'd', 'critical', False),
+    ]
+    html = js.eval('renderAlertsHtml(%s)' % json.dumps(payload))
+    assert 'id="alert_a_one" checked' in html
+    # the disabled switch has no checked attribute
+    assert 'id="alert_b_two"' in html and 'alert_b_two" checked' not in html
+
+
+def test_render_alerts_escapes_server_strings(js):
+    payload = [
+        _alert('x<script>', 'Label <b>bold</b>',
+               'desc with "quotes" & <tags>', 'critical'),
+    ]
+    html = js.eval('renderAlertsHtml(%s)' % json.dumps(payload))
+    assert '<script>' not in html
+    assert '&lt;b&gt;bold&lt;/b&gt;' in html
+    assert '&quot;quotes&quot;' in html
+
+
+def test_render_alerts_wires_toggle_handler(js):
+    payload = [_alert('emergency_shutoff', 'E', 'd', 'critical')]
+    html = js.eval('renderAlertsHtml(%s)' % json.dumps(payload))
+    assert "onchange=\"toggleAlert('emergency_shutoff', this)\"" in html
+
+
+def test_render_alerts_skips_empty_tiers(js):
+    payload = [_alert('only_info', 'Only', 'd', 'info')]
+    html = js.eval('renderAlertsHtml(%s)' % json.dumps(payload))
+    assert 'Critical' not in html
+    assert 'Warning' not in html
+    assert 'Info' in html
+
+
+########################################################################
+# delivery settings section
+########################################################################
+
+DELIVERY = {
+    'mqtt_enabled': True,
+    'mqtt_topic': 'kiln/alerts',
+    'webhook_enabled': False,
+    'webhook_url': '',
+}
+
+
+def test_render_delivery_section_present_by_default(js):
+    payload = [_alert('run_started', 'Run started', 'd', 'info')]
+    html = js.eval('renderAlertsHtml(%s)' % json.dumps(payload))
+    assert 'Delivery' in html          # renders with no settings passed
+    assert 'delivery_mqtt' in html
+    assert 'delivery_webhook' in html
+
+
+def test_render_delivery_reflects_saved_state(js):
+    payload = [_alert('run_started', 'Run started', 'd', 'info', enabled=False)]
+    delivery = dict(DELIVERY, webhook_url='https://ntfy.sh/my-kiln')
+    html = js.eval('renderAlertsHtml(%s, %s, true)'
+                   % (json.dumps(payload), json.dumps(delivery)))
+    # mqtt on, webhook off, topic and url render as input values
+    assert 'id="delivery_mqtt" checked' in html
+    assert 'id="delivery_webhook" checked' not in html
+    assert 'value="kiln/alerts"' in html
+    assert 'value="https://ntfy.sh/my-kiln"' in html
+
+
+def test_render_delivery_escapes_url_into_attribute(js):
+    payload = [_alert('run_started', 'Run started', 'd', 'info')]
+    evil = {'mqtt_enabled': False, 'mqtt_topic': '', 'webhook_enabled': True,
+            'webhook_url': 'https://x"><script>alert(1)</script>'}
+    html = js.eval('renderAlertsHtml(%s, %s, false)'
+                   % (json.dumps(payload), json.dumps(evil)))
+    assert '<script>' not in html
+    assert '&lt;script&gt;' in html
+
+
+def test_render_delivery_wires_handlers(js):
+    payload = [_alert('run_started', 'Run started', 'd', 'info')]
+    html = js.eval(
+        'renderAlertsHtml(%s, %s, true)'
+        % (json.dumps(payload), json.dumps(DELIVERY)))
+    assert "onchange=\"toggleDelivery('mqtt_enabled', this)\"" in html
+    assert "onchange=\"toggleDelivery('webhook_enabled', this)\"" in html
+    assert "onchange=\"saveDeliveryField('mqtt_topic', this)\"" in html
+    assert "onchange=\"saveDeliveryField('webhook_url', this)\"" in html
+
+
+def test_render_delivery_mqtt_not_configured_hint(js):
+    payload = [_alert('run_started', 'Run started', 'd', 'info')]
+    unconfigured = js.eval('renderAlertsHtml(%s, %s, false)'
+                           % (json.dumps(payload), json.dumps(DELIVERY)))
+    configured = js.eval('renderAlertsHtml(%s, %s, true)'
+                         % (json.dumps(payload), json.dumps(DELIVERY)))
+    assert 'not configured' in unconfigured
+    assert 'not configured' not in configured

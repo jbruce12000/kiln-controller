@@ -13,10 +13,12 @@ def enabled():
 class MqttOut:
     """publishes oven state to an mqtt broker when mqtt_enable is set."""
 
-    def __init__(self, client_cls=None):
+    def __init__(self, client_cls=None, topic=None):
         self.enabled = enabled()
         self.client = None
-        self.topic = getattr(config, "mqtt_topic", "kiln/sensor")
+        # alerts use their own topic so subscribers can tell them apart
+        # from the live state stream
+        self.topic = topic or getattr(config, "mqtt_topic", "kiln/sensor")
         self.kiln_name = getattr(config, "mqtt_kiln_name", None)
         if self.enabled:
             self._connect(client_cls)

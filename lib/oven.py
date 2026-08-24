@@ -12,6 +12,11 @@ from temp import to_c, to_display, delta_to_c, delta_to_display, display_pidstat
 
 log = logging.getLogger(__name__)
 
+# run-end reasons for abort_run(). 'completed' and 'stopped' are normal
+# operation; anything else is an abort worth a run_aborted alert.
+END_COMPLETED = 'completed'
+END_STOPPED = 'stopped'
+
 class DupFilter(object):
     def __init__(self):
         self.msgs = set()
@@ -195,7 +200,10 @@ class ThermocoupleTracker(object):
     def __init__(self):
         self.size = config.temperature_average_samples * 2 
         self.status = [True for i in range(self.size)]
-        self.limit = 30
+        # percent of failed reads over the rolling window that counts as
+        # "too many errors" (alert + possible abort, see alerts section
+        # of config.py)
+        self.limit = config.tc_error_percent_limit
 
     def good(self):
         '''True is good!'''
@@ -343,6 +351,15 @@ class Oven(threading.Thread):
         self.daemon = True
         self.temperature = 0
         self.time_step = config.sensor_time_wait
+        self.alert_manager = None
+        # always-on detector state that must survive across runs.
+        # None means "no previous reading yet".
+        self.last_plausible_temp = None
+        self.relay_off_temps = []
+        # one-shot per process life: only decide once whether a past
+        # outage left an unresumed firing behind
+        self.restart_outage_checked = False
+        self.cooled_safe_armed_for = None
         self.reset()
         # each firing gets an increasing run_sequence. ended_run_sequence
         # remembers the highest sequence that has finished so scheduled
@@ -366,6 +383,10 @@ class Oven(threading.Thread):
         self.emergency_heat_rate_temps = []
         self.pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
         self.catching_up = False
+        # how long the current catch-up stall has lasted (see
+        # check_catch_up_stalled); reset ends any measured episode
+        self.catch_up_since = None
+        self.catch_up_alerted = False
 
     @staticmethod
     def get_start_from_temperature(profile, temp):
@@ -414,14 +435,57 @@ class Oven(threading.Thread):
         self.totaltime = profile.get_duration()
         self.run_sequence += 1
         self.state = "RUNNING"
+        # a new firing invalidates any cooled_safe alert armed by the
+        # previous one: the kiln is about to get hot again
+        self.cooled_safe_armed_for = None
         log.info("Running schedule %s starting at %d minutes" % (profile.name,startat))
         log.info("Starting")
 
-    def abort_run(self):
+    def abort_run(self, reason='stopped'):
+        '''end the active run. reason records why it ended so alerts can
+        tell a clean finish from a failure: 'completed' (schedule ran to
+        its end), 'stopped' (user or api requested stop), anything else
+        is treated as an abort worth alerting on.'''
+        # capture run context before reset() clears it
+        context = {
+            'profile': self.profile.name if self.profile else None,
+            'run_id': self.run_sequence,
+            'runtime_minutes': round(self.runtime / 60),
+            'cost': round(self.cost, 2),
+            'reason': reason,
+        }
+        was_active = self.state in ('RUNNING', 'PAUSED')
         self.ended_run_sequence = max(self.ended_run_sequence, self.run_sequence)
         self.idle_since = time.time()
         self.reset()
         self.save_automatic_restart_state()
+        self.end_of_run(reason, context, was_active)
+
+    def end_of_run(self, reason, context, was_active):
+        '''emit lifecycle alerts for a just-ended run and arm the
+        cooled_safe alert if the kiln is still too hot to open.'''
+        if was_active:
+            if reason == END_COMPLETED:
+                self._emit('run_completed', **context)
+            elif reason != END_STOPPED:
+                # user-requested stops are normal operation, not errors
+                self._emit('run_aborted', **context)
+
+        # arm cooled_safe for this ended run unless the kiln is already
+        # below the safe temperature. cleared when fired, or when another
+        # run starts.
+        temp = self._current_temp()
+        if temp is not None and temp > to_c(config.cooled_safe_temp):
+            self.cooled_safe_armed_for = context.get('run_id')
+
+    def _current_temp(self):
+        '''current thermocouple reading in celsius (offset applied), or
+        None if it cannot be read right now'''
+        try:
+            return (self.board.temp_sensor.temperature() +
+                    delta_to_c(config.thermocouple_offset))
+        except Exception:
+            return None
 
     def get_start_time(self):
         # epoch seconds so elapsed-time math is immune to local-time
@@ -461,17 +525,30 @@ class Oven(threading.Thread):
         self.target = self.profile.get_target_temperature(self.runtime)
 
     def reset_if_emergency(self):
-        '''reset if the temperature is way TOO HOT, or other critical errors detected'''
-        if (self.board.temp_sensor.temperature() + delta_to_c(config.thermocouple_offset) >=
-            to_c(config.emergency_shutoff_temp)):
+        '''reset if the temperature is way TOO HOT, or other critical errors detected.
+           emits the matching alert whether or not the run is aborted:
+           the ignore_* flags decide whether to keep firing, but either
+           way you want to know it happened.'''
+        temp = self._current_temp()
+        if (temp is not None and
+                temp >= to_c(config.emergency_shutoff_temp)):
             log.info("emergency!!! temperature too high")
+            self._emit('emergency_shutoff',
+                       temperature=to_display(temp),
+                       limit=config.emergency_shutoff_temp,
+                       profile=self.profile.name if self.profile else None)
             if config.ignore_temp_too_high == False:
-                self.abort_run()
-        
+                self.abort_run(reason='temperature too high')
+
         if self.board.temp_sensor.status.over_error_limit():
             log.info("emergency!!! too many errors in a short period")
+            try:
+                error_percent = round(self.board.temp_sensor.status.error_percent())
+            except Exception:
+                error_percent = None
+            self._emit('tc_failure', error_percent=error_percent)
             if config.ignore_tc_too_many_errors == False:
-                self.abort_run()
+                self.abort_run(reason='too many thermocouple errors')
 
         self.check_heat_rate_emergency()
 
@@ -525,14 +602,124 @@ class Oven(threading.Thread):
         rate = ((temp2 - temp1) / (time2 - time1)) * 3600  # celsius/hour
         if rate < delta_to_c(config.emergency_heat_rate):
             log.info("emergency!!! heat rate too low: %0.1f deg/hour" % (delta_to_display(rate)))
+            self._emit('heat_rate_too_low',
+                       rate_per_hour=round(delta_to_display(rate), 1),
+                       minimum=config.emergency_heat_rate,
+                       profile=self.profile.name if self.profile else None)
             if config.ignore_heat_rate_too_low == False:
-                self.abort_run()
+                self.abort_run(reason='heat rate too low')
 
     def reset_if_schedule_ended(self):
         if self.runtime > self.totaltime:
             log.info("schedule ended, shutting down")
             log.info("total cost = %s%.2f" % (config.currency_type,self.cost))
-            self.abort_run()
+            self.abort_run(reason=END_COMPLETED)
+
+    def check_safety_detectors(self):
+        '''always-on detectors that run in every state: implausible
+        temperature jumps and a relay stuck closed while the elements
+        are commanded off. these matter most when the kiln is idle,
+        which is exactly when nothing else is watching.'''
+        temp = self._current_temp()
+        if temp is None:
+            return
+
+        # temp_implausible: one reading that leaps from the previous one
+        # means sensor or wiring trouble (kilns cannot physically change
+        # this fast)
+        if self.last_plausible_temp is not None:
+            jump = abs(temp - self.last_plausible_temp)
+            if jump > delta_to_c(config.temp_implausible_jump):
+                self._emit('temp_implausible',
+                           previous=to_display(self.last_plausible_temp),
+                           current=to_display(temp),
+                           state=self.state)
+                # re-baseline so sustained garbage alerts once per
+                # cooldown instead of every duty cycle
+                self.last_plausible_temp = temp
+                self.relay_off_temps = []
+                return
+        self.last_plausible_temp = temp
+
+        # relay_stuck_on: elements commanded fully off but temperature
+        # keeps climbing over the window. some rise is expected right
+        # after shutoff while the elements dump their stored heat, hence
+        # the generous threshold.
+        if self.state == 'TUNING' or self.heat:
+            # tuning drives the output directly without updating heat,
+            # and any commanded heat obviously explains a rising kiln
+            self.relay_off_temps = []
+            return
+
+        now = time.time()
+        window = config.relay_stuck_on_window * 60
+        self.relay_off_temps.append((now, temp))
+        self.relay_off_temps = [(t, x) for (t, x) in self.relay_off_temps
+                                if t >= now - window]
+        first_time = self.relay_off_temps[0][0]
+        first_temp = self.relay_off_temps[0][1]
+        if now - first_time >= window * 0.9 and \
+                temp - first_temp > delta_to_c(config.relay_stuck_on_rise):
+            self._emit('relay_stuck_on',
+                       rise=round(delta_to_display(temp - first_temp), 1),
+                       minutes=config.relay_stuck_on_window,
+                       temperature=to_display(temp))
+            # clear so it can fire again after another full window
+            self.relay_off_temps = []
+
+    def check_catch_up_stalled(self):
+        '''alert when the kiln has continuously failed to keep up with
+        its schedule for catch_up_stalled_minutes. fires once per stall.'''
+        if not self.catching_up:
+            self.catch_up_since = None
+            self.catch_up_alerted = False
+            return
+        if self.catch_up_since is None:
+            self.catch_up_since = time.time()
+            return
+        if not self.catch_up_alerted and \
+                time.time() - self.catch_up_since >= config.catch_up_stalled_minutes * 60:
+            self.catch_up_alerted = True
+            self._emit('catch_up_stalled',
+                       minutes=config.catch_up_stalled_minutes,
+                       profile=self.profile.name if self.profile else None)
+
+    def check_cooled_safe(self):
+        '''fire and disarm the armed cooled_safe alert once the kiln has
+        cooled below cooled_safe_temp'''
+        if self.cooled_safe_armed_for is None:
+            return
+        temp = self._current_temp()
+        if temp is None:
+            return
+        if temp <= to_c(config.cooled_safe_temp):
+            run_id = self.cooled_safe_armed_for
+            self.cooled_safe_armed_for = None
+            self._emit('cooled_safe',
+                       run_id=run_id,
+                       temperature=to_display(temp),
+                       limit=config.cooled_safe_temp)
+
+    def check_unresumed_outage(self):
+        '''one-shot check at startup: if the automatic restart state file
+        says a firing was RUNNING but the file is older than the restart
+        window, power failed mid-firing and came back too late to resume.'''
+        if not config.automatic_restarts == True:
+            return
+        if not os.path.isfile(config.automatic_restart_state_file):
+            return
+        if not self.state_file_is_old():
+            # file is fresh; should_i_automatic_restart will handle it
+            return
+        try:
+            with open(config.automatic_restart_state_file) as infile:
+                d = json.load(infile)
+        except (IOError, ValueError):
+            return
+        if d.get('state') == 'RUNNING':
+            self._emit('restart_not_resumed',
+                       profile=d.get('profile'),
+                       runtime_minutes=round(float(d.get('runtime', 0)) / 60))
 
     def update_cost(self):
         if self.heat:
@@ -636,10 +823,31 @@ class Oven(threading.Thread):
         self.cost = d["cost"]
         time.sleep(1)
         self.ovenwatcher.record(profile)
+        self._emit('restart_resumed',
+                   profile=d["profile"],
+                   runtime_minutes=round(startat),
+                   cost=round(self.cost, 2))
 
     def set_ovenwatcher(self,watcher):
         log.info("ovenwatcher set in oven class")
         self.ovenwatcher = watcher
+
+    def set_alert_manager(self, manager):
+        '''attach the process-wide AlertManager so detection code can
+        emit alerts. may stay None (e.g. kiln-tuner.py), in which case
+        _emit does nothing.'''
+        self.alert_manager = manager
+
+    def _emit(self, alert_id, **context):
+        '''emit an alert through the manager if one is attached. never
+        raises: alerting must not be able to take down heater control.'''
+        if self.alert_manager is None:
+            return False
+        try:
+            return self.alert_manager.emit(alert_id, context=context)
+        except Exception as e:
+            log.error("could not emit alert %s: %s" % (alert_id, e))
+            return False
 
     def run(self):
         while True:
@@ -655,7 +863,7 @@ class Oven(threading.Thread):
             except Exception as e:
                 log.error("oven control loop error: %s" % (e))
                 try:
-                    self.abort_run()
+                    self.abort_run(reason='control loop error')
                 except Exception as abort_error:
                     log.error("could not reset oven after control loop "
                               "error: %s" % (abort_error))
@@ -664,8 +872,13 @@ class Oven(threading.Thread):
     def _run_once(self):
         log.debug('Oven running on ' + threading.current_thread().name)
         if self.state == "IDLE":
+            if not self.restart_outage_checked:
+                self.restart_outage_checked = True
+                self.check_unresumed_outage()
             if self.should_i_automatic_restart() == True:
                 self.automatic_restart()
+            self.check_safety_detectors()
+            self.check_cooled_safe()
             time.sleep(1)
             return
         if self.state in ("PAUSED", "RUNNING") and self.profile is None:
@@ -682,6 +895,7 @@ class Oven(threading.Thread):
             self.heat_then_cool()
             self.reset_if_emergency()
             self.reset_if_schedule_ended()
+            self.check_safety_detectors()
             return
         if self.state == "RUNNING":
             self.update_cost()
@@ -692,6 +906,8 @@ class Oven(threading.Thread):
             self.heat_then_cool()
             self.reset_if_emergency()
             self.reset_if_schedule_ended()
+            self.check_safety_detectors()
+            self.check_catch_up_stalled()
             return
 
         # unrecognized state (e.g. "TUNING" while the autotuner is

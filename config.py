@@ -253,6 +253,24 @@ ignore_tc_unknown_error = False
 ignore_tc_too_many_errors = False
 
 ########################################################################
+# alerts - detection thresholds for the web-configurable alert system
+# (see the Alerts panel on the config tab). ids line up with the alert
+# registry in lib/alerts.py. temperatures are in the display scale,
+# deltas too; conversion happens where they are used.
+#   cooled_safe        -> cooled_safe_temp
+#   relay_stuck_on     -> relay_stuck_on_rise within relay_stuck_on_window
+#   temp_implausible   -> temp_implausible_jump between two readings
+#   tc_failure         -> tc_error_percent_limit
+#   catch_up_stalled   -> catch_up_stalled_minutes
+cooled_safe_temp = 150 # below this the kiln is safe to open
+relay_stuck_on_rise = 25 # rise over the window while elements are off
+relay_stuck_on_window = 10 # minutes
+temp_implausible_jump = 50 # impossible change between two duty cycles
+tc_error_percent_limit = 30 # percent of failed reads per window
+catch_up_stalled_minutes = 15 # minutes behind schedule before alerting
+alert_webhook_timeout = 10 # seconds before giving up on a webhook post
+
+########################################################################
 # automatic restarts - if you have a power brown-out and the raspberry pi
 # reboots, this restarts your kiln where it left off in the firing profile.
 # This only happens if power comes back before automatic_restart_window
@@ -277,6 +295,12 @@ schedule_poll_interval = 1 # seconds between schedule checks
 # firing it follows actually ends (not its nominal end, since catch-up
 # can stretch a run past its profile duration).
 schedule_chain_buffer = 60 # seconds
+
+########################################################################
+# alerts state - which alerts are enabled (the Alerts panel toggles).
+# persisted here so choices survive a reboot. never rename an alert id;
+# only add or retire them.
+alerts_state_file = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'storage','alerts.json'))
 
 ########################################################################
 # load kiln profiles from this directory

@@ -923,7 +923,8 @@ def test_run_survives_control_loop_error(monkeypatch):
         raise RuntimeError("simulated control loop failure")
 
     monkeypatch.setattr(oven_module().Oven, 'update_cost', boom)
-    monkeypatch.setattr(oven_module().Oven, 'abort_run', lambda self: aborts.append(1))
+    monkeypatch.setattr(oven_module().Oven, 'abort_run',
+                        lambda self, reason='stopped': aborts.append(reason))
 
     def fake_sleep(secs):
         sleeps.append(secs)
@@ -936,7 +937,7 @@ def test_run_survives_control_loop_error(monkeypatch):
         oven.run()
 
     # the loop recovered from the first error and kept going
-    assert aborts == [1, 1]
+    assert aborts == ['control loop error', 'control loop error']
     assert sleeps == [1, 1]
 
 

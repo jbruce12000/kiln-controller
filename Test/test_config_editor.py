@@ -42,6 +42,9 @@ class StubOven:
     def set_ovenwatcher(self, watcher):
         pass
 
+    def set_alert_manager(self, manager):
+        pass
+
     def run_profile(self, profile, startat=0, allow_seek=True):
         pass
 

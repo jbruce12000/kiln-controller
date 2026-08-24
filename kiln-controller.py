@@ -39,10 +39,31 @@ from oven import SimulatedOven, RealOven, Profile
 from ovenWatcher import OvenWatcher
 from scheduler import Scheduler
 from tuner import Tuner, DEFAULT_METHOD
+from alerts import (AlertStore, AlertManager, LogSink, MqttSink,
+                    WebhookSink, ALERTS, validate_delivery)
+from mqttout import enabled as mqtt_enabled
 
 app = bottle.Bottle()
 
 public_root = os.path.join(os.path.dirname(os.path.realpath(__file__)), "public")
+
+# alerts are created before the oven so detection code can be attached
+# the moment it exists. LogSink records every alert to the daemon log.
+# the mqtt and webhook sinks read their settings live from the same
+# store as the web ui, so they self-disable until switched on; neither
+# can block heater control (mqtt publishes queue on its network thread,
+# webhook posts run on throwaway daemon threads).
+alert_store = AlertStore()
+alert_manager = AlertManager(alert_store)
+alert_manager.add_sink(LogSink())
+try:
+    alert_manager.add_sink(MqttSink(alert_store))
+except Exception as e:
+    log.error("could not start mqtt alert sink: %s" % e)
+try:
+    alert_manager.add_sink(WebhookSink(alert_store))
+except Exception as e:
+    log.error("could not start webhook alert sink: %s" % e)
 
 if config.simulate == True:
     log.info("this is a simulation")
@@ -53,6 +74,7 @@ else:
 ovenWatcher = OvenWatcher(oven)
 # this ovenwatcher is used in the oven class for restarts
 oven.set_ovenwatcher(ovenWatcher)
+oven.set_alert_manager(alert_manager)
 tuner = Tuner(oven)
 
 @app.route('/')
@@ -253,6 +275,9 @@ def start_run(wanted, startat=0, allow_seek=None):
     profile = Profile(profile_json)
     oven.run_profile(profile, startat=startat, allow_seek=allow_seek)
     ovenWatcher.record(profile)
+    alert_manager.emit('run_started',
+                       context={'profile': wanted,
+                                'startat_minutes': startat})
     return True
 
 def parse_start_time(value):
@@ -376,6 +401,7 @@ def fire_scheduled_run(entry):
 # scheduled runs - fires future firings when their time arrives
 scheduler = Scheduler()
 scheduler.fire_callback = fire_scheduled_run
+scheduler.alert_emit = alert_manager.emit
 
 def reload_config_module():
     '''reload the config module so the running process picks up the
@@ -466,6 +492,76 @@ def api_config_editor_save():
         gevent.spawn(_do_restart)
         log.info("process restart scheduled")
     return response
+
+@app.get('/api/alerts')
+def api_alerts():
+    '''return the alert registry with enabled flags, ordered by
+    criticality descending, plus the delivery settings, for the config
+    tab alerts panel.'''
+    return json.dumps({'success': True,
+                       'alerts': alert_store.definitions(),
+                       'delivery': alert_store.delivery_settings(),
+                       'mqtt_configured': mqtt_enabled()})
+
+
+@app.post('/api/alerts')
+def api_alerts_save():
+    '''enable or disable alerts and/or update delivery settings.
+    body: {"enabled": {<alert_id>: <bool>},
+           "delivery": {"mqtt_enabled": bool, "mqtt_topic": str,
+                        "webhook_enabled": bool, "webhook_url": str}}
+    both maps are optional but everything present is validated up front,
+    so a bad request never partially saves. returns the full updated
+    registry so clients can resync.'''
+    body = bottle.request.json
+    if not isinstance(body, dict) or \
+            ('enabled' not in body and 'delivery' not in body):
+        log.error("alerts save rejected: nothing to save in request")
+        return bottle.HTTPResponse(json.dumps({"success": False,
+                                               "error": "nothing to save"}),
+                                   status=400,
+                                   headers={'Content-Type': 'application/json'})
+    updates = body.get('enabled')
+    if 'enabled' in body:
+        if not isinstance(updates, dict) or not updates:
+            log.error("alerts save rejected: no enabled map in request")
+            return bottle.HTTPResponse(json.dumps({"success": False,
+                                                   "error": "no enabled map in request"}),
+                                       status=400,
+                                       headers={'Content-Type': 'application/json'})
+        known_ids = {a['id'] for a in ALERTS}
+        unknown = sorted(k for k in updates if k not in known_ids)
+        if unknown:
+            log.error("alerts save rejected: unknown ids %s" % unknown)
+            return bottle.HTTPResponse(json.dumps({"success": False,
+                                                   "error": "unknown alert ids: %s" % ', '.join(unknown)}),
+                                       status=400,
+                                       headers={'Content-Type': 'application/json'})
+    delivery_updates = body.get('delivery', {})
+    if not isinstance(delivery_updates, dict):
+        log.error("alerts save rejected: delivery must be a map")
+        return bottle.HTTPResponse(json.dumps({"success": False,
+                                               "error": "delivery must be a map"}),
+                                   status=400,
+                                   headers={'Content-Type': 'application/json'})
+    try:
+        clean_delivery, _ = validate_delivery(delivery_updates)
+    except ValueError as e:
+        log.error("alerts save rejected: %s" % e)
+        return bottle.HTTPResponse(json.dumps({"success": False,
+                                               "error": str(e)}),
+                                   status=400,
+                                   headers={'Content-Type': 'application/json'})
+    # everything validated; apply it all
+    if 'enabled' in body:
+        for alert_id, value in updates.items():
+            alert_store.set_enabled(alert_id, value)
+    if clean_delivery or 'delivery' in body:
+        alert_store.set_delivery(clean_delivery)
+    return {"success": True,
+            "alerts": alert_store.definitions(),
+            "delivery": alert_store.delivery_settings(),
+            "mqtt_configured": mqtt_enabled()}
 
 @app.post('/api/tune')
 def handle_tune():
@@ -1041,6 +1137,9 @@ def main():
     ip = "0.0.0.0"
     port = config.listening_port
     log.info("listening on %s:%d" % (ip, port))
+    alert_manager.emit('controller_restarted',
+                       context={'simulate': bool(config.simulate),
+                                'port': port})
 
     # run the scheduled runs background loop. this is a gevent greenlet
     # that yields to the hub, so it must NOT use blocking time.sleep.
