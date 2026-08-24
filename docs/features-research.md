@@ -12,7 +12,7 @@ Status: research only, not yet implemented. Saved 2026-08-12.
 - Auto-restart after power loss (`allow_seek=False`)
 - Cost estimate (`kwh_rate`)
 - Auto-tuner (`kiln-tuner.py`), PID tuning docs
-- Watcher + Slack notifications (`watcher.py`)
+- Web-configurable alert selection (Alerts panel on the Config tab)
 - Thermocouple diagnostics (MAX31855/MAX31856 error mapping)
 - Config editor (simulate mode, TC offset, emergency limits, etc.)
 
@@ -22,7 +22,7 @@ Status: research only, not yet implemented. Saved 2026-08-12.
 |---|---|---|
 | **Cone-Fire mode** | Skutt KilnMaster, Paragon Sentry | User enters cone # + speed + hold; controller computes the schedule. Software-only. Largest gap. |
 | **Preheat / candling** | Skutt KilnMaster | Dedicated low-temp soak step; only hand-buildable via raw segments today. |
-| **Temperature alarm** | Skutt, Bartlett V6, L&L | Notify (watcher/Slack) when target temp or end-of-firing reached. |
+| **Temperature alarm** | Skutt, Bartlett V6, L&L | Alert (configurable per-condition on the Config tab) when target temp or end-of-firing reached. |
 | **Firing / maintenance counter** | Skutt, Paragon | Persist run count per profile/config to track element wear; surface in UI. |
 | **Element burnout / amperage diagnostics** | L&L DynaTrol, Paragon | Per-zone current sensor + diagnostic routine. Requires new hardware. |
 | **Multi-zone thermocouples** | L&L DynaTrol (3-zone) | Multiple TC display/safety. Requires extra TC board. |
