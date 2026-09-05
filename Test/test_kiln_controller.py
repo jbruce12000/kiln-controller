@@ -106,6 +106,7 @@ def test_api_dump_returns_targz(monkeypatch, tmp_path):
         controller.subprocess, 'check_output',
         lambda *a, **k: b'2024-01-01 INFO oven: temp=100\n'
                         b'2024-01-01 ERROR kiln-controller: boom\n')
+    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
     state_file = tmp_path / 'state.json'
     state_file.write_text('{"state": "RUNNING"}')
     monkeypatch.setattr(config, 'automatic_restart_state_file', str(state_file))
@@ -145,9 +146,40 @@ def test_api_dump_without_profiles(monkeypatch, tmp_path):
     profiles_dir = tmp_path / 'profiles'
     profiles_dir.mkdir()
     monkeypatch.setattr(controller, 'profile_path', str(profiles_dir))
+    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
     resp = controller.api_dump()
     tar = tarfile.open(fileobj=io.BytesIO(resp.body), mode='r:gz')
     assert set(tar.getnames()) == {'config.py', 'state.json', 'kiln.logs'}
+
+
+def test_api_dump_refused_while_firing(monkeypatch, tmp_path):
+    # the journal replay can take minutes, so a config dump must be
+    # refused while a firing (running or paused) is active
+    for state in ('RUNNING', 'PAUSED'):
+        monkeypatch.setattr(controller.oven, 'state', state)
+        resp = controller.api_dump()
+        assert resp.status_code == 409
+        body = json.loads(resp.body)
+        assert body['success'] is False
+        assert 'firing is active' in body['error']
+
+
+def test_api_dump_allowed_while_idle_or_tuning(monkeypatch, tmp_path):
+    # tuning does not count as an active firing, so dumps are allowed
+    monkeypatch.setattr(controller.subprocess, 'check_output',
+                        lambda *a, **k: b'')
+    for state in ('IDLE', 'TUNING'):
+        monkeypatch.setattr(controller.oven, 'state', state)
+        resp = controller.api_dump()
+        assert resp.status_code != 409
+
+
+def test_gather_log_lines_has_no_timeout():
+    # the journal replay can legitimately take minutes, so gather_log_lines
+    # must not impose a timeout on journalctl
+    src = inspect.getsource(controller.gather_log_lines)
+    assert 'timeout 60' not in src
+    assert 'journalctl' in src
 
 
 ########################################################################

@@ -1950,12 +1950,26 @@ function tune_window_change() {
 }
 
 function download_dump() {
-  var a = document.createElement('a');
-  a.href = '/api/dump';
-  a.download = 'kiln-config-dump.tar.gz';
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
+  fetch('/api/dump')
+    .then(function(r) {
+      if (r.ok) { return r.blob(); }
+      // dump refused (e.g. a firing is active) -- surface the reason
+      return r.json().then(function(err) {
+        throw new Error((err && err.error) || ('Config dump failed (' + r.status + ')'));
+      });
+    })
+    .then(function(blob) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'kiln-config-dump.tar.gz';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    })
+    .catch(function(err) {
+      showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> ' + err.message, 'error', 8000);
+    });
 }
 
 /* ---------------------------------------------------------------------------

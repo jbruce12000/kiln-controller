@@ -161,7 +161,14 @@ def handle_api():
 @app.get('/api/dump')
 def api_dump():
     '''download config, state, all profiles, and logs as a tar.gz
-    archive.'''
+    archive. refused while a firing is active so the journal replay can
+    never interfere with kiln control.'''
+    if _firing_active():
+        return bottle.HTTPResponse(
+            json.dumps({"success": False,
+                        "error": "config dump is disabled while a firing is active"}),
+            status=409,
+            headers={'Content-Type': 'application/json'})
     out = io.BytesIO()
     with tarfile.open(fileobj=out, mode='w:gz') as tar:
         _tar_add_path(tar, 'config.py', config.__file__)
@@ -188,6 +195,12 @@ def profile_files():
     except Exception:
         return []
 
+def _firing_active():
+    '''True while a kiln firing is in progress or paused. the config dump
+    replays the journal, which can take minutes, so it is refused during
+    a firing to keep the oven loop free from interference.'''
+    return getattr(oven, 'state', None) in ('RUNNING', 'PAUSED')
+
 def _tar_add_bytes(tar, arcname, text):
     '''add an in-memory text file to a tar archive.'''
     encoded = text.encode('utf-8', errors='replace')
@@ -207,11 +220,13 @@ def _tar_add_path(tar, arcname, path):
 def gather_log_lines():
     '''gather the kiln log lines from the systemd journal for the
     kiln-controller unit. returns a sorted, de-duplicated list of
-    lines.'''
+    lines. no timeout is applied -- the journal can legitimately take
+    minutes to replay after weeks of two-second oven samples -- which is
+    why api_dump refuses to run while a firing is active.'''
     try:
         out = subprocess.check_output(
-            "timeout 60 journalctl -u kiln-controller --no-pager 2>/dev/null",
-            shell=True, stderr=subprocess.DEVNULL, timeout=70)
+            "journalctl -u kiln-controller --no-pager 2>/dev/null",
+            shell=True, stderr=subprocess.DEVNULL)
     except Exception:
         return []
     return sorted(set(out.decode('utf-8', errors='replace').splitlines()))
