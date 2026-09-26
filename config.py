@@ -340,7 +340,7 @@ throttle_percent = 20
 # mqtt telemetry - publish the oven state to an mqtt broker on every
 # sensor read. Leave all of these commented out to disable mqtt.
 # Uncomment and set mqtt_enable to True to turn it on.
-# Requires paho-mqtt (listed in requirements.txt).
+# Requires paho-mqtt (listed in pyproject.toml).
 #mqtt_enable = False
 #mqtt_host = "localhost"
 #mqtt_port = 1883
