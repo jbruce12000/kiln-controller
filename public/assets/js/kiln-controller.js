@@ -247,6 +247,7 @@ function showTab(name) {
     } else if (name === 'config') {
         loadConfigEditor();
         loadAlerts();
+        loadFirings();
     } else if (name === 'overview' && chart) {
         chart.resize();
     }
@@ -1975,6 +1976,138 @@ function download_dump() {
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = 'kiln-config-dump.tar.gz';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    })
+    .catch(function(err) {
+      showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> ' + err.message, 'error', 8000);
+    });
+}
+
+/* ---------------------------------------------------------------------------
+   Firing CSV export - past firings parsed from the controller logs.
+   The dropdown lists the last few firings (most recent first); the
+   download hits /api/firings/<id>/csv which converts the log samples
+   to csv server-side.
+--------------------------------------------------------------------------- */
+
+function shortStamp(s) {
+    // "2026-08-12 22:20:38,992" -> "2026-08-12 22:20:38"
+    return String(s == null ? '' : s).split(',')[0];
+}
+
+// pure: one dropdown row. shows the firing's start and end wall-clock
+// times plus its length and sample count, e.g.
+// "#16 cone-05-long-bisque — 2026-08-12 22:20:38 → 2026-08-13 07:15:04 (8:54:25, 16017 samples)"
+function firingLabel(f) {
+    var when = shortStamp(f.start) || ('firing ' + f.id);
+    if (f.end) { when += ' \u2192 ' + shortStamp(f.end); }
+    var extra = f.samples + ' samples';
+    if (f.duration) { extra = formatDuration(f.duration) + ', ' + extra; }
+    return '#' + f.id + ' ' + f.profile + ' \u2014 ' + when + ' (' + extra + ')';
+}
+
+function loadFirings() {
+  var sel = $('firing_select');
+  if (!sel) { return; }
+  if (firings_poll_timer) {
+    clearTimeout(firings_poll_timer);
+    firings_poll_timer = null;
+  }
+  sel.innerHTML = '<option value="">Loading firings&hellip;</option>';
+  fetch('/api/firings')
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+      if (!resp || !resp.success) {
+        throw new Error((resp && resp.error) || 'unknown error');
+      }
+      renderFirings(resp);
+    })
+    .catch(function(err) {
+      sel.innerHTML = '<option value="">Could not load firings</option>';
+      setFiringStatus('Could not load firings: ' + err);
+      showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> Could not load firings: ' + err, 'error', 5000);
+    });
+}
+
+var firings_poll_timer = null;
+
+function setFiringStatus(text) {
+  var el = $('firing_status');
+  if (el) { el.innerHTML = text; }
+}
+
+function renderFirings(resp) {
+  var sel = $('firing_select');
+  if (!sel) { return; }
+  var rows = resp.firings || [];
+  if (rows.length === 0) {
+    sel.innerHTML = '<option value="">' +
+      (resp.refreshing ? 'Building firing list in the background&hellip;'
+                       : 'No firings found in logs') +
+      '</option>';
+  } else {
+    // the listing arrives newest first, so the latest firing is on
+    // top and selected by default
+    sel.innerHTML = rows.map(function(f) {
+      return '<option value="' + f.id + '">' + escHtml(firingLabel(f)) + '</option>';
+    }).join('');
+  }
+  if (resp.error) {
+    setFiringStatus('Last background read failed: ' + escHtml(resp.error));
+  } else if (resp.refreshing) {
+    setFiringStatus('Reading the logs in the background&hellip; the list fills in on its own (first read can take a few minutes).');
+  } else if (resp.updated) {
+    var ago = Math.max(0, Date.now() / 1000 - resp.updated);
+    setFiringStatus('Firing list read from the logs ' + formatDuration(ago) + ' ago.');
+  }
+  // while the background read runs, re-check until it lands
+  if (resp.refreshing) {
+    if (firings_poll_timer) { clearTimeout(firings_poll_timer); }
+    firings_poll_timer = setTimeout(loadFirings, 10000);
+  }
+}
+
+function refreshFirings() {
+  setFiringStatus('Reading the logs in the background&hellip;');
+  fetch('/api/firings/refresh', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function() { loadFirings(); })
+    .catch(function(err) {
+      showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> Could not refresh firings: ' + err, 'error', 5000);
+    });
+}
+
+function downloadFiringCsv() {
+  var sel = $('firing_select');
+  var id = sel ? sel.value : '';
+  if (!id) {
+    showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> No firing selected.', 'error', 5000);
+    return;
+  }
+  fetch('/api/firings/' + encodeURIComponent(id) + '/csv')
+    .then(function(r) {
+      if (r.ok) {
+        var filename = 'firing-' + id + '.csv';
+        var disp = r.headers.get('Content-Disposition');
+        if (disp) {
+          var m = disp.match(/filename="([^"]+)"/);
+          if (m) { filename = m[1]; }
+        }
+        return r.blob().then(function(blob) {
+          return { blob: blob, filename: filename };
+        });
+      }
+      return r.json().then(function(err) {
+        throw new Error((err && err.error) || ('Firing CSV download failed (' + r.status + ')'));
+      });
+    })
+    .then(function(res) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(res.blob);
+      a.download = res.filename;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);

@@ -3,6 +3,7 @@
 import time
 import os
 import sys
+import csv
 import logging
 import json
 import datetime
@@ -217,19 +218,548 @@ def _tar_add_path(tar, arcname, path):
     except Exception:
         log.error("could not add %s to config dump" % path)
 
-def gather_log_lines():
-    '''gather the kiln log lines from the systemd journal for the
-    kiln-controller unit. returns a sorted, de-duplicated list of
-    lines. no timeout is applied -- the journal can legitimately take
-    minutes to replay after weeks of two-second oven samples -- which is
-    why api_dump refuses to run while a firing is active.'''
+def gather_log_lines(since=None, until=None):
+    '''gather kiln log lines from the systemd journal for the
+    kiln-controller unit. returns the lines in chronological order
+    (journalctl already emits them that way), de-duplicated without
+    reordering so firing samples stay in the order they were logged.
+    since/until optionally bound the query ("YYYY-MM-DD HH:MM:SS");
+    bounded queries return in milliseconds, while a full replay has no
+    timeout applied -- the journal can legitimately take minutes to
+    replay after weeks of two-second oven samples -- which is why
+    api_dump refuses to run while a firing is active, and why request
+    handlers must never trigger a full replay (it would stall the
+    whole server; the firings snapshot below exists for that reason).'''
+    cmd = ["journalctl", "-u", "kiln-controller", "--no-pager"]
+    if since is not None:
+        _check_journal_bound(since)
+        cmd += ["--since", since]
+    if until is not None:
+        _check_journal_bound(until)
+        cmd += ["--until", until]
     try:
-        out = subprocess.check_output(
-            "journalctl -u kiln-controller --no-pager 2>/dev/null",
-            shell=True, stderr=subprocess.DEVNULL)
+        out = subprocess.check_output(cmd, stderr=subprocess.DEVNULL)
     except Exception:
         return []
-    return sorted(set(out.decode('utf-8', errors='replace').splitlines()))
+    return list(dict.fromkeys(out.decode('utf-8', errors='replace').splitlines()))
+
+
+def _check_journal_bound(value):
+    '''validate a --since/--until bound so only calendar timestamps
+    ever reach the journalctl command line.'''
+    if not re.match(r'^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$', value or ''):
+        raise ValueError("invalid journal time bound %r" % (value,))
+
+
+# firing export - parse past firings out of the journal logs so the
+# config tab can offer them as csv downloads. a firing starts at a
+# "Running schedule <name>" line (logged by oven.run_profile, whatever
+# started the run) and owns every "temp=..., target=..., ..." sample
+# line after it until the next firing starts. samples before the first
+# start marker belong to no firing and are skipped.
+#
+# one logical firing usually spans several "Running schedule" lines:
+# every process restart mid-firing (config save, reboot, crash) logs a
+# fresh one when the automatic restart resumes the schedule. those
+# continuations are consolidated back into a single firing (see
+# _continuation): a start marker preceded by an "automatically
+# restarting profile = ...<name>" line for the same profile always
+# continues it, as does a same-profile start within FIRING_MERGE_GAP
+# of the previous end.
+FIRING_START_RE = re.compile(r'Running schedule (\S+) starting at')
+FIRING_RESUME_RE = re.compile(r'automatically restarting profile = (\S+) at minute')
+FIRING_SAMPLE_RE = re.compile(
+    r'temp=([\d.\-]+), target=([\d.\-]+), error=([\d.\-]+), '
+    r'pid=([\d.\-]+), p=([\d.\-]+), i=([\d.\-]+), d=([\d.\-]+), '
+    r'heat_on=([\d.\-]+), heat_off=([\d.\-]+), '
+    r'run_time=(\d+), total_time=(\d+), time_left=(\d+)')
+FIRING_TIME_RE = re.compile(r'(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3})')
+FIRING_CSV_COLUMNS = [
+    'timestamp', 'profile', 'run_time', 'total_time', 'time_left',
+    'temp', 'target', 'error', 'pid', 'p', 'i', 'd',
+    'heat_on', 'heat_off',
+]
+FIRING_LIST_LIMIT = 20
+FIRING_MERGE_GAP = 120  # seconds: same-profile restarts within this merge
+
+# short-lived cache so picking a firing from the list and then
+# downloading it does not replay the (minutes-long) journal twice.
+# NOTE: a full journal replay runs for minutes and must never execute
+# in a request handler: this process is single-threaded (gevent), so a
+# blocking replay stalls every websocket and http request until it
+# finishes. instead a background thread keeps a snapshot of the most
+# recent firing metadata (profile, start/end, sample count, plus the
+# time bounds needed to re-query one firing). request handlers only
+# serve the snapshot or run small bounded (--since/--until) queries,
+# which return in milliseconds. the snapshot is built newest-first
+# from the journal tail, so recent firings never wait behind ancient
+# history; later refreshes only fetch what is new.
+_firings_lock = threading.Lock()
+_firings_state = {"metas": [], "last_line": None, "last_stamp": None,
+                  "resume_pending": None,
+                  "updated": 0.0, "refreshing": False, "error": None}
+FIRINGS_REFRESH_INTERVAL = 300  # seconds between background refreshes
+FIRING_BOUND_SLOP = 120  # seconds of padding around a firing's time bounds
+
+
+def _firing_second(stamp):
+    '''"2026-08-12 19:20:18,345" -> "2026-08-12 19:20:18" for use as a
+    journalctl --since/--until bound.'''
+    return stamp[:19]
+
+
+def _shift_seconds(stamp19, delta):
+    '''shift a second-precision stamp by delta seconds, for padding
+    firing time bounds.'''
+    dt = datetime.datetime.strptime(stamp19, "%Y-%m-%d %H:%M:%S")
+    return (dt + datetime.timedelta(seconds=delta)).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _merge_firing_lines(lines):
+    '''fold raw journal lines into the snapshot. returns 'ok' when the
+    lines were consumed, or 'lost-anchor' when an incremental update no
+    longer connects to the previously seen log (rotation/vacuum), in
+    which case the caller must do a full rebuild.'''
+    with _firings_lock:
+        last_line = _firings_state["last_line"]
+        lines = list(lines)
+        if last_line is None:
+            new_lines = lines
+        elif last_line in lines:
+            new_lines = lines[lines.index(last_line) + 1:]
+        else:
+            return 'lost-anchor'
+        metas = _firings_state["metas"]
+        for line in new_lines:
+            resume = FIRING_RESUME_RE.search(line)
+            if resume:
+                _firings_state["resume_pending"] = \
+                    _resume_profile_name(resume.group(1))
+            else:
+                start = FIRING_START_RE.search(line)
+                if start:
+                    stamp = _firing_timestamp(line)
+                    profile = start.group(1)
+                    resumed = _firings_state["resume_pending"] == profile
+                    _firings_state["resume_pending"] = None
+                    if metas and _continuation(metas[-1]["profile"],
+                                               metas[-1]["end"],
+                                               profile, stamp, resumed):
+                        pass  # restart-resume of the previous firing
+                    else:
+                        if metas and stamp:
+                            # the firing that just ended runs until this
+                            # one starts
+                            metas[-1]["until"] = _firing_second(stamp)
+                        meta = {"profile": profile,
+                                "start": stamp, "end": '', "samples": 0,
+                                "since": None, "until": None}
+                        if stamp:
+                            meta["since"] = _shift_seconds(
+                                _firing_second(stamp), -FIRING_BOUND_SLOP)
+                        metas.append(meta)
+                elif metas and FIRING_SAMPLE_RE.search(line):
+                    stamp = _firing_timestamp(line)
+                    metas[-1]["samples"] += 1
+                    if stamp:
+                        metas[-1]["end"] = stamp
+            _firings_state["last_line"] = line
+            stamp = _firing_timestamp(line)
+            if stamp:
+                _firings_state["last_stamp"] = _firing_second(stamp)
+        return 'ok'
+
+
+def _reverse_tail_lines(want_starts):
+    '''yield journal lines newest-first, stopping once want_starts
+    "Running schedule" markers have been yielded (inclusive), then
+    stop the journal tail. plain reverse streaming only: filtering
+    flags change journalctl's seeking and can stall on a huge journal.
+    background thread only.'''
+    proc = None
+    try:
+        proc = subprocess.Popen(["journalctl", "-u", "kiln-controller",
+                                 "--no-pager", "-r"],
+                                stdout=subprocess.PIPE,
+                                stderr=subprocess.DEVNULL,
+                                text=True, errors="replace")
+        starts = 0
+        previous = None
+        for line in proc.stdout:
+            line = line.rstrip("\n")
+            if line == previous:
+                continue
+            previous = line
+            yield line
+            if FIRING_START_RE.search(line):
+                starts += 1
+                if starts >= want_starts:
+                    break
+    finally:
+        if proc is not None:
+            try:
+                proc.stdout.close()
+            except Exception:
+                pass
+            try:
+                proc.terminate()
+            except Exception:
+                pass
+            try:
+                proc.wait(timeout=10)
+            except Exception:
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+
+
+# when the kiln fired in the last week the tail build only needs this
+# small window (seconds); otherwise it streams the journal tail above
+_TAIL_FAST_DAYS = 7
+
+
+def _tail_build_firings():
+    '''(re)build the snapshot from recent firings: parse just the last
+    week when it holds enough firing starts, else stream the journal
+    tail newest-first until enough starts are seen. then consolidate
+    and keep the newest FIRING_LIST_LIMIT. the slow path takes a
+    couple of minutes on a gigabyte journal but runs in the
+    background, never stalling the server.'''
+    want = FIRING_LIST_LIMIT + 1
+    since = (datetime.datetime.now() -
+             datetime.timedelta(days=_TAIL_FAST_DAYS)).strftime(
+                 "%Y-%m-%d %H:%M:%S")
+    recent = gather_log_lines(since=since)
+    if sum(1 for line in recent if FIRING_START_RE.search(line)) >= want:
+        raw = recent
+        chronological = True
+    else:
+        raw = list(_reverse_tail_lines(want))
+        chronological = False
+    ordered = raw if chronological else list(reversed(raw))
+    merged = consolidate_firings(parse_firings(ordered))[-FIRING_LIST_LIMIT:]
+    metas = []
+    for firing in merged:
+        meta = {"profile": firing["profile"],
+                "start": firing["start"], "end": firing["end"],
+                "samples": len(firing["samples"]), "since": None,
+                "until": None}
+        if firing["start"]:
+            meta["since"] = _shift_seconds(
+                _firing_second(firing["start"]), -FIRING_BOUND_SLOP)
+        metas.append(meta)
+    for i in range(len(metas) - 1):
+        if metas[i + 1]["start"]:
+            metas[i]["until"] = _firing_second(metas[i + 1]["start"])
+    with _firings_lock:
+        _firings_state["metas"] = metas
+        # anchor incremental refreshes at the newest raw line seen
+        if raw:
+            anchor = raw[0] if not chronological else raw[-1]
+        else:
+            anchor = None
+        _firings_state["last_line"] = anchor
+        stamp = _firing_timestamp(anchor) if anchor else ''
+        _firings_state["last_stamp"] = _firing_second(stamp) if stamp \
+            else None
+        _firings_state["resume_pending"] = None
+
+
+def _refresh_firings_snapshot():
+    '''extend the snapshot with whatever the journal gained since the
+    last refresh, or (re)build it from the journal tail when empty or
+    disconnected from it. runs in a background thread so the
+    minutes-long full replay never stalls the server; see the note on
+    _firings_lock above.'''
+    try:
+        with _firings_lock:
+            anchored = _firings_state["last_line"] is not None
+            last_stamp = _firings_state["last_stamp"]
+        if not anchored:
+            _tail_build_firings()
+        else:
+            lines = gather_log_lines(since=last_stamp)
+            if _merge_firing_lines(lines) == 'lost-anchor':
+                _tail_build_firings()
+        with _firings_lock:
+            _firings_state["updated"] = time.time()
+            _firings_state["error"] = None
+    except Exception as e:
+        log.error("firings snapshot refresh failed: %s" % e)
+        with _firings_lock:
+            _firings_state["error"] = str(e)
+    finally:
+        with _firings_lock:
+            _firings_state["refreshing"] = False
+
+
+def _spawn_firings_refresh():
+    '''start a background snapshot refresh unless one is already
+    running. returns True when a refresh was started. safe to call
+    from request handlers: it never blocks.'''
+    with _firings_lock:
+        if _firings_state["refreshing"]:
+            return False
+        _firings_state["refreshing"] = True
+    thread = threading.Thread(target=_refresh_firings_snapshot, daemon=True)
+    thread.start()
+    return True
+
+
+def _firings_snapshot():
+    '''a copy of the snapshot for serving from request handlers.'''
+    with _firings_lock:
+        return {"metas": [dict(m) for m in _firings_state["metas"]],
+                "updated": _firings_state["updated"],
+                "refreshing": _firings_state["refreshing"],
+                "error": _firings_state["error"]}
+
+
+def _resume_profile_name(path):
+    '''"automatically restarting profile" logs a profile file path;
+    reduce it to the profile name for comparison with "Running
+    schedule <name>" lines.'''
+    base = path.rsplit('/', 1)[-1]
+    return base[:-5] if base.endswith('.json') else base
+
+
+def _stamp_gap_seconds(end_stamp, start_stamp):
+    '''seconds from the previous firing's end stamp to the next
+    firing's start stamp ("2026-08-12 19:20:18,345" with millis).
+    None when either stamp is missing or unparsable.'''
+    try:
+        if not end_stamp or not start_stamp:
+            return None
+        end = datetime.datetime.strptime(end_stamp, "%Y-%m-%d %H:%M:%S,%f")
+        start = datetime.datetime.strptime(start_stamp, "%Y-%m-%d %H:%M:%S,%f")
+        return (start - end).total_seconds()
+    except (ValueError, TypeError):
+        return None
+
+
+def _continuation(prev_profile, prev_end, profile, start, resumed):
+    '''True when a "Running schedule <profile>" line continues the
+    previous firing instead of starting a new one: same profile plus
+    either an automatic-restart resume marker for it, or a start
+    within FIRING_MERGE_GAP of the previous end.'''
+    if profile != prev_profile:
+        return False
+    if resumed:
+        return True
+    gap = _stamp_gap_seconds(prev_end, start)
+    return gap is not None and 0 <= gap <= FIRING_MERGE_GAP
+
+
+def _firing_timestamp(line):
+    '''the in-process timestamp (config.log_format) embedded in a
+    journal line, e.g. "2026-08-12 19:20:18,345". empty string when
+    the line carries none.'''
+    m = FIRING_TIME_RE.search(line)
+    return m.group(1) if m else ''
+
+
+def _firing_sample_row(line, profile):
+    '''parse a sample log line into a csv row dict, or None when the
+    line carries no sample.'''
+    sample = FIRING_SAMPLE_RE.search(line)
+    if not sample:
+        return None
+    return {"timestamp": _firing_timestamp(line), "profile": profile,
+            "run_time": sample.group(10),
+            "total_time": sample.group(11),
+            "time_left": sample.group(12),
+            "temp": sample.group(1), "target": sample.group(2),
+            "error": sample.group(3), "pid": sample.group(4),
+            "p": sample.group(5), "i": sample.group(6),
+            "d": sample.group(7), "heat_on": sample.group(8),
+            "heat_off": sample.group(9)}
+
+
+def parse_firings(log_lines):
+    '''group journal log lines into firings. returns a list of
+    {"id", "profile", "start", "end", "resumed", "samples": [row,
+    ...]} dicts in chronological order, ids are the index in that
+    list. each row has the FIRING_CSV_COLUMNS keys. continuations are
+    NOT merged here; use consolidate_firings for that.'''
+    firings = []
+    current = None
+    pending_resume = None
+    for line in log_lines:
+        resume = FIRING_RESUME_RE.search(line)
+        if resume:
+            pending_resume = _resume_profile_name(resume.group(1))
+            continue
+        start = FIRING_START_RE.search(line)
+        if start:
+            current = {"id": len(firings),
+                       "profile": start.group(1),
+                       "start": _firing_timestamp(line),
+                       "end": '',
+                       "resumed": pending_resume == start.group(1),
+                       "samples": []}
+            pending_resume = None
+            firings.append(current)
+            continue
+        if current is not None:
+            row = _firing_sample_row(line, current["profile"])
+            if row is not None:
+                current["samples"].append(row)
+                if row["timestamp"]:
+                    current["end"] = row["timestamp"]
+    return firings
+
+
+def consolidate_firings(firings):
+    '''fold continuations (see _continuation) back into the firing
+    they resume, concatenating samples. returns a new list keeping
+    the first segment's id/start so csv lookups by (profile, start)
+    keep working.'''
+    merged = []
+    for firing in firings:
+        if merged and _continuation(merged[-1]["profile"],
+                                    merged[-1]["end"],
+                                    firing["profile"], firing["start"],
+                                    firing.get("resumed")):
+            merged[-1]["samples"].extend(firing["samples"])
+            if firing["end"]:
+                merged[-1]["end"] = firing["end"]
+        else:
+            merged.append({"id": firing["id"],
+                           "profile": firing["profile"],
+                           "start": firing["start"],
+                           "end": firing["end"],
+                           "samples": list(firing["samples"])})
+    return merged
+
+
+def firing_duration(firing):
+    '''whole seconds from a firing's start to its end, or 0 when
+    either stamp is missing.'''
+    gap = _stamp_gap_seconds(firing.get("start"), firing.get("end"))
+    return int(gap) if gap is not None and gap >= 0 else 0
+
+
+def get_firings_snapshot():
+    '''the firing metadata snapshot, kicking off a background refresh
+    when it is empty or stale. never blocks on the journal: callers
+    get whatever is cached plus refreshing/error status.'''
+    snap = _firings_snapshot()
+    if (not snap["metas"] or
+            time.time() - snap["updated"] > FIRINGS_REFRESH_INTERVAL) \
+            and not snap["refreshing"]:
+        _spawn_firings_refresh()
+        snap["refreshing"] = True
+    return snap
+
+
+def firing_to_csv(firing):
+    '''render one parsed firing as csv text.'''
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(FIRING_CSV_COLUMNS)
+    for row in firing["samples"]:
+        writer.writerow([row.get(col, '') for col in FIRING_CSV_COLUMNS])
+    return out.getvalue()
+
+
+def _firing_filename(firing):
+    '''attachment filename for a firing csv, safe for content-disposition.'''
+    profile = re.sub(r'[^A-Za-z0-9._-]+', '-', firing["profile"])
+    start = re.sub(r'[^0-9]+', '', firing["start"]) or str(firing["id"])
+    return 'firing-%s-%s.csv' % (profile or 'unnamed', start)
+
+
+@app.get('/api/firings')
+def api_firings():
+    '''list the most recent firings parsed from the journal logs,
+    newest first so the latest firing is on top. serves the background
+    snapshot instantly (a full journal replay would stall the server
+    for minutes) and kicks off a background refresh when the snapshot
+    is empty or stale. each entry carries its id (for
+    /api/firings/<id>/csv), profile name, start/end timestamps,
+    duration, and sample count, plus updated/refreshing/error status
+    so the ui can show background progress. ids are positions in the
+    current oldest-first listing, so they can shift as new firings
+    arrive; the csv lookup matches on profile and start time.'''
+    snap = get_firings_snapshot()
+    oldest_first = snap["metas"][-FIRING_LIST_LIMIT:]
+    firings = [{"id": i, "profile": m["profile"], "start": m["start"],
+                "end": m["end"], "duration": firing_duration(m),
+                "samples": m["samples"]}
+               for i, m in enumerate(oldest_first)][::-1]
+    return json.dumps({"success": True, "firings": firings,
+                       "updated": snap["updated"],
+                       "refreshing": snap["refreshing"],
+                       "error": snap["error"]})
+
+
+@app.post('/api/firings/refresh')
+def api_firings_refresh():
+    '''start a background refresh of the firings snapshot (the full
+    journal replay runs off the request path) and report whether it is
+    running.'''
+    _spawn_firings_refresh()
+    return {"success": True, "refreshing": True}
+
+
+@app.get('/api/firings/<fid>/csv')
+def api_firing_csv(fid):
+    '''download one firing from the journal logs as csv. fid is the id
+    from /api/firings. only a small bounded (--since/--until) journal
+    query runs here, which returns in milliseconds.'''
+    try:
+        wanted = int(fid)
+    except (TypeError, ValueError):
+        return bottle.HTTPResponse(
+            json.dumps({"success": False, "error": "invalid firing id"}),
+            status=400,
+            headers={'Content-Type': 'application/json'})
+    with _firings_lock:
+        oldest_first = list(_firings_state["metas"])
+        meta = dict(oldest_first[wanted]) \
+            if 0 <= wanted < len(oldest_first) else None
+        refreshing = _firings_state["refreshing"]
+    if meta is None:
+        hint = ("the firing list is still building in the background, "
+                "try again in a bit" if refreshing else
+                "press Refresh on the Export Firing panel and try again")
+        return bottle.HTTPResponse(
+            json.dumps({"success": False,
+                        "error": "firing not found (%s)" % hint}),
+            status=404,
+            headers={'Content-Type': 'application/json'})
+    if not meta.get("since") or not meta.get("start"):
+        return bottle.HTTPResponse(
+            json.dumps({"success": False,
+                        "error": "firing has no parsable start time"}),
+            status=409,
+            headers={'Content-Type': 'application/json'})
+    try:
+        lines = gather_log_lines(since=meta["since"],
+                                 until=meta.get("until"))
+    except ValueError as e:
+        return bottle.HTTPResponse(
+            json.dumps({"success": False, "error": str(e)}),
+            status=500,
+            headers={'Content-Type': 'application/json'})
+    candidates = [f for f in consolidate_firings(parse_firings(lines))
+                  if f["profile"] == meta["profile"]]
+    firing = next((f for f in candidates
+                   if f["start"] == meta["start"]), None)
+    if firing is None and candidates:
+        firing = candidates[0]
+    if firing is None or not firing["samples"]:
+        return bottle.HTTPResponse(
+            json.dumps({"success": False,
+                        "error": "no samples found for this firing"}),
+            status=404,
+            headers={'Content-Type': 'application/json'})
+    return bottle.HTTPResponse(
+        firing_to_csv(firing),
+        headers={'Content-Type': 'text/csv',
+                 'Content-Disposition': 'attachment; filename="%s"'
+                 % _firing_filename(firing)})
 
 def find_profile(wanted):
     '''
@@ -1164,6 +1694,11 @@ def main():
         gevent.spawn_later(config.schedule_poll_interval, schedule_tick)
 
     gevent.spawn_later(config.schedule_poll_interval, schedule_tick)
+
+    # warm the firings snapshot in a background thread so the export
+    # firing panel has data without any request ever blocking on the
+    # minutes-long full journal replay.
+    _spawn_firings_refresh()
 
     server = WSGIServer((ip, port), app,
                         handler_class=WebSocketHandler)
