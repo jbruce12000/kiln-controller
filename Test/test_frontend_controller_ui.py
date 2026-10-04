@@ -53,6 +53,7 @@ def js():
     context.eval(extract_function(src, 'shareProfile'))
     context.eval(extract_function(src, 'escHtml'))
     context.eval(extract_function(src, 'slugifyProfileName'))
+    context.eval(extract_function(src, 'catching_up_seconds'))
     context.eval(extract_function(src, 'remoteFilterMatches'))
     context.eval(extract_function(src, 'renderRemoteProfiles'))
     context.eval(extract_function(src, 'renderAlertsHtml'))
@@ -289,6 +290,46 @@ def test_storage_fail_with_error_shows_growl_not_confirm():
     src = open(JS_PATH).read()
     assert 'message.error' in src
     assert 'Could not save schedule' in src
+
+
+########################################################################
+# details TIME box (after COST: total, elapsed, catch up)
+########################################################################
+
+def test_catching_up_seconds_sums_slip(js):
+    js.eval('var data = ['
+            '  { timeDelta: 2, catching_up: true },'
+            '  { timeDelta: 2, catching_up: false },'
+            '  { timeDelta: 3, catching_up: true }];')
+    assert js.eval('catching_up_seconds(data)') == 5
+
+
+def test_catching_up_seconds_empty_or_missing(js):
+    js.eval('var nodata = [];')
+    assert js.eval('catching_up_seconds(nodata)') == 0
+    js.eval('var legacy = [{ timeDelta: 2 }];')
+    assert js.eval('catching_up_seconds(legacy)') == 0
+
+
+def test_time_box_sits_after_cost_box():
+    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
+                                             'public', 'index.html'))).read()
+    m = re.search(r'id="cost-stats"(.*?)class="charts"', html, re.S)
+    assert m, 'config tab must hold the stats boxes'
+    after_cost = m.group(1)
+    assert 'id="time-stats"' in after_cost
+    box = after_cost[after_cost.index('id="time-stats"'):]
+    assert 'TIME' in box
+    assert 'id="time-total"' not in box
+    assert box.index('id="time-elapsed"') < box.index('id="time-catchup"')
+
+
+def test_status_feed_updates_time_box():
+    src = open(JS_PATH).read()
+    assert 'x.run_started' in src
+    assert '"time-elapsed").innerHTML = formatDuration(Date.now() / 1000 - x.run_started)' in src
+    assert '"time-catchup").innerHTML = formatDuration(catching_up_seconds(all))' in src
+    assert 'time-total' not in src
 
 
 ########################################################################

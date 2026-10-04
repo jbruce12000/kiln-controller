@@ -1741,6 +1741,19 @@ function percent_catching_up(data) {
   return total ? slip / total * 100 : 0;
 }
 
+// pure: seconds spent catching up (schedule shifted waiting for the
+// kiln), for the TIME box on the details tab. the CATCH UP box shows
+// the same slip as a percentage.
+function catching_up_seconds(data) {
+  var slip = 0;
+  for (var i = 0; i < data.length; i++) {
+    if (data[i].catching_up) {
+      slip += data[i].timeDelta || 0;
+    }
+  }
+  return slip;
+}
+
 function clock_tick(val) {
   return new Date(val * 1000).toLocaleTimeString([], { hour12: false });
 }
@@ -2352,6 +2365,7 @@ function init()
             $("target").innerHTML = rnd(x.pidstats.setpoint);
             $("heat-pct").innerHTML = rnd(x.pidstats.out);
             $("catching-up").innerHTML = rnd(percent_catching_up(all));
+            $("time-catchup").innerHTML = formatDuration(catching_up_seconds(all));
         }
 
         // during tuning, pidstats may be stale -- use top-level state
@@ -2367,6 +2381,17 @@ function init()
         if (x.cost !== undefined && x.cost !== null) {
             $("cost").innerHTML = Number(x.cost).toFixed(2);
             $("cost-currency").innerHTML = x.currency_type || '$';
+        }
+
+        // details TIME box: elapsed is wall-clock time since the
+        // firing started. x.runtime is schedule progress, not actual
+        // elapsed time, so it cannot be used here. run_started is
+        // stamped by the server when the run begins and goes stale
+        // once the run ends, so only show it while a firing is active.
+        if ((x.state === "RUNNING" || x.state === "PAUSED") && x.run_started) {
+            $("time-elapsed").innerHTML = formatDuration(Date.now() / 1000 - x.run_started);
+        } else {
+            $("time-elapsed").innerHTML = '--:--:--';
         }
     };
 
