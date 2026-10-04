@@ -52,6 +52,7 @@ def js():
     context.eval(extract_function(src, 'importRemoteProfile'))
     context.eval(extract_function(src, 'shareProfile'))
     context.eval(extract_function(src, 'escHtml'))
+    context.eval(extract_function(src, 'slugifyProfileName'))
     context.eval(extract_function(src, 'remoteFilterMatches'))
     context.eval(extract_function(src, 'renderRemoteProfiles'))
     context.eval(extract_function(src, 'renderAlertsHtml'))
@@ -236,6 +237,58 @@ def test_edit_mode_populates_and_save_sends_description():
         'enterEditMode must load the profile description'
     assert '"description": $(\'form_profile_description\').value' in src, \
         'saveProfile must include the description in the PUT payload'
+
+
+########################################################################
+# schedule name slugifying (names become filenames on save)
+########################################################################
+
+def test_slugify_spaces_become_dashes(js):
+    assert js.eval('slugifyProfileName("My Bisque 06")') == 'My-Bisque-06'
+    assert js.eval('slugifyProfileName("  spaced \t out  ")') == 'spaced-out'
+
+
+def test_slugify_drops_unsafe_characters(js):
+    assert js.eval('slugifyProfileName("../evil")') == 'evil'
+    assert js.eval('slugifyProfileName("a/b\\c:d")') == 'abcd'
+    assert js.eval('slugifyProfileName(".hidden")') == 'hidden'
+    assert js.eval('slugifyProfileName("trailing.")') == 'trailing'
+
+
+def test_slugify_leaves_valid_names_alone(js):
+    for name in ('cone-05', 'cone-05-long-bisque', 'leg1', 'a.b_c-d'):
+        assert js.eval('slugifyProfileName(%r)' % name) == name
+
+
+def test_slugify_empty_when_nothing_usable(js):
+    assert js.eval('slugifyProfileName("")') == ''
+    assert js.eval('slugifyProfileName("   ")') == ''
+    assert js.eval('slugifyProfileName("!!!")') == ''
+    assert js.eval('slugifyProfileName(null)') == ''
+
+
+def test_save_profile_slugifies_and_rejects_empty_name():
+    src = open(JS_PATH).read()
+    body = extract_function(src, 'saveProfile')
+    assert 'slugifyProfileName(' in body, \
+        'saveProfile must slugify the schedule name before saving'
+    assert 'ERROR 94' in body, \
+        'saveProfile must show an error when no usable name remains'
+
+
+def test_share_profile_slugifies_name():
+    src = open(JS_PATH).read()
+    body = extract_function(src, 'shareProfile')
+    assert 'slugifyProfileName(' in body, \
+        'shareProfile must slugify the schedule name like saveProfile does'
+
+
+def test_storage_fail_with_error_shows_growl_not_confirm():
+    # a FAIL carrying a server error (e.g. invalid schedule name) must
+    # surface the error; only a bare FAIL keeps the overwrite confirm
+    src = open(JS_PATH).read()
+    assert 'message.error' in src
+    assert 'Could not save schedule' in src
 
 
 ########################################################################

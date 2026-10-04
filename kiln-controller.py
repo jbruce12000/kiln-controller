@@ -1527,7 +1527,19 @@ def handle_storage():
                 force = True
                 if profile_obj:
                     #del msgdict["cmd"]
-                    if save_profile(profile_obj, force):
+                    if not isinstance(profile_obj, dict) or \
+                            not valid_profile_name(profile_obj.get('name')):
+                        # invalid names are rejected up front (they
+                        # would escape the profiles directory as
+                        # filenames); the error travels back so the ui
+                        # can show it instead of asking to overwrite
+                        name = profile_obj.get('name') \
+                            if isinstance(profile_obj, dict) \
+                            else profile_obj
+                        msgdict["resp"] = "FAIL"
+                        msgdict["error"] = \
+                            invalid_profile_name_error(name)
+                    elif save_profile(profile_obj, force):
                         msgdict["resp"] = "OK"
                     else:
                         msgdict["resp"] = "FAIL"
@@ -1577,6 +1589,14 @@ def valid_profile_name(name):
     if not name or not isinstance(name, str):
         return False
     return bool(re.match(r"^[A-Za-z0-9._-]+$", name))
+
+
+def invalid_profile_name_error(name):
+    '''human-readable reason a schedule name was rejected for saving.
+    shown in the web ui, which slugifies names before sending but must
+    still report server-side rejections.'''
+    return ("invalid schedule name %r: use letters, numbers, dots, "
+            "dashes and underscores (spaces become dashes)" % (name,))
 
 
 def get_profiles():

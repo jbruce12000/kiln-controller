@@ -1953,6 +1953,31 @@ def test_handle_storage_put_failure(monkeypatch, tmp_path):
     assert reply['resp'] == 'FAIL'
 
 
+def test_handle_storage_put_invalid_name_reports_error(monkeypatch, tmp_path):
+    # names become filenames, so ones with spaces are rejected with an
+    # error the ui shows instead of the overwrite confirm
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    ws = FakeWebSocket([json.dumps({'cmd': 'PUT', 'profile': {'name': 'has spaces', 'data': [[0, 32]]}})])
+    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
+    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    controller.handle_storage()
+    reply = json.loads(ws.sent[0])
+    assert reply['resp'] == 'FAIL'
+    assert 'invalid schedule name' in reply['error']
+    assert os.listdir(str(tmp_path)) == []
+
+
+def test_handle_storage_put_valid_name_ok(monkeypatch, tmp_path):
+    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    ws = FakeWebSocket([json.dumps({'cmd': 'PUT', 'profile': {'name': 'fine-name', 'data': [[0, 32]]}})])
+    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
+    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    controller.handle_storage()
+    reply = json.loads(ws.sent[0])
+    assert reply['resp'] == 'OK'
+    assert 'error' not in reply
+
+
 def test_raw_url_without_repo(monkeypatch):
     monkeypatch.setattr(controller, '_repo_owner_repo', lambda: None)
     assert controller._raw_url('pottery/x.json') is None

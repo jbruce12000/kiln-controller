@@ -831,9 +831,29 @@ function toggleLive()
     chart.update('none');
 }
 
+function slugifyProfileName(name) {
+    // schedule names become filenames (<name>.json), so only a safe
+    // character set survives saving: runs of whitespace become a
+    // single dash, anything outside letters/numbers/dots/dashes/
+    // underscores is dropped, and leading/trailing dots and dashes
+    // are trimmed. returns '' when nothing usable remains.
+    return String(name == null ? '' : name)
+        .trim()
+        .replace(/\s+/g, '-')
+        .replace(/[^A-Za-z0-9._-]+/g, '')
+        .replace(/^[-.]+/, '')
+        .replace(/[-.]+$/, '');
+}
+
 function saveProfile()
 {
-    var name = $('form_profile_name').value;
+    var name = slugifyProfileName($('form_profile_name').value);
+    if (!name) {
+        showGrowl("<i class=\"bi bi-exclamation-triangle-fill\"></i> <b>ERROR 94:</b><br/>Please enter a schedule name using letters, numbers, dots, dashes or underscores.", 'error', 5000);
+        return false;
+    }
+    // show the name that will actually be saved
+    $('form_profile_name').value = name;
     var data = [];
     var last = -1;
 
@@ -1010,11 +1030,12 @@ function importRemoteProfile(path) {
 }
 
 function shareProfile() {
-    var name = $('form_profile_name').value;
+    var name = slugifyProfileName($('form_profile_name').value);
     if (!name) {
         showGrowl('ERROR 99:<br/>Enter a schedule name first.', 'error', 5000);
         return;
     }
+    $('form_profile_name').value = name;
     if (!graph.profile.data || graph.profile.data.length < 2) {
         showGrowl('ERROR 99:<br/>A schedule needs at least two points to share.', 'error', 5000);
         return;
@@ -2444,7 +2465,10 @@ function init()
         {
             if(message.resp == "FAIL")
             {
-                if (confirm('Overwrite?'))
+                if (message.error) {
+                    showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> <b>ERROR 94:</b><br/>Could not save schedule: ' + escHtml(message.error), 'error', 8000);
+                }
+                else if (confirm('Overwrite?'))
                 {
                     message.force=true;
                     ws_storage.send(JSON.stringify(message));
