@@ -360,6 +360,17 @@ body {
     gap: 20px;
 }
 
+#overview_heading #profile_selector {
+    justify-self: start;
+}
+
+#overview_heading .heading-temps {
+    justify-self: end;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 20px;
+}
+
 .panel-heading .time-left .info-label {
     color: var(--heading-time-label);
 }
@@ -733,6 +744,12 @@ body {
         justify-content: center;
         margin: 4px 0 0;
         flex-wrap: wrap;
+    }
+
+    #overview_heading .heading-temps {
+        margin-left: auto;
+        flex-wrap: wrap;
+        justify-content: flex-end;
     }
 
     #profile_selector {

@@ -549,19 +549,32 @@ function setEditMode(on) {
        badge.style.display = show ? 'inline-flex' : 'none';
    }
 
-   function updateOverviewStatus()
-   {
-       var badge = document.getElementById('overview_status');
-       if (!badge) { return; }
-       var status = {
-           IDLE:    { label: 'Idle',    color: 'secondary' },
-           RUNNING: { label: 'Running', color: 'success' },
-           PAUSED:  { label: 'Paused',  color: 'warning' },
-           TUNING:  { label: 'Tuning',  color: 'info' }
-       }[state] || { label: state || 'Idle', color: 'secondary' };
-       badge.className = 'badge overview-status text-bg-' + status.color;
-       badge.innerHTML = status.label;
-   }
+    function updateOverviewStatus()
+    {
+        var badge = document.getElementById('overview_status');
+        if (!badge) { return; }
+        var status = {
+            IDLE:    { label: 'Idle',    color: 'secondary' },
+            RUNNING: { label: 'Running', color: 'success' },
+            PAUSED:  { label: 'Paused',  color: 'warning' },
+            TUNING:  { label: 'Tuning',  color: 'info' }
+        }[state] || { label: state || 'Idle', color: 'secondary' };
+        badge.className = 'badge overview-status text-bg-' + status.color;
+        badge.innerHTML = status.label;
+    }
+
+    function updateOverviewTemps(temperature, target)
+    {
+        // Current tracks the live sensor even when idle so the kiln temp
+        // stays visible while it cools after a firing; a '--' target
+        // means no schedule is driving the kiln (idle).
+        var t = document.getElementById('overview_temp');
+        if (t && temperature !== undefined && temperature !== null && temperature !== '--') { t.innerHTML = rnd(temperature); }
+        var s = document.getElementById('overview_target');
+        if (s && target !== undefined && target !== null) {
+            s.innerHTML = (target === '--' ? '--' : rnd(target));
+        }
+    }
 
    function adoptProfile(name)
    {
@@ -2143,6 +2156,21 @@ function init()
 
             state_last = state;
 
+        }
+
+        // overview header temps: Current always tracks the live sensor
+        // so it stays visible while the kiln cools after a firing.
+        // Set Point only applies while a schedule (or tuning) is driving
+        // the kiln; when idle there is no set point, so show '--' instead
+        // of the reset 0 value. pidstats is the fallback when the
+        // top-level fields are missing.
+        var _ovTemp = (x.temperature !== undefined ? x.temperature : (x.pidstats ? x.pidstats.ispoint : undefined));
+        var _ovTarget = (x.target !== undefined ? x.target : (x.pidstats ? x.pidstats.setpoint : undefined));
+        if (x.state !== undefined && x.state !== "RUNNING" && x.state !== "PAUSED" && x.state !== "TUNING") {
+            _ovTarget = '--';
+        }
+        if (_ovTemp !== undefined || _ovTarget !== undefined) {
+            updateOverviewTemps(_ovTemp, _ovTarget);
         }
 
         // tuning feed
