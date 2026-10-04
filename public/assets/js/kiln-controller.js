@@ -566,7 +566,7 @@ function setEditMode(on) {
 
     function updateOverviewTemps(temperature, target)
     {
-        // Current tracks the live sensor even when idle so the kiln temp
+        // Actual tracks the live sensor even when idle so the kiln temp
         // stays visible while it cools after a firing; a '--' target
         // means no schedule is driving the kiln (idle).
         var t = document.getElementById('overview_temp');
@@ -2309,23 +2309,26 @@ function init()
 
                 var left = parseInt(x.totaltime-x.runtime);
                 var eta = formatDuration(left);
-                var elapsed = formatDuration(parseInt(x.runtime));
 
                 $('eta').innerHTML = eta;
-                $('elapsed').innerHTML = elapsed;
+                if (left > 0) {
+                    $('completes').innerHTML = unix_to_yymmdd_hhmmss(Date.now() / 1000 + left);
+                } else {
+                    $('completes').innerHTML = '--';
+                }
             }
             else
             {
                 updateSelectedProfileLabel();
                 $('eta').innerHTML = '--:--:--';
-                $('elapsed').innerHTML = '--:--:--';
+                $('completes').innerHTML = '--';
             }
 
             state_last = state;
 
         }
 
-        // overview header temps: Current always tracks the live sensor
+        // overview header temps: Actual always tracks the live sensor
         // so it stays visible while the kiln cools after a firing.
         // Set Point only applies while a schedule (or tuning) is driving
         // the kiln; when idle there is no set point, so show '--' instead

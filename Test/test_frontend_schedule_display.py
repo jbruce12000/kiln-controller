@@ -124,26 +124,31 @@ def test_running_eta_uses_day_aware_formatter():
     assert 'toISOString' not in m.group(1)
 
 
-def test_running_elapsed_uses_day_aware_formatter():
-    # elapsed time since the run started must also use the day-aware
-    # formatter so it does not wrap past 24h
-    src = open(JS_PATH).read()
-    m = re.search(r'var elapsed = ([^;]+);', src)
-    assert m, 'elapsed computation not found in %s' % JS_PATH
-    assert 'formatDuration' in m.group(1)
-    assert 'x.runtime' in m.group(1)
-
-
-def test_overview_has_elapsed_display():
-    # the overview tab shows elapsed time to the right of Time Left and
-    # resets it when there is no run in progress
+def test_overview_has_no_elapsed_display():
+    # elapsed moved to the details TIME box, so the overview tab shows
+    # only Time Left (elapsed would duplicate it while a run is live)
     html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
                                              'public', 'index.html'))).read()
-    assert re.search(r'id="elapsed"', html)
-    assert re.search(r'Elapsed', html)
+    assert not re.search(r'id="elapsed"', html)
+    assert not re.search(r'Elapsed', html)
     src = open(JS_PATH).read()
-    assert "$('elapsed').innerHTML = elapsed;" in src
-    assert "$('elapsed').innerHTML = '--:--:--';" in src
+    assert "$('elapsed')" not in src
+    # Time Left stays
+    assert re.search(r'id="eta"', html)
+    assert "$('eta').innerHTML = eta;" in src
+    assert "$('eta').innerHTML = '--:--:--';" in src
+
+
+def test_overview_has_completes_display():
+    # the overview tab shows the estimated completion timestamp where
+    # elapsed used to be, and resets it when there is no run
+    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
+                                             'public', 'index.html'))).read()
+    assert re.search(r'id="completes"', html)
+    assert re.search(r'Completes', html)
+    src = open(JS_PATH).read()
+    assert "$('completes').innerHTML = unix_to_yymmdd_hhmmss(Date.now() / 1000 + left);" in src
+    assert "$('completes').innerHTML = '--';" in src
 
 
 def test_backlog_clears_storage_when_idle():
