@@ -41,6 +41,19 @@ try {
 } catch (e) {
     all = [];
 }
+// high-water mark: max pidstats.time seen via history or live feed.
+// live ticks at or below it are duplicates of backfilled history and
+// must not be appended twice. localStorage is only a warm cache now
+// (the server db is the source of truth), so re-seed from it.
+var last_sample_time = -Infinity;
+for (var _ri = 0; _ri < all.length; _ri++) {
+    if (all[_ri].time > last_sample_time) { last_sample_time = all[_ri].time; }
+}
+// guards history backfills: each fetch gets a sequence number and the
+// run it targets; stale responses (superseded, or for a previous run)
+// are discarded instead of corrupting the current graphs.
+var history_seq = 0;
+var history_loaded_for = null;
 var charts = {};
 var detailsInited = false;
 
@@ -66,6 +79,9 @@ function flush_all() {
 }
 function clear_persisted_all() {
     all = [];
+    last_sample_time = -Infinity;
+    history_loaded_for = null;
+    history_seq++;
     if (save_timer) {
         clearTimeout(save_timer);
         save_timer = null;
@@ -95,6 +111,113 @@ function prune_persisted_all(cutoff) {
     }
 }
 window.addEventListener('pagehide', flush_all);
+
+/* ---------------------------------------------------------------------------
+   Firing history backfill - the db is the source of truth for what has
+   happened so far in the current firing. a client that joins mid-firing
+   (or comes back after a drop) fetches /api/history once per run and
+   merges it with the live websocket feed:
+   - the overview series is replaced with the full firing (plus any live
+     points that arrived after the history snapshot),
+   - details entries are appended only when newer than last_sample_time,
+     so reconnect gaps close without duplicating anything.
+   graphs redraw from the merge; numeric displays keep updating from the
+   live ticks (next tick at most ~2s away).
+--------------------------------------------------------------------------- */
+
+function historyEntryFromRow(cols, row) {
+    // one HISTORY_COLS row -> {live, detail}, applying the same
+    // transforms the live path applies (err negated, out as percent,
+    // derived datetime/catchingup) so history and live render alike.
+    function v(name) {
+        var i = cols.indexOf(name);
+        return i < 0 ? null : row[i];
+    }
+    var t = v('t');
+    var err = v('err');
+    var out = v('out');
+    var cu = !!v('cu');
+    var ispoint = v('isp');
+    var detail = {
+        time: t,
+        timeDelta: v('td'),
+        setpoint: v('sp'),
+        ispoint: ispoint,
+        err: (err === null || err === undefined) ? err : -err,
+        errDelta: v('ed'),
+        p: v('p'),
+        i: v('i'),
+        d: v('d'),
+        kp: v('kp'),
+        ki: v('ki'),
+        kd: v('kd'),
+        pid: v('pid'),
+        out: (out === null || out === undefined) ? out : out * 100,
+        datetime: (t === null || t === undefined) ? '' : unix_to_yymmdd_hhmmss(t),
+        catching_up: cu,
+        temp_errors: v('te')
+    };
+    if (cu) { detail.catchingup = ispoint; }
+    return { live: [v('rt'), v('temp'), t], detail: detail };
+}
+
+function mergeHistory(cols, rows) {
+    // fold a full-firing history snapshot into the live structures.
+    // returns the number of details entries appended. stale live
+    // points (already covered by the snapshot) are dropped; live
+    // points newer than the snapshot are kept after it.
+    var fresh = [];
+    var added = 0;
+    var maxT = last_sample_time;
+    var snapMax = -Infinity;
+    var i, h;
+    for (i = 0; i < rows.length; i++) {
+        h = historyEntryFromRow(cols, rows[i]);
+        fresh.push(h.live);
+        if (h.detail.time !== null && h.detail.time !== undefined &&
+                h.detail.time > last_sample_time) {
+            all.push(h.detail);
+            added++;
+        }
+        if (h.detail.time > maxT) { maxT = h.detail.time; }
+        if (h.detail.time > snapMax) { snapMax = h.detail.time; }
+    }
+    // keep live points the snapshot does not cover (arrived after it
+    // was taken, or timeless): the snapshot can lag the watermark when
+    // live ticks landed during the fetch.
+    var tail = [];
+    for (i = 0; i < graph.live.data.length; i++) {
+        var p = graph.live.data[i];
+        if (p.length < 3 || p[2] === null || p[2] === undefined || p[2] > snapMax) {
+            tail.push(p);
+        }
+    }
+    graph.live.data = fresh.concat(tail);
+    last_sample_time = maxT;
+    if (added) { persist_all(); }
+    syncChartData();
+    updateAxis();
+    if (detailsInited) { drawall(windowed_data()); }
+    return added;
+}
+
+function backfillHistory(rs) {
+    // fetch this firing's history once per run; concurrent or stale
+    // responses are discarded via the sequence guard and run check.
+    var seq = ++history_seq;
+    apiGet('/api/history?run_started=' + encodeURIComponent(rs), function(resp) {
+        if (seq !== history_seq) { return; }
+        if (rs !== run_started) { return; }
+        if (!resp || !resp.success) { return; }
+        history_loaded_for = rs;
+        var rows = resp.rows || [];
+        mergeHistory(resp.cols, rows);
+        // temporary toast reporting the transfer; auto-dismisses.
+        if (rows.length > 0) {
+            showGrowl('<i class="bi bi-database"></i>&nbsp;Loaded ' + rows.length + ' points of firing history.', 'success', 5000);
+        }
+    });
+}
 
 var TABS = ['overview', 'details', 'profiles', 'config'];
 
@@ -241,13 +364,13 @@ function showTab(name) {
     }
     if (name === 'details') {
         initDetails();
+        loadFirings();
     } else if (name === 'profiles') {
         renderProfiles();
         loadRemoteProfiles();
     } else if (name === 'config') {
         loadConfigEditor();
         loadAlerts();
-        loadFirings();
     } else if (name === 'overview' && chart) {
         chart.resize();
     }
@@ -543,12 +666,12 @@ function setEditMode(on) {
        label.title = profileDescription(name);
    }
 
-   function toggleSimBadge(show)
-   {
-       var badge = document.getElementById('sim_badge');
-       if (!badge) { return; }
-       badge.style.display = show ? 'inline-flex' : 'none';
-   }
+    function toggleSimBadge(show)
+    {
+        var badge = document.getElementById('sim_badge');
+        if (!badge) { return; }
+        badge.style.display = show ? 'inline-flex' : 'none';
+    }
 
     function updateOverviewStatus()
     {
@@ -2021,10 +2144,10 @@ function download_dump() {
 }
 
 /* ---------------------------------------------------------------------------
-   Firing CSV export - past firings parsed from the controller logs.
+   Firing CSV export - past firings stored in the controller database.
    The dropdown lists the last few firings (most recent first); the
-   download hits /api/firings/<id>/csv which converts the log samples
-   to csv server-side.
+   download hits /api/firings/<id>/csv which renders the stored
+   samples to csv server-side on a worker thread.
 --------------------------------------------------------------------------- */
 
 function shortStamp(s) {
@@ -2080,7 +2203,7 @@ function renderFirings(resp) {
   if (rows.length === 0) {
     sel.innerHTML = '<option value="">' +
       (resp.refreshing ? 'Building firing list in the background&hellip;'
-                       : 'No firings found in logs') +
+                       : 'No firings recorded yet') +
       '</option>';
   } else {
     // the listing arrives newest first, so the latest firing is on
@@ -2092,10 +2215,10 @@ function renderFirings(resp) {
   if (resp.error) {
     setFiringStatus('Last background read failed: ' + escHtml(resp.error));
   } else if (resp.refreshing) {
-    setFiringStatus('Reading the logs in the background&hellip; the list fills in on its own (first read can take a few minutes).');
+    setFiringStatus('Loading the firing list&hellip;');
   } else if (resp.updated) {
     var ago = Math.max(0, Date.now() / 1000 - resp.updated);
-    setFiringStatus('Firing list read from the logs ' + formatDuration(ago) + ' ago.');
+    setFiringStatus('Firing list read from the database ' + formatDuration(ago) + ' ago.');
   }
   // while the background read runs, re-check until it lands
   if (resp.refreshing) {
@@ -2105,7 +2228,7 @@ function renderFirings(resp) {
 }
 
 function refreshFirings() {
-  setFiringStatus('Reading the logs in the background&hellip;');
+  setFiringStatus('Refreshing the firing list&hellip;');
   fetch('/api/firings/refresh', { method: 'POST' })
     .then(function(r) { return r.json(); })
     .then(function() { loadFirings(); })
@@ -2236,6 +2359,13 @@ function init()
         // offer to chain a firing after the one in progress.
         if (x.state) { oven_status = x; }
 
+        // freshness of this tick against the history watermark: a tick
+        // at or below last_sample_time duplicates backfilled history.
+        // computed once so the overview series and the details feed
+        // below agree on whether to store it (displays update either way).
+        var _st = (x.pidstats && x.pidstats.time !== undefined && x.pidstats.time !== null) ? x.pidstats.time : null;
+        var _is_new_sample = (_st === null || _st === undefined || _st > last_sample_time);
+
         if (x.type == "backlog")
         {
             // the backlog is the first message sent to a new client, so it
@@ -2264,6 +2394,14 @@ function init()
                 backlog_profile_name = typeof x.profile == 'object' ? x.profile.name : x.profile;
                 adoptProfile(backlog_profile_name);
             }
+
+            // a (re)connect only starts receiving live ticks from now;
+            // backfill the firing's history from the db so graphs show
+            // the whole run, not just the tail. the merge is idempotent
+            // (watermark dedupe), so reconnects just close the gap.
+            if (x.run_started) {
+                backfillHistory(x.run_started);
+            }
         }
 
         // a new run_started means a fresh firing has begun, no matter
@@ -2276,6 +2414,9 @@ function init()
             if (x.profile) {
                 adoptProfile(typeof x.profile == 'object' ? x.profile.name : x.profile);
             }
+            // the first ticks of a new run may predate this fetch;
+            // backfill picks up whatever the db already recorded.
+            backfillHistory(x.run_started);
         }
 
         // track which schedule is running so the Saved Schedules list
@@ -2303,9 +2444,14 @@ function init()
             {
                 updateSelectedProfileLabel();
 
-                graph.live.data.push([x.runtime, x.temperature]);
-                syncChartData();
-                updateAxis();
+                // skip samples already covered by a history backfill
+                // (reconnect overlap): displays below still update.
+                if (_is_new_sample) {
+                    if (_st !== null && _st !== undefined && _st > last_sample_time) { last_sample_time = _st; }
+                    graph.live.data.push([x.runtime, x.temperature, _st]);
+                    syncChartData();
+                    updateAxis();
+                }
 
                 var left = parseInt(x.totaltime-x.runtime);
                 var eta = formatDuration(left);
@@ -2353,8 +2499,15 @@ function init()
             if (x.catching_up == true) {
                 x.pidstats.catchingup = x.pidstats.ispoint;
             }
-            all.push(x.pidstats);
-            persist_all();
+            // same watermark as the overview series: a live tick that
+            // duplicates backfilled history updates the displays but is
+            // not stored twice (_is_new_sample is shared so both feeds
+            // store a fresh tick exactly once).
+            if (_is_new_sample) {
+                last_sample_time = x.pidstats.time;
+                all.push(x.pidstats);
+                persist_all();
+            }
 
             if (detailsInited) {
                 drawall(windowed_data());

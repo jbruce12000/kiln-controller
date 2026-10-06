@@ -303,6 +303,16 @@ schedule_chain_buffer = 60 # seconds
 alerts_state_file = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'storage','alerts.json'))
 
 ########################################################################
+# firing samples - every duty-cycle broadcast (see Oven.get_state) is
+# appended to this sqlite db so a full firing survives in queryable
+# form without relying on browser localStorage.
+firing_db_file = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'db','firings.db'))
+# max firings kept in the db. older firings (and their samples) are
+# pruned at start-up on an isolated thread so the db does not grow
+# without bound. set to 0 or a negative value to keep everything.
+firing_db_max_firings = 10
+
+########################################################################
 # load kiln profiles from this directory
 # created a repo where anyone can contribute profiles. The objective is
 # to load profiles from this repository by default.

@@ -234,19 +234,6 @@
       </div>
      </div>
 
-     <div class="panel panel-default mt-3">
-      <div class="panel-heading"><strong>Export Firing (CSV)</strong></div>
-      <div class="panel-body">
-       <p class="text-muted mb-2">Download a past firing as a CSV file, built from the controller logs. The most recent firing is selected by default.</p>
-       <div class="d-flex align-items-center gap-2">
-        <select id="firing_select" class="form-select form-select-sm" style="max-width: 32rem"></select>
-        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="downloadFiringCsv()" title="Download the selected firing as CSV"><i class="bi bi-download"></i>&nbsp; Download CSV</button>
-        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="refreshFirings()" title="Re-read the logs in the background"><i class="bi bi-arrow-clockwise"></i>&nbsp; Refresh</button>
-       </div>
-       <small class="text-muted" id="firing_status">The firing list is read from the logs in the background so the page stays responsive.</small>
-      </div>
-     </div>
-
    </section>
 
   <!-- ================================================================ -->
@@ -361,6 +348,19 @@
     <div class="chart-panel">
      <div class="chart-title">Thermocouple Errors</div>
      <div class="chart-body"><canvas id="chart-temp-errors"></canvas></div>
+    </div>
+   </div>
+
+   <div class="panel panel-default mt-3">
+    <div class="panel-heading"><strong>Export Firing (CSV)</strong></div>
+    <div class="panel-body">
+     <p class="text-muted mb-2">Download a past firing as a CSV file, built from the controller database. The most recent firing is selected by default.</p>
+     <div class="d-flex align-items-center gap-2">
+      <select id="firing_select" class="form-select form-select-sm" style="max-width: 32rem"></select>
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="downloadFiringCsv()" title="Download the selected firing as CSV"><i class="bi bi-download"></i>&nbsp; Download CSV</button>
+      <button type="button" class="btn btn-outline-secondary btn-sm" onclick="refreshFirings()" title="Reload the firing list"><i class="bi bi-arrow-clockwise"></i>&nbsp; Refresh</button>
+     </div>
+     <small class="text-muted" id="firing_status">The firing list is read from the controller database.</small>
     </div>
    </div>
 

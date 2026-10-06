@@ -352,6 +352,11 @@ class Oven(threading.Thread):
         self.temperature = 0
         self.time_step = config.sensor_time_wait
         self.alert_manager = None
+        # set by set_ovenwatcher() after construction; the control
+        # thread starts in __init__ (subclasses) and may attempt an
+        # automatic restart before the watcher is attached, so this
+        # defaults to None and automatic_restart() tolerates it.
+        self.ovenwatcher = None
         # always-on detector state that must survive across runs.
         # None means "no previous reading yet".
         self.last_plausible_temp = None
@@ -702,7 +707,7 @@ class Oven(threading.Thread):
 
     def check_unresumed_outage(self):
         '''one-shot check at startup: if the automatic restart state file
-        says a firing was RUNNING but the file is older than the restart
+        says a firing was active but the file is older than the restart
         window, power failed mid-firing and came back too late to resume.'''
         if not config.automatic_restarts == True:
             return
@@ -716,7 +721,7 @@ class Oven(threading.Thread):
                 d = json.load(infile)
         except (IOError, ValueError):
             return
-        if d.get('state') == 'RUNNING':
+        if d.get('state') in ('RUNNING', 'PAUSED'):
             self._emit('restart_not_resumed',
                        profile=d.get('profile'),
                        runtime_minutes=round(float(d.get('runtime', 0)) / 60))
@@ -772,8 +777,15 @@ class Oven(threading.Thread):
         return display_pidstats(self.pid.pidstats)
 
     def save_state(self):
-        with open(config.automatic_restart_state_file, 'w', encoding='utf-8') as f:
+        # atomic write (tmp + rename) with fsync: a power cut mid-write
+        # must leave either the previous state or the new one, never a
+        # truncated file that can never resume.
+        tmp = config.automatic_restart_state_file + ".tmp"
+        with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(self.get_state(), f, ensure_ascii=False, indent=4)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, config.automatic_restart_state_file)
 
     def state_file_is_old(self):
         '''returns True is state files is older than 15 mins default
@@ -802,10 +814,18 @@ class Oven(threading.Thread):
             duplog.info("automatic restart not possible. state file does not exist or is too old.")
             return False
 
-        with open(config.automatic_restart_state_file) as infile:
-            d = json.load(infile)
-        if d["state"] != "RUNNING":
-            duplog.info("automatic restart not possible. state = %s" % (d["state"]))
+        try:
+            with open(config.automatic_restart_state_file) as infile:
+                d = json.load(infile)
+        except (IOError, ValueError) as e:
+            # torn write from an unclean shutdown (or a hand edit):
+            # never raise out of the check -- the run() error handler
+            # would overwrite the file and destroy the resume. loudly
+            # decline instead so the next tick can retry.
+            log.error("automatic restart not possible. state file unreadable: %s" % (e))
+            return False
+        if d.get("state") not in ("RUNNING", "PAUSED"):
+            duplog.info("automatic restart not possible. state = %s" % (d.get("state")))
             return False
         return True
 
@@ -819,10 +839,22 @@ class Oven(threading.Thread):
         with open(profile_path) as infile:
             profile_json = json.dumps(json.load(infile))
         profile = Profile(profile_json)
+        resume_state = d.get("state")
         self.run_profile(profile, startat=startat, allow_seek=False)  # We don't want a seek on an auto restart.
+        if resume_state == "PAUSED":
+            # the outage struck while paused: stay paused (and do not
+            # silently unpause someone's kiln), runtime stays frozen.
+            self.state = "PAUSED"
         self.cost = d["cost"]
         time.sleep(1)
-        self.ovenwatcher.record(profile)
+        # the control thread starts before the watcher is attached at
+        # boot; a missing watcher must not fail the restart (the
+        # firing itself already resumed above).
+        watcher = getattr(self, 'ovenwatcher', None)
+        if watcher is not None:
+            watcher.record(profile)
+        else:
+            log.error("restarted without ovenwatcher; new clients will miss this run's backlog")
         self._emit('restart_resumed',
                    profile=d["profile"],
                    runtime_minutes=round(startat),
@@ -863,7 +895,15 @@ class Oven(threading.Thread):
             except Exception as e:
                 log.error("oven control loop error: %s" % (e))
                 try:
-                    self.abort_run(reason='control loop error')
+                    if self.state in ("RUNNING", "PAUSED"):
+                        self.abort_run(reason='control loop error')
+                    else:
+                        # not in a firing (e.g. a failed automatic
+                        # restart while IDLE): get safe WITHOUT saving,
+                        # so the restart file survives and the next
+                        # tick retries instead of giving up forever.
+                        # reset() also cuts the relay on real ovens.
+                        self.reset()
                 except Exception as abort_error:
                     log.error("could not reset oven after control loop "
                               "error: %s" % (abort_error))
@@ -892,6 +932,10 @@ class Oven(threading.Thread):
             self.start_time = self.get_start_time()
             self.update_runtime()
             self.update_target_temp()
+            # paused firings save too: an outage while paused must
+            # resume paused (see automatic_restart), not rewind to
+            # the last RUNNING sample and silently unpause.
+            self.save_automatic_restart_state()
             self.heat_then_cool()
             self.reset_if_emergency()
             self.reset_if_schedule_ended()

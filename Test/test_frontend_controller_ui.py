@@ -457,6 +457,202 @@ def test_backlog_prunes_stale_details():
     assert 'adopting_run' in src
 
 
+def test_backlog_backfills_firing_history():
+    src = open(JS_PATH).read()
+    # joining (or rejoining) mid-firing must pull the firing's history
+    # from the db so graphs show the whole run, not just the tail
+    assert 'backfillHistory(x.run_started)' in src
+
+
+########################################################################
+# firing history backfill (db -> graphs on join/reconnect)
+########################################################################
+
+HISTORY_COLS = ["t", "td", "sp", "isp", "err", "ed",
+                "p", "i", "d", "kp", "ki", "kd", "pid", "out",
+                "rt", "temp", "tgt", "heat", "tt", "cost", "hr",
+                "cu", "te"]
+
+
+def _setup_history_context(js):
+    src = open(JS_PATH).read()
+    js.eval(extract_function(src, 'unix_to_yymmdd_hhmmss'))
+    js.eval(extract_function(src, 'historyEntryFromRow'))
+    js.eval(extract_function(src, 'mergeHistory'))
+    js.eval(extract_function(src, 'backfillHistory'))
+    js.eval('var all = [];')
+    js.eval('var graph = { live: { data: [] } };')
+    js.eval('var last_sample_time = -Infinity;')
+    js.eval('var history_seq = 0;')
+    js.eval('var history_loaded_for = null;')
+    js.eval('var run_started = 1700000000.0;')
+    js.eval('var save_timer = null;')
+    js.eval('var detailsInited = false;')
+    js.eval('var persisted = 0;')
+    js.eval('function persist_all() { persisted++; }')
+    js.eval('function syncChartData() {}')
+    js.eval('function updateAxis() {}')
+    js.eval('function drawall(d) {}')
+    js.eval('function windowed_data() { return all; }')
+    js.eval('function apiGet(url, cb) { fetched.push(url); cb(canned); }')
+    js.eval('var fetched = [];')
+    js.eval('var canned = null;')
+    js.eval('var growls = [];')
+    js.eval('showGrowl = function(m) { growls.push(m); };')
+
+
+def _history_row(t, rt, temp, err=1.0, out=0.5):
+    row = [None] * len(HISTORY_COLS)
+    row[HISTORY_COLS.index('t')] = t
+    row[HISTORY_COLS.index('rt')] = rt
+    row[HISTORY_COLS.index('temp')] = temp
+    row[HISTORY_COLS.index('isp')] = temp
+    row[HISTORY_COLS.index('err')] = err
+    row[HISTORY_COLS.index('out')] = out
+    row[HISTORY_COLS.index('sp')] = 200.0
+    return row
+
+
+def test_history_entry_applies_live_transforms(js):
+    _setup_history_context(js)
+    js.eval('var cols = %s;' % json.dumps(HISTORY_COLS))
+    js.eval('var h = historyEntryFromRow(cols, %s);'
+            % json.dumps(_history_row(1700000001.0, 10, 100.0)))
+    # overview point carries runtime, temp and the dedupe time
+    assert js.eval('JSON.stringify(h.live)') == '[10,100,1700000001]'
+    # details entry mirrors the live path: err negated, out as percent
+    assert js.eval('h.detail.err') == -1.0
+    assert js.eval('h.detail.out') == 50.0
+    assert js.eval('h.detail.time') == 1700000001.0
+    assert js.eval('typeof h.detail.datetime') == 'string'
+
+
+def test_history_entry_marks_catchup(js):
+    _setup_history_context(js)
+    js.eval('var cols = %s;' % json.dumps(HISTORY_COLS))
+    row = _history_row(1700000001.0, 10, 100.0)
+    row[HISTORY_COLS.index('cu')] = 1
+    js.eval('var h = historyEntryFromRow(cols, %s);' % json.dumps(row))
+    assert js.eval('h.detail.catching_up') is True
+    assert js.eval('h.detail.catchingup') == 100.0 or \
+        js.eval('h.detail.catchingup') == 100
+
+
+def test_merge_history_backfills_and_dedupes(js):
+    _setup_history_context(js)
+    js.eval('var cols = %s;' % json.dumps(HISTORY_COLS))
+    js.eval('var rows = [%s, %s];' % (
+        json.dumps(_history_row(1700000001.0, 10, 100.0)),
+        json.dumps(_history_row(1700000003.0, 12, 102.0))))
+    assert js.eval('mergeHistory(cols, rows)') == 2
+    assert js.eval('graph.live.data.length') == 2
+    assert js.eval('all.length') == 2
+    assert js.eval('last_sample_time') == 1700000003.0
+    # re-merging the same snapshot appends nothing (idempotent)
+    assert js.eval('mergeHistory(cols, rows)') == 0
+    assert js.eval('all.length') == 2
+
+
+def test_merge_history_keeps_newer_live_tail(js):
+    _setup_history_context(js)
+    js.eval('var cols = %s;' % json.dumps(HISTORY_COLS))
+    # a live tick arrived after the history snapshot was taken
+    js.eval('graph.live.data = [[14, 103, 1700000005.0]];')
+    js.eval('all = [{ time: 1700000005.0 }];')
+    js.eval('last_sample_time = 1700000005.0;')
+    js.eval('var rows = [%s];'
+            % json.dumps(_history_row(1700000003.0, 12, 102.0)))
+    assert js.eval('mergeHistory(cols, rows)') == 0
+    assert js.eval('graph.live.data.length') == 2
+    assert js.eval('graph.live.data[0][0]') == 12   # history first
+    assert js.eval('graph.live.data[1][0]') == 14   # live tail kept
+
+
+def test_backfill_discards_stale_response(js):
+    _setup_history_context(js)
+    js.eval('var pending = [];')
+    js.eval('apiGet = function(url, cb) { pending.push(cb); };')
+    js.eval('backfillHistory(1700000000.0);')
+    # a newer fetch started before the first answered
+    js.eval('backfillHistory(1700000000.0);')
+    assert js.eval('pending.length') == 2
+    # the stale first response is discarded...
+    js.eval('pending[0]({ success: true, cols: %s, rows: [%s] });'
+            % (json.dumps(HISTORY_COLS),
+               json.dumps(_history_row(1.0, 1, 10.0))))
+    assert js.eval('graph.live.data.length') == 0
+    # ...the current one applies
+    js.eval('pending[1]({ success: true, cols: %s, rows: [%s] });'
+            % (json.dumps(HISTORY_COLS),
+               json.dumps(_history_row(1700000001.0, 10, 100.0))))
+    assert js.eval('graph.live.data.length') == 1
+    assert js.eval('history_loaded_for') == 1700000000.0
+
+
+def test_backfill_ignores_previous_run(js):
+    _setup_history_context(js)
+    js.eval('var pending = [];')
+    js.eval('apiGet = function(url, cb) { pending.push(cb); };')
+    js.eval('backfillHistory(1700000000.0);')
+    # the run moved on before the history arrived: discard it
+    js.eval('run_started = 1700009999.0;')
+    js.eval('pending[0]({ success: true, cols: %s, rows: [%s] });'
+            % (json.dumps(HISTORY_COLS),
+               json.dumps(_history_row(1700000001.0, 10, 100.0))))
+    assert js.eval('graph.live.data.length') == 0
+    assert js.eval('history_loaded_for') is None
+
+
+########################################################################
+# history toast (points transferred)
+########################################################################
+
+def test_backfill_growls_points_loaded(js):
+    _setup_history_context(js)
+    js.eval('var pending = [];')
+    js.eval('apiGet = function(url, cb) { pending.push(cb); };')
+    js.eval('backfillHistory(1700000000.0);')
+    js.eval('pending[0]({ success: true, cols: %s, rows: [%s, %s, %s] });'
+            % (json.dumps(HISTORY_COLS),
+               json.dumps(_history_row(1700000001.0, 10, 100.0)),
+               json.dumps(_history_row(1700000003.0, 12, 102.0)),
+               json.dumps(_history_row(1700000005.0, 14, 104.0))))
+    growls = js.eval('growls.join("\\n")')
+    assert '3' in growls and 'points' in growls
+
+
+def test_backfill_no_growl_without_points(js):
+    _setup_history_context(js)
+    js.eval('var pending = [];')
+    js.eval('apiGet = function(url, cb) { pending.push(cb); };')
+    js.eval('backfillHistory(1700000000.0);')
+    js.eval('pending[0]({ success: true, cols: %s, rows: [] });'
+            % json.dumps(HISTORY_COLS))
+    assert js.eval('growls.length') == 0
+
+
+def test_backfill_no_growl_on_failure(js):
+    _setup_history_context(js)
+    js.eval('var pending = [];')
+    js.eval('apiGet = function(url, cb) { pending.push(cb); };')
+    js.eval('backfillHistory(1700000000.0);')
+    js.eval('pending[0]({ success: false, error: "nope" });')
+    assert js.eval('growls.length') == 0
+    assert js.eval('history_loaded_for') is None
+
+
+def test_backfill_no_growl_for_stale_response(js):
+    _setup_history_context(js)
+    js.eval('var pending = [];')
+    js.eval('apiGet = function(url, cb) { pending.push(cb); };')
+    js.eval('backfillHistory(1700000000.0);')
+    js.eval('backfillHistory(1700000000.0);')
+    js.eval('pending[0]({ success: true, cols: %s, rows: [%s] });'
+            % (json.dumps(HISTORY_COLS),
+               json.dumps(_history_row(1.0, 1, 10.0))))
+    assert js.eval('growls.length') == 0
+
+
 ########################################################################
 # config editor tab
 ########################################################################

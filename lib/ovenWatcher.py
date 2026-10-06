@@ -4,7 +4,7 @@ from mqttout import enabled as mqtt_enabled, MqttOut
 log = logging.getLogger(__name__)
 
 class OvenWatcher(threading.Thread):
-    def __init__(self,oven):
+    def __init__(self,oven,db=None):
         self.last_profile = None
         self.started = None
         self.observers = []
@@ -12,6 +12,16 @@ class OvenWatcher(threading.Thread):
         self.daemon = True
         self.oven = oven
         self.mqtt = MqttOut() if mqtt_enabled() else None
+        # sqlite persistence for every duty cycle; a failed open must
+        # never stop heater control, so fall back to no db on error.
+        if db is None:
+            try:
+                from firing_db import FiringDb
+                db = FiringDb()
+            except Exception as e:
+                log.error("could not open firing db: %s" % e)
+                db = None
+        self.db = db
         self.start()
 
 # FIXME - need to save runs of schedules in near-real-time
@@ -36,6 +46,17 @@ class OvenWatcher(threading.Thread):
 
             if self.mqtt:
                 self.mqtt.publish(oven_state)
+
+            # persist the same broadcast locally every duty cycle.
+            # getattr: tests build watchers via __new__ without __init__,
+            # so self.db may not exist; db failures must never break
+            # the broadcast loop.
+            try:
+                db = getattr(self, 'db', None)
+                if db is not None:
+                    db.record_state(oven_state)
+            except Exception as e:
+                log.error("firing db write failed: %s" % e)
 
             self.notify_all(oven_state)
             time.sleep(self.oven.time_step)

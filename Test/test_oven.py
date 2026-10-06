@@ -767,6 +767,139 @@ def test_automatic_restart(tmp_path, monkeypatch):
     assert oven.cost == 3.5
 
 
+def _restart_env(tmp_path, monkeypatch, state):
+    '''a rebooted oven pointed at a tmp state file; profiles resolve
+    next to a fake oven module file. returns (oven, state_file).'''
+    profiles_dir = tmp_path / 'storage' / 'profiles'
+    profiles_dir.mkdir(parents=True, exist_ok=True)
+    state_file = tmp_path / 'state.json'
+    state_file.write_text(json.dumps(state))
+    monkeypatch.setattr(config, 'automatic_restarts', True)
+    monkeypatch.setattr(config, 'automatic_restart_state_file',
+                        str(state_file))
+    monkeypatch.setattr(config, 'thermocouple_offset', 0)
+    monkeypatch.setattr(oven_module(), '__file__',
+                        str(tmp_path / 'storage' / 'oven.py'))
+    monkeypatch.setattr(oven_module().time, 'sleep', lambda s: None)
+    oven = Oven()
+    oven.board = FakeBoard(100)
+    # base Oven has no heater output (only the sim/real subclasses
+    # do); stub it per instance like other unit tests do.
+    oven.heat_then_cool = lambda: None
+    oven.set_ovenwatcher(types.SimpleNamespace(record=lambda p: None))
+    return oven, state_file
+
+
+def _install_profile(tmp_path):
+    with open(tmp_path / 'storage' / 'profiles' / 'test-fast.json',
+              'w') as f:
+        f.write(open(os.path.join(os.path.dirname(__file__),
+                                  'test-fast.json')).read())
+
+
+def test_failed_restart_preserves_resume_file(tmp_path, monkeypatch):
+    '''the reported bug: a restart that fails (here the profile file
+    is missing) must not destroy the resume -- the run() error handler
+    used to abort_run(), overwriting the file with IDLE so the firing
+    could never resume. now the oven stays IDLE, the file is untouched,
+    and restoring the profile lets the next tick resume.'''
+    oven, state_file = _restart_env(
+        tmp_path, monkeypatch,
+        {'state': 'RUNNING', 'runtime': 60, 'profile': 'test-fast',
+         'cost': 1.0})
+
+    sleeps = []
+
+    def counting_sleep(secs):
+        sleeps.append(secs)
+        if len(sleeps) >= 2:
+            raise StopIteration
+
+    monkeypatch.setattr(oven_module().time, 'sleep', counting_sleep)
+    with pytest.raises(StopIteration):
+        oven.run()
+
+    # failed twice, stayed IDLE, and -- critically -- the resume file
+    # still says RUNNING so the firing is not lost
+    assert oven.state == "IDLE"
+    assert json.loads(state_file.read_text())['state'] == "RUNNING"
+    assert oven.should_i_automatic_restart() is True
+
+    # the profile reappears (e.g. re-synced): the next tick resumes
+    _install_profile(tmp_path)
+    monkeypatch.setattr(oven_module().time, 'sleep', lambda s: None)
+    oven._run_once()
+    assert oven.state == "RUNNING"
+    assert oven.profile.name == "test-fast"
+    assert oven.runtime == pytest.approx(60)
+
+
+def test_restart_without_ovenwatcher_attached(tmp_path, monkeypatch):
+    '''the control thread starts before kiln-controller attaches the
+    watcher; a reboot resume racing that setup used to die with
+    AttributeError (and then wipe the resume file). the firing itself
+    must resume regardless.'''
+    oven, _ = _restart_env(
+        tmp_path, monkeypatch,
+        {'state': 'RUNNING', 'runtime': 120, 'profile': 'test-fast',
+         'cost': 2.0})
+    _install_profile(tmp_path)
+    oven.ovenwatcher = None  # set_ovenwatcher() has not run yet
+    oven.automatic_restart()
+    assert oven.state == "RUNNING"
+    assert oven.runtime == pytest.approx(120)
+
+
+def test_pause_outage_resumes_paused(tmp_path, monkeypatch):
+    '''an outage while paused must resume paused at the frozen
+    runtime -- previously nothing was saved while paused, so the
+    reboot rewound to a stale RUNNING sample and silently unpaused.'''
+    oven, state_file = _restart_env(
+        tmp_path, monkeypatch,
+        {'state': 'RUNNING', 'runtime': 60, 'profile': 'test-fast',
+         'cost': 1.0})
+    _install_profile(tmp_path)
+    oven.run_profile(get_profile(), allow_seek=False)
+    oven.runtime = 60
+    oven.state = "PAUSED"
+    oven._run_once()  # PAUSED tick saves
+    saved = json.loads(state_file.read_text())
+    assert saved['state'] == "PAUSED"
+
+    rebooted, _ = _restart_env(
+        tmp_path, monkeypatch,
+        json.loads(state_file.read_text()))
+    rebooted._run_once()
+    assert rebooted.state == "PAUSED"
+    assert rebooted.runtime == pytest.approx(60)
+    assert rebooted.profile.name == "test-fast"
+
+
+def test_should_i_corrupt_file_returns_false(tmp_path, monkeypatch,
+                                             caplog):
+    '''a torn write from an unclean shutdown must decline loudly, not
+    raise into the run() handler (which would overwrite the file).'''
+    state_file = tmp_path / 'state.json'
+    state_file.write_text('{"state": "RUNN')
+    monkeypatch.setattr(config, 'automatic_restarts', True)
+    monkeypatch.setattr(config, 'automatic_restart_state_file',
+                        str(state_file))
+    oven = Oven()
+    assert oven.should_i_automatic_restart() is False
+
+
+def test_save_state_is_atomic(tmp_path, monkeypatch):
+    '''tmp + rename: no leftover tmp file, content always parses.'''
+    monkeypatch.setattr(config, 'automatic_restart_state_file',
+                        str(tmp_path / 'state.json'))
+    oven = Oven()
+    oven.state = 'RUNNING'
+    oven.save_state()
+    assert not os.path.exists(str(tmp_path / 'state.json.tmp'))
+    with open(tmp_path / 'state.json') as f:
+        assert json.load(f)['state'] == 'RUNNING'
+
+
 def test_run_unknown_state_does_not_auto_restart(monkeypatch):
     '''the autotuner puts its oven in state TUNING; the background
     run() loop must not check for an automatic restart then.'''

@@ -318,65 +318,95 @@ def test_merge_lines_lost_anchor(firings_state):
         'lost-anchor'
 
 
-def test_api_firings_lists_newest_first(monkeypatch, firings_state):
-    # the request path never touches the journal: no spawn, no replay
-    monkeypatch.setattr(controller, '_spawn_firings_refresh',
-                        lambda: (_ for _ in ()).throw(AssertionError()))
-    controller._merge_firing_lines([_FIRING_L1, _FIRING_S1, _FIRING_S2])
-    firings_state['updated'] = time.time()
+def _seed_db(tmp_path, firings=1, samples_per=2, profile="cone-05"):
+    '''seed a tmp firings.db; returns [(db_id, run_started)]. db ids
+    are stable autoincrement ids, newest last.'''
+    from firing_db import FiringDb
+    path = str(tmp_path / "firings.db")
+    db = FiringDb(path, prune_on_start=False)
+    ids = []
+    for i in range(firings):
+        started = 1700000000.0 + i * 10000
+        for j in range(samples_per):
+            db.record_state({
+                'runtime': j * 2, 'temperature': 65.0 + j,
+                'target': 200.0, 'state': 'RUNNING', 'heat': 1.0,
+                'totaltime': 100, 'cost': 0.1, 'heat_rate': 50.0,
+                'catching_up': False, 'temp_errors': 0,
+                'profile': profile if firings == 1 else "%s-%d" % (profile, i),
+                'run_id': i + 1,
+                'pidstats': {'p': 1.0, 'i': 0.5, 'd': 0.1,
+                             'err': 135.0, 'pid': 2.0, 'out': 0.5},
+                'run_started': started})
+        row = db._con.execute(
+            "SELECT id FROM firings WHERE run_started = ?",
+            (started,)).fetchone()
+        ids.append((row[0], started))
+    db.close()
+    return path, ids
+
+
+def _use_db(monkeypatch, path):
+    monkeypatch.setattr(config, 'firing_db_file', path, raising=False)
+
+
+def test_api_firings_lists_newest_first(monkeypatch, tmp_path):
+    # the request path only runs a fast indexed db query
+    path, ids = _seed_db(tmp_path, firings=2, profile="cone-05")
+    _use_db(monkeypatch, path)
     resp = json.loads(controller.api_firings())
     assert resp['success'] is True
     assert resp['refreshing'] is False
-    assert resp['firings'][0]['profile'] == 'cone-05'
-    assert resp['firings'][0]['duration'] == 2
+    assert resp['error'] is None
+    assert [f['profile'] for f in resp['firings']] == \
+        ['cone-05-1', 'cone-05-0']
     assert resp['firings'][0]['samples'] == 2
+    assert resp['firings'][0]['id'] == ids[1][0]
 
 
-def test_api_firings_kicks_stale_refresh(monkeypatch, firings_state):
-    started = []
-    monkeypatch.setattr(controller, '_spawn_firings_refresh',
-                        lambda: started.append(True) or True)
+def test_api_firings_empty_db(monkeypatch, tmp_path):
+    from firing_db import FiringDb
+    path = str(tmp_path / "empty.db")
+    FiringDb(path, prune_on_start=False).close()
+    _use_db(monkeypatch, path)
     resp = json.loads(controller.api_firings())
     assert resp['success'] is True
-    assert resp['refreshing'] is True
-    assert started == [True]
+    assert resp['firings'] == []
 
 
-def test_api_firing_csv_serves_merged_samples(monkeypatch, firings_state):
-    controller._merge_firing_lines(
-        [_FIRING_L1, _FIRING_S1, _FIRING_RESUME,
-         _FIRING_L2, _FIRING_S3])
-    seen = {}
+def test_api_firings_kicks_stale_refresh(monkeypatch, tmp_path):
+    # the db listing is always current: no background refresh needed
+    path, _ = _seed_db(tmp_path)
+    _use_db(monkeypatch, path)
+    resp = json.loads(controller.api_firings())
+    assert resp['success'] is True
+    assert resp['refreshing'] is False
 
-    def fake_gather(since=None, until=None):
-        seen['since'] = since
-        seen['until'] = until
-        return [_FIRING_L1, _FIRING_S1, _FIRING_RESUME,
-                _FIRING_L2, _FIRING_S3]
 
-    monkeypatch.setattr(controller, 'gather_log_lines', fake_gather)
-    resp = controller.api_firing_csv('0')
+def test_api_firing_csv_serves_db_samples(monkeypatch, tmp_path):
+    path, ids = _seed_db(tmp_path, firings=1, samples_per=3)
+    _use_db(monkeypatch, path)
+    resp = controller.api_firing_csv(str(ids[0][0]))
     assert resp.status_code == 200
-    assert seen['since'] == '2026-08-12 19:18:18'
     assert resp.headers['Content-Type'] == 'text/csv'
     assert 'attachment' in resp.headers['Content-Disposition']
     rows = resp.body.strip().splitlines()
     assert rows[0].split(',') == controller.FIRING_CSV_COLUMNS
-    assert len(rows) == 3  # header plus one sample per segment
+    assert len(rows) == 4  # header plus three samples
+    assert 'cone-05' in rows[1]
 
 
-def test_api_firing_csv_rejects_bad_ids(firings_state):
+def test_api_firing_csv_rejects_bad_ids(monkeypatch, tmp_path):
+    path, _ = _seed_db(tmp_path)
+    _use_db(monkeypatch, path)
     assert controller.api_firing_csv('nope').status_code == 400
     assert controller.api_firing_csv('99').status_code == 404
 
 
 def test_api_firings_refresh_starts_background(monkeypatch):
-    started = []
-    monkeypatch.setattr(controller, '_spawn_firings_refresh',
-                        lambda: started.append(True) or True)
+    # refresh is a no-op now: the db listing never goes stale
     assert controller.api_firings_refresh() == {"success": True,
-                                                "refreshing": True}
-    assert started == [True]
+                                                "refreshing": False}
 
 
 def _tail_lines_chronological():
@@ -478,31 +508,19 @@ def test_tail_build_empty_journal(monkeypatch, firings_state):
     assert firings_state['last_line'] is None
 
 
-def test_api_firings_ids_are_positional(monkeypatch, firings_state):
-    calls = []
-
-    def fake_gather(since=None, until=None):
-        calls.append(since)
-        # recent-week window is empty; the firing's own window is not
-        if len(calls) == 1:
-            return []
-        return _tail_lines_chronological()
-
-    monkeypatch.setattr(controller, 'gather_log_lines', fake_gather)
-    monkeypatch.setattr(controller, '_reverse_tail_lines',
-                        lambda want:
-                        iter(_tail_lines_chronological()[::-1]))
-    monkeypatch.setattr(controller, '_spawn_firings_refresh',
-                        lambda: False)
-    controller._tail_build_firings()
-    firings_state['updated'] = time.time()
+def test_api_firings_ids_are_stable(monkeypatch, tmp_path):
+    path, ids = _seed_db(tmp_path, firings=3, samples_per=1,
+                         profile="glaze")
+    _use_db(monkeypatch, path)
     resp = json.loads(controller.api_firings())
+    # newest first, stable db ids (not positional indexes)
     assert [(f['id'], f['profile']) for f in resp['firings']] == \
-        [(2, 'glaze'), (1, 'candling'), (0, 'test-fast')]
-    # csv addresses the oldest-first position
-    csv_resp = controller.api_firing_csv('2')
+        [(ids[2][0], 'glaze-2'), (ids[1][0], 'glaze-1'),
+         (ids[0][0], 'glaze-0')]
+    # csv addresses the db id directly
+    csv_resp = controller.api_firing_csv(str(ids[2][0]))
     assert csv_resp.status_code == 200
-    assert 'glaze' in csv_resp.body
+    assert 'glaze-2' in csv_resp.body
 
 
 

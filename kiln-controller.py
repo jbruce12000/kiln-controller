@@ -41,8 +41,9 @@ from ovenWatcher import OvenWatcher
 from scheduler import Scheduler
 from tuner import Tuner, DEFAULT_METHOD
 from alerts import (AlertStore, AlertManager, LogSink, MqttSink,
-                    WebhookSink, ALERTS, validate_delivery)
+                     WebhookSink, ALERTS, validate_delivery)
 from mqttout import enabled as mqtt_enabled
+from firing_db import FiringDb
 
 app = bottle.Bottle()
 
@@ -670,44 +671,264 @@ def _firing_filename(firing):
     return 'firing-%s-%s.csv' % (profile or 'unnamed', start)
 
 
+# firing list and csv export are served from db/firings.db (see
+# lib/firing_db.py), which records every duty-cycle broadcast. the
+# journal-parsing helpers above remain for the log-based diagnostics,
+# but the export panel no longer replays the journal: db queries
+# return in milliseconds. csv rendering still runs on an isolated
+# worker thread (below) so even a large firing never blocks the
+# gevent hub; the request greenlet only yields (gevent.sleep) waiting
+# for it.
+
+def _wall_to_stamp(wall):
+    '''epoch seconds -> "2026-08-12 19:20:18,345" journal-style stamp
+    (local time, millis after a comma). empty string when unparsable.'''
+    try:
+        dt = datetime.datetime.fromtimestamp(float(wall))
+        return "%s,%03d" % (dt.strftime("%Y-%m-%d %H:%M:%S"),
+                            int(dt.microsecond / 1000))
+    except (TypeError, ValueError, OverflowError, OSError):
+        return ''
+
+
+def _open_read_db():
+    '''open the firing db without pruning. prune runs at start-up on
+    its own thread (see FiringDb); export opens must stay read-cheap
+    and never spawn maintenance work. returns None on failure.'''
+    try:
+        return FiringDb(prune_on_start=False)
+    except Exception as e:
+        log.error("could not open firing db for export: %s" % e)
+        return None
+
+
+def _get_db_firings(limit=FIRING_LIST_LIMIT):
+    '''newest-first firing metas from the db: [{id, profile, start,
+    end, duration, samples}]. ids are stable db row ids. raises on
+    db errors so callers can report them.'''
+    db = _open_read_db()
+    if db is None:
+        raise RuntimeError("could not open firing database")
+    try:
+        rows = db._con.execute(
+            "SELECT f.id, f.profile,"
+            " COUNT(s.id), MIN(s.t), MAX(s.t)"
+            " FROM firings f LEFT JOIN samples s"
+            " ON s.firing_id = f.id"
+            " GROUP BY f.id ORDER BY f.id DESC LIMIT ?",
+            (limit,)).fetchall()
+    finally:
+        db.close()
+    metas = []
+    for fid, profile, count, first, last in rows:
+        start = _wall_to_stamp(first) if first else ''
+        end = _wall_to_stamp(last) if last else ''
+        duration = 0
+        if first and last and last >= first:
+            duration = int(last - first)
+        metas.append({"id": fid, "profile": profile, "start": start,
+                      "end": end, "duration": duration,
+                      "samples": count or 0})
+    return metas
+
+
+def _db_row_to_csv_row(row, firing, step):
+    '''one db sample row -> FIRING_CSV_COLUMNS dict. row is the flat
+    (t, runtime, temp, target, heat, err, pid, p, i, d, out) sample
+    columns; firing carries profile/total_time. heat_on/off derive
+    from the normalized pid output (out * step), exactly how the oven
+    loop computes them (see oven.heat_then_cool); the raw heat value
+    is only a fallback for rows stored without out.'''
+    t, runtime, temp, target, heat, err, pid, p, i, d, out = row
+    total = firing.get("totaltime")
+    try:
+        runtime_f = float(runtime)
+    except (TypeError, ValueError):
+        runtime_f = 0
+    try:
+        total_f = float(total)
+    except (TypeError, ValueError):
+        total_f = 0
+    try:
+        out_f = float(out) if out is not None else None
+    except (TypeError, ValueError):
+        out_f = None
+    if out_f is not None:
+        heat_on = out_f * step
+        heat_off = step - heat_on
+    else:
+        try:
+            heat_on = float(heat) if heat is not None else 0.0
+        except (TypeError, ValueError):
+            heat_on = 0.0
+        if heat_on <= 1.0 and heat_on >= 0.0:
+            # legacy real-oven on/off flag: scale to seconds
+            heat_on = heat_on * step
+        heat_off = step - heat_on
+    if heat_off < 0:
+        heat_off = 0.0
+
+    def f2(value):
+        try:
+            return "%.2f" % float(value)
+        except (TypeError, ValueError):
+            return ''
+
+    return {"timestamp": _wall_to_stamp(t), "profile": firing.get("profile"),
+            "run_time": int(runtime_f), "total_time": int(total_f),
+            "time_left": int(total_f - runtime_f),
+            "temp": f2(temp), "target": f2(target),
+            "error": f2(err),
+            "pid": f2(pid), "p": f2(p),
+            "i": f2(i), "d": f2(d),
+            "heat_on": "%.2f" % heat_on, "heat_off": "%.2f" % heat_off}
+
+
+def _db_firing_to_csv(firing, rows, step):
+    '''render one db firing as csv text with FIRING_CSV_COLUMNS.'''
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(FIRING_CSV_COLUMNS)
+    for row in rows:
+        csv_row = _db_row_to_csv_row(row, firing, step)
+        writer.writerow([csv_row.get(col, '') for col in FIRING_CSV_COLUMNS])
+    return out.getvalue()
+
+
+# csv worker jobs: the request greenlet spawns one daemon thread per
+# download and yields (gevent.sleep) until it finishes, so the gevent
+# hub stays responsive to other clients while a large firing renders.
+DB_CSV_TIMEOUT = 30.0  # seconds a download waits for its worker
+DB_CSV_POLL = 0.05  # seconds between completion checks
+_csv_jobs_lock = threading.Lock()
+_csv_jobs = {}
+_csv_job_next = [0]
+
+
+def _start_csv_build(firing_id):
+    '''render preparation on an isolated daemon thread. returns a job
+    id the request greenlet can wait on via _wait_csv_job.'''
+    with _csv_jobs_lock:
+        _csv_job_next[0] += 1
+        job_id = "csv-%d" % _csv_job_next[0]
+        _csv_jobs[job_id] = {"done": False, "csv": None,
+                             "filename": None, "error": None,
+                             "status": None}
+    thread = threading.Thread(target=_build_csv_job,
+                              args=(job_id, firing_id,), daemon=True)
+    thread.start()
+    return job_id
+
+
+def _build_csv_job(job_id, firing_id):
+    '''worker body: load one firing from the db and render its csv.
+    always marks the job done (with csv or error) so waiters never
+    hang. runs off the gevent hub.'''
+    result = {"done": True, "csv": None, "filename": None,
+              "error": "unknown error", "status": 500}
+    try:
+        try:
+            step = float(getattr(config, "sensor_time_wait", 2)) or 2.0
+        except (TypeError, ValueError):
+            step = 2.0
+        db = _open_read_db()
+        if db is None:
+            result.update(error="could not open firing database",
+                          status=500)
+        else:
+            try:
+                frow = db._con.execute(
+                    "SELECT id, profile, totaltime FROM firings"
+                    " WHERE id = ?",
+                    (firing_id,)).fetchone()
+                if frow is None:
+                    result.update(error="firing not found", status=404)
+                else:
+                    rows = db._con.execute(
+                        "SELECT t, runtime, temp, target, heat,"
+                        " err, pid, p, i, d, out"
+                        " FROM samples WHERE firing_id = ?"
+                        " ORDER BY id",
+                        (frow[0],)).fetchall()
+                    if not rows:
+                        result.update(
+                            error="no samples found for this firing",
+                            status=404)
+                    else:
+                        firing = {"id": frow[0], "profile": frow[1],
+                                  "totaltime": frow[2], "start": ""}
+                        first_t = rows[0][0]
+                        if first_t:
+                            firing["start"] = _wall_to_stamp(first_t)
+                        result.update(
+                            csv=_db_firing_to_csv(firing, rows, step),
+                            filename=_firing_filename(firing),
+                            error=None, status=200)
+            finally:
+                db.close()
+    except Exception as e:
+        log.error("csv export failed for firing %s: %s" % (firing_id, e))
+        result.update(error="csv export failed: %s" % e, status=500)
+    with _csv_jobs_lock:
+        stored = _csv_jobs.get(job_id)
+        if stored is not None:
+            stored.update(result)
+
+
+def _wait_csv_job(job_id, timeout=DB_CSV_TIMEOUT):
+    '''yield (gevent.sleep, never block the hub) until the worker
+    marks the job done. returns the job dict, or None on timeout.'''
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        with _csv_jobs_lock:
+            job = _csv_jobs.get(job_id)
+            done = bool(job and job.get("done"))
+            snapshot = dict(job) if job else None
+        if done:
+            return snapshot
+        # yield to the hub instead of blocking it: gevent is not
+        # monkey-patched here, so a plain join/sleep would stall
+        # every other request.
+        gevent.sleep(DB_CSV_POLL)
+    return None
+
+
 @app.get('/api/firings')
 def api_firings():
-    '''list the most recent firings parsed from the journal logs,
-    newest first so the latest firing is on top. serves the background
-    snapshot instantly (a full journal replay would stall the server
-    for minutes) and kicks off a background refresh when the snapshot
-    is empty or stale. each entry carries its id (for
+    '''list the most recent firings stored in db/firings.db, newest
+    first so the latest firing is on top. the db query returns in
+    milliseconds, so unlike the old journal replay this needs no
+    background snapshot. each entry carries its stable db id (for
     /api/firings/<id>/csv), profile name, start/end timestamps,
-    duration, and sample count, plus updated/refreshing/error status
-    so the ui can show background progress. ids are positions in the
-    current oldest-first listing, so they can shift as new firings
-    arrive; the csv lookup matches on profile and start time.'''
-    snap = get_firings_snapshot()
-    oldest_first = snap["metas"][-FIRING_LIST_LIMIT:]
-    firings = [{"id": i, "profile": m["profile"], "start": m["start"],
-                "end": m["end"], "duration": firing_duration(m),
-                "samples": m["samples"]}
-               for i, m in enumerate(oldest_first)][::-1]
-    return json.dumps({"success": True, "firings": firings,
-                       "updated": snap["updated"],
-                       "refreshing": snap["refreshing"],
-                       "error": snap["error"]})
+    duration, and sample count. updated/refreshing/error are kept so
+    the ui polling logic keeps working (refreshing is always False;
+    /api/firings/refresh is a no-op).'''
+    try:
+        metas = _get_db_firings()
+        error = None
+    except Exception as e:
+        log.error("firing list failed: %s" % e)
+        metas = []
+        error = str(e)
+    return json.dumps({"success": True, "firings": metas,
+                       "updated": time.time(),
+                       "refreshing": False,
+                       "error": error})
 
 
 @app.post('/api/firings/refresh')
 def api_firings_refresh():
-    '''start a background refresh of the firings snapshot (the full
-    journal replay runs off the request path) and report whether it is
-    running.'''
-    _spawn_firings_refresh()
-    return {"success": True, "refreshing": True}
+    '''no-op kept for compatibility: the db-backed listing is always
+    current, so there is nothing to refresh in the background.'''
+    return {"success": True, "refreshing": False}
 
 
 @app.get('/api/firings/<fid>/csv')
 def api_firing_csv(fid):
-    '''download one firing from the journal logs as csv. fid is the id
-    from /api/firings. only a small bounded (--since/--until) journal
-    query runs here, which returns in milliseconds.'''
+    '''download one firing from db/firings.db as csv. fid is the db id
+    from /api/firings. rendering runs on an isolated worker thread;
+    this handler only yields waiting for it, so other requests stay
+    responsive even for large firings.'''
     try:
         wanted = int(fid)
     except (TypeError, ValueError):
@@ -715,51 +936,193 @@ def api_firing_csv(fid):
             json.dumps({"success": False, "error": "invalid firing id"}),
             status=400,
             headers={'Content-Type': 'application/json'})
-    with _firings_lock:
-        oldest_first = list(_firings_state["metas"])
-        meta = dict(oldest_first[wanted]) \
-            if 0 <= wanted < len(oldest_first) else None
-        refreshing = _firings_state["refreshing"]
-    if meta is None:
-        hint = ("the firing list is still building in the background, "
-                "try again in a bit" if refreshing else
-                "press Refresh on the Export Firing panel and try again")
+    job_id = _start_csv_build(wanted)
+    job = _wait_csv_job(job_id)
+    with _csv_jobs_lock:
+        _csv_jobs.pop(job_id, None)
+    if job is None:
         return bottle.HTTPResponse(
             json.dumps({"success": False,
-                        "error": "firing not found (%s)" % hint}),
-            status=404,
+                        "error": "csv export timed out, try again"}),
+            status=503,
             headers={'Content-Type': 'application/json'})
-    if not meta.get("since") or not meta.get("start"):
+    if not job.get("csv"):
         return bottle.HTTPResponse(
             json.dumps({"success": False,
-                        "error": "firing has no parsable start time"}),
-            status=409,
-            headers={'Content-Type': 'application/json'})
-    try:
-        lines = gather_log_lines(since=meta["since"],
-                                 until=meta.get("until"))
-    except ValueError as e:
-        return bottle.HTTPResponse(
-            json.dumps({"success": False, "error": str(e)}),
-            status=500,
-            headers={'Content-Type': 'application/json'})
-    candidates = [f for f in consolidate_firings(parse_firings(lines))
-                  if f["profile"] == meta["profile"]]
-    firing = next((f for f in candidates
-                   if f["start"] == meta["start"]), None)
-    if firing is None and candidates:
-        firing = candidates[0]
-    if firing is None or not firing["samples"]:
-        return bottle.HTTPResponse(
-            json.dumps({"success": False,
-                        "error": "no samples found for this firing"}),
-            status=404,
+                        "error": job.get("error") or "export failed"}),
+            status=job.get("status") or 500,
             headers={'Content-Type': 'application/json'})
     return bottle.HTTPResponse(
-        firing_to_csv(firing),
+        job["csv"],
         headers={'Content-Type': 'text/csv',
                  'Content-Disposition': 'attachment; filename="%s"'
-                 % _firing_filename(firing)})
+                 % (job.get("filename") or ("firing-%s.csv" % wanted))})
+
+
+# firing history for live clients. a client that (re)connects mid-firing
+# only sees live ticks from that moment on; the overview graph and the
+# details charts would otherwise start empty instead of showing the
+# whole firing. the client fetches this once per run (on the status
+# backlog) and merges it with the live feed, so any drop only leaves a
+# gap that the next backfill closes. compact columnar rows keep the
+# one-time transfer small; floats are rounded except the pid time,
+# which the client uses as its dedupe watermark.
+HISTORY_COLS = ["t", "td", "sp", "isp", "err", "ed",
+                "p", "i", "d", "kp", "ki", "kd", "pid", "out",
+                "rt", "temp", "tgt", "heat", "tt", "cost", "hr",
+                "cu", "te"]
+# short column -> flat sample column (pid loop terms live in
+# samples now; sp/isp map to target/temp; kp/ki/kd/totaltime come
+# from the firing row)
+_HISTORY_PID_KEYS = {"t": "t", "td": "dt", "sp": "target",
+                     "isp": "temp", "err": "err", "ed": "ed",
+                     "p": "p", "i": "i", "d": "d",
+                     "kp": "kp", "ki": "ki", "kd": "kd",
+                     "pid": "pid", "out": "out"}
+_HISTORY_SAMPLE_KEYS = ("runtime", "temp", "target", "heat",
+                        "totaltime", "cost", "heat_rate", "catching_up",
+                        "temp_errors")
+
+
+def _r2(value):
+    '''round a display float to 2dp, or None when missing/unparsable.'''
+    try:
+        if value is None:
+            return None
+        return round(float(value), 2)
+    except (TypeError, ValueError):
+        return None
+
+
+def _history_row(pid, sample):
+    '''one db sample -> HISTORY_COLS row. pid and sample are flat
+    dicts keyed by storage column name (see _HISTORY_PID_KEYS /
+    _HISTORY_SAMPLE_KEYS); kp/ki/kd/totaltime are filled from the
+    firing row by the caller.'''
+    if not isinstance(pid, dict):
+        pid = {}
+    row = []
+    for col in HISTORY_COLS[:14]:
+        key = _HISTORY_PID_KEYS[col]
+        value = pid.get(key)
+        if col == "t":
+            try:
+                row.append(float(value) if value is not None else None)
+            except (TypeError, ValueError):
+                row.append(None)
+        elif col == "out":
+            try:
+                row.append(round(float(value), 4)
+                           if value is not None else None)
+            except (TypeError, ValueError):
+                row.append(None)
+        else:
+            row.append(_r2(value))
+    for key in _HISTORY_SAMPLE_KEYS:
+        value = sample.get(key)
+        if key in ("cu",):
+            row.append(int(bool(value)))
+        elif key in ("te",):
+            try:
+                row.append(int(value) if value is not None else None)
+            except (TypeError, ValueError):
+                row.append(None)
+        else:
+            row.append(_r2(value))
+    return row
+
+
+def _current_run_started():
+    '''run_started of the firing in progress, or None. the watcher
+    stamps it when a run begins (start button, schedule, api,
+    automatic restart).'''
+    try:
+        started = getattr(ovenWatcher, 'started', None)
+        return started.timestamp() if started else None
+    except Exception:
+        return None
+
+
+@app.get('/api/history')
+def api_history():
+    '''full sample history of one firing from db/firings.db, oldest
+    first. query ?run_started=<epoch> (from the status backlog), or
+    omit it for the firing in progress. a single indexed query, so
+    this runs in the request handler like the firing list. returns
+    {run_started, profile, cols, rows}; rows are HISTORY_COLS arrays
+    with rounded display floats (pid time t keeps full precision as
+    the client dedupe key).'''
+    wanted = bottle.request.query.get('run_started')
+    if wanted:
+        try:
+            wanted = float(wanted)
+        except (TypeError, ValueError):
+            return bottle.HTTPResponse(
+                json.dumps({"success": False,
+                            "error": "invalid run_started"}),
+                status=400,
+                headers={'Content-Type': 'application/json'})
+    else:
+        wanted = _current_run_started()
+        if wanted is None:
+            return bottle.HTTPResponse(
+                json.dumps({"success": False,
+                            "error": "no firing in progress"}),
+                status=404,
+                headers={'Content-Type': 'application/json'})
+    db = _open_read_db()
+    if db is None:
+        return bottle.HTTPResponse(
+            json.dumps({"success": False,
+                        "error": "could not open firing database"}),
+            status=500,
+            headers={'Content-Type': 'application/json'})
+    try:
+        frow = db._con.execute(
+            "SELECT id, profile, run_started, totaltime, kp, ki, kd"
+            " FROM firings WHERE run_started = ?",
+            (wanted,)).fetchone()
+        if frow is None:
+            return bottle.HTTPResponse(
+                json.dumps({"success": False,
+                            "error": "firing not found"}),
+                status=404,
+                headers={'Content-Type': 'application/json'})
+        srows = db._con.execute(
+            "SELECT t, dt, err, ed, p, i, d, pid, out,"
+            " runtime, temp, target, heat, cost, heat_rate,"
+            " catching_up, temp_errors"
+            " FROM samples WHERE firing_id = ? ORDER BY id",
+            (frow[0],)).fetchall()
+        rows = []
+        for srow in srows:
+            # pid/sample dicts are keyed by storage column name, as
+            # _HISTORY_PID_KEYS / _HISTORY_SAMPLE_KEYS expect
+            pid = {"t": srow[0], "dt": srow[1], "err": srow[2],
+                   "ed": srow[3], "p": srow[4], "i": srow[5],
+                   "d": srow[6], "pid": srow[7], "out": srow[8],
+                   "target": srow[11], "temp": srow[10],
+                   "kp": frow[4], "ki": frow[5], "kd": frow[6]}
+            sample = {"runtime": srow[9], "temp": srow[10],
+                      "target": srow[11], "heat": srow[12],
+                      "totaltime": frow[3], "cost": srow[13],
+                      "heat_rate": srow[14], "catching_up": srow[15],
+                      "temp_errors": srow[16]}
+            rows.append(_history_row(pid, sample))
+        return json.dumps({"success": True, "run_started": frow[2],
+                           "profile": frow[1],
+                           "cols": HISTORY_COLS, "rows": rows})
+    except bottle.HTTPResponse:
+        raise
+    except Exception as e:
+        log.error("history export failed: %s" % e)
+        return bottle.HTTPResponse(
+            json.dumps({"success": False,
+                        "error": "history export failed: %s" % e}),
+            status=500,
+            headers={'Content-Type': 'application/json'})
+    finally:
+        db.close()
 
 def find_profile(wanted):
     '''
@@ -1715,10 +2078,9 @@ def main():
 
     gevent.spawn_later(config.schedule_poll_interval, schedule_tick)
 
-    # warm the firings snapshot in a background thread so the export
-    # firing panel has data without any request ever blocking on the
-    # minutes-long full journal replay.
-    _spawn_firings_refresh()
+    # the firing list/csv export reads db/firings.db directly (indexed
+    # queries, milliseconds), so no snapshot warm-up is needed here.
+    # (the journal snapshot machinery above stays for log diagnostics.)
 
     server = WSGIServer((ip, port), app,
                         handler_class=WebSocketHandler)
