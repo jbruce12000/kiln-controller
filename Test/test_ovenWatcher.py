@@ -59,6 +59,19 @@ def test_record():
     assert watcher.started is not None
 
 
+def test_record_restores_started():
+    '''an automatic restart passes the saved run_started epoch so the
+    resumed firing keeps its original identity (one db row, one ui run).'''
+    import datetime
+    watcher = make_watcher()
+    profile = types.SimpleNamespace(name="test-fast", data=[[0, 200]])
+    watcher.record(profile, started=1700000000.0)
+    assert watcher.started == datetime.datetime.fromtimestamp(1700000000.0)
+    watcher.record(profile,
+                   started=datetime.datetime.fromtimestamp(1700000001.0))
+    assert watcher.started == datetime.datetime.fromtimestamp(1700000001.0)
+
+
 def test_add_observer_sends_backlog():
     watcher = make_watcher()
     # the backlog profile data is celsius internally, it is reported

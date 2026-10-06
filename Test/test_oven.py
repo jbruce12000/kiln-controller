@@ -856,6 +856,102 @@ def test_restart_without_ovenwatcher_attached(tmp_path, monkeypatch):
     assert oven.runtime == pytest.approx(120)
 
 
+def test_automatic_restart_preserves_firing_identity(tmp_path, monkeypatch):
+    '''a service restart / power-cycle resume continues the SAME firing:
+    run_id, ended_run_sequence and the watcher's run_started must all
+    survive the reboot instead of starting a new firing.'''
+    saved_started = 1700000000.0
+    oven, _ = _restart_env(
+        tmp_path, monkeypatch,
+        {'state': 'RUNNING', 'runtime': 120, 'profile': 'test-fast',
+         'cost': 2.0, 'run_id': 7, 'ended_run_sequence': 6,
+         'run_started': saved_started})
+    _install_profile(tmp_path)
+    recorded = {}
+
+    class Recorder:
+        def record(self, profile, started=None):
+            recorded['started'] = started
+
+    oven.ovenwatcher = Recorder()
+    oven.automatic_restart()
+    assert oven.state == "RUNNING"
+    assert oven.run_sequence == 7
+    assert oven.get_state()['run_id'] == 7
+    assert oven.ended_run_sequence == 6
+    assert recorded['started'] == pytest.approx(saved_started)
+
+
+def test_automatic_restart_legacy_state_starts_new_identity(tmp_path,
+                                                            monkeypatch):
+    '''state files written before run identity was saved have no
+    run_id/run_started keys: the resume falls back to a fresh firing.'''
+    oven, _ = _restart_env(
+        tmp_path, monkeypatch,
+        {'state': 'RUNNING', 'runtime': 60, 'profile': 'test-fast',
+         'cost': 1.0})
+    _install_profile(tmp_path)
+    recorded = {}
+
+    class Recorder:
+        def record(self, profile, started=None):
+            recorded['started'] = started
+
+    oven.ovenwatcher = Recorder()
+    oven.automatic_restart()
+    assert oven.state == "RUNNING"
+    assert oven.run_sequence == 1
+    assert recorded['started'] is None
+
+
+def test_save_state_persists_firing_identity(tmp_path, monkeypatch):
+    '''the resume file must carry the firing identity so the rebooted
+    process can continue it: run_id, ended_run_sequence, run_started.'''
+    monkeypatch.setattr(config, 'automatic_restart_state_file',
+                        str(tmp_path / 'state.json'))
+    oven = Oven()
+    oven.state = 'RUNNING'
+    oven.run_sequence = 7
+    oven.ended_run_sequence = 6
+    started = datetime.datetime.fromtimestamp(1700000000.0)
+    oven.ovenwatcher = types.SimpleNamespace(started=started)
+    oven.save_state()
+    with open(tmp_path / 'state.json') as f:
+        d = json.load(f)
+    assert d['run_id'] == 7
+    assert d['ended_run_sequence'] == 6
+    assert d['run_started'] == pytest.approx(1700000000.0)
+
+
+def test_resumed_firing_appends_to_same_db_row(tmp_path):
+    '''samples recorded before and after a restart (same run_started)
+    land in one firings row, not two.'''
+    from lib.firing_db import FiringDb
+    db = FiringDb(path=str(tmp_path / 'firings.db'))
+    started = 1700000000.0
+    before = {'profile': 'test-fast', 'run_id': 7, 'runtime': 60,
+              'temperature': 100, 'target': 110, 'state': 'RUNNING',
+              'heat': 1.0, 'totaltime': 600, 'cost': 1.0,
+              'heat_rate': 0, 'catching_up': False, 'temp_errors': 0,
+              'pidstats': {'time': started, 'timeDelta': 2, 'err': 10,
+                           'errDelta': 0, 'p': 1, 'i': 0, 'd': 0,
+                           'pid': 1, 'out': 0.5, 'kp': 4, 'ki': 32,
+                           'kd': 139},
+              'run_started': started}
+    after = dict(before, runtime=62, cost=1.1,
+                 pidstats=dict(before['pidstats'], time=started + 2))
+    assert db.record_state(before) is True
+    assert db.record_state(after) is True
+    rows = db._con.execute("SELECT id FROM firings WHERE run_started = ?",
+                           (started,)).fetchall()
+    assert len(rows) == 1
+    count = db._con.execute(
+        "SELECT COUNT(*) FROM samples WHERE firing_id = ?",
+        (rows[0][0],)).fetchone()[0]
+    assert count == 2
+    db.close()
+
+
 def test_pause_outage_resumes_paused(tmp_path, monkeypatch):
     '''an outage while paused must resume paused at the frozen
     runtime -- previously nothing was saved while paused, so the

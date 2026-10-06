@@ -61,9 +61,16 @@ class OvenWatcher(threading.Thread):
             self.notify_all(oven_state)
             time.sleep(self.oven.time_step)
 
-    def record(self, profile):
+    def record(self, profile, started=None):
         self.last_profile = profile
-        self.started = datetime.datetime.now()
+        if started is None:
+            self.started = datetime.datetime.now()
+        elif isinstance(started, datetime.datetime):
+            self.started = started
+        else:
+            # epoch seconds (e.g. restored after an automatic restart
+            # so the resumed firing keeps its original identity)
+            self.started = datetime.datetime.fromtimestamp(float(started))
 
     def add_observer(self,observer):
         if self.last_profile:
