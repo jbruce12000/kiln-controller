@@ -464,6 +464,12 @@ def test_update_cost():
     oven.heat = 0
     oven.update_cost()
     assert oven.cost == pytest.approx(config.kwh_rate * config.kw_elements * (1.0 / 3600))
+    # heat is element-on seconds within the duty cycle, so a full
+    # time_step of heating bills time_step seconds of energy
+    oven2 = Oven()
+    oven2.heat = 2.0
+    oven2.update_cost()
+    assert oven2.cost == pytest.approx(config.kwh_rate * config.kw_elements * (2.0 / 3600))
 
 
 def test_reset():
@@ -1780,7 +1786,7 @@ def test_real_oven(monkeypatch):
     monkeypatch.setattr(oven, 'time_step', 2)
 
     oven.heat_then_cool()
-    assert oven.heat == 1.0
+    assert oven.heat == pytest.approx(0.8)
     assert heat_calls == [0.8]
     assert cool_calls == [1.2]
 

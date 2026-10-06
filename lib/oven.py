@@ -1092,10 +1092,12 @@ class RealOven(Oven):
         heat_on = float(self.time_step * pid)
         heat_off = float(self.time_step * (1 - pid))
 
-        # self.heat is for the front end to display if the heat is on
+        # self.heat is element-on seconds within this duty cycle, for
+        # the front end display (heat / time_step) and update_cost().
+        # it must stay in the same units as SimulatedOven (heat_on).
         self.heat = 0.0
         if heat_on > 0:
-            self.heat = 1.0
+            self.heat = heat_on
 
         if heat_on:
             self.output.heat(heat_on)

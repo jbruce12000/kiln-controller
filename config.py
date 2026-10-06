@@ -15,8 +15,7 @@ listening_port = 9099
 ########################################################################
 # Cost Information
 #
-# This is used to calculate a cost estimate before a run. It's also used
-# to produce the actual cost during a run. My kiln has three
+# This is used to produce the actual cost during a run. My kiln has three
 # elements that when my switches are set to high, consume 9460 watts.
 kwh_rate        = 0.1319  # cost per kilowatt hour per currency_type to calculate cost to run job
 kw_elements     = 9.460 # if the kiln elements are on, the wattage in kilowatts
@@ -124,9 +123,9 @@ seek_start = True
 #
 # duty cycle of the entire system in seconds
 # 
-# Every N seconds a decision is made about switching the relay[s] 
-# on & off and for how long. The thermocouple is read 
-# temperature_average_samples times during and the average value is used.
+# Every N seconds a decision is made about switching the relay[s]
+# on & off and for how long. The thermocouple is read
+# temperature_average_samples times during and the median value is used.
 sensor_time_wait = 2
 
 
