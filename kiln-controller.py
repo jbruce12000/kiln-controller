@@ -899,12 +899,26 @@ def api_firings():
     first so the latest firing is on top. the db query returns in
     milliseconds, so unlike the old journal replay this needs no
     background snapshot. each entry carries its stable db id (for
-    /api/firings/<id>/csv), profile name, start/end timestamps,
-    duration, and sample count. updated/refreshing/error are kept so
-    the ui polling logic keeps working (refreshing is always False;
-    /api/firings/refresh is a no-op).'''
+    /api/firings/<id> and /api/firings/<id>/csv), profile name,
+    start/end timestamps, duration, and sample count.
+    updated/refreshing/error are kept so the ui polling logic keeps
+    working (refreshing is always False; /api/firings/refresh is a
+    no-op). accepts ?limit=N (default FIRING_LIST_LIMIT, max 100).'''
     try:
-        metas = _get_db_firings()
+        limit = FIRING_LIST_LIMIT
+        try:
+            raw_limit = bottle.request.query.get('limit')
+        except Exception:
+            raw_limit = None
+        if raw_limit:
+            limit = max(1, min(100, int(raw_limit)))
+    except (TypeError, ValueError):
+        return bottle.HTTPResponse(
+            json.dumps({"success": False, "error": "invalid limit"}),
+            status=400,
+            headers={'Content-Type': 'application/json'})
+    try:
+        metas = _get_db_firings(limit=limit)
         error = None
     except Exception as e:
         log.error("firing list failed: %s" % e)
@@ -921,6 +935,85 @@ def api_firings_refresh():
     '''no-op kept for compatibility: the db-backed listing is always
     current, so there is nothing to refresh in the background.'''
     return {"success": True, "refreshing": False}
+
+
+# sample columns exposed by GET /api/firings/<id>, in db order.
+FIRING_DETAIL_SAMPLE_COLS = [
+    "t", "runtime", "temp", "target", "state", "heat",
+    "cost", "heat_rate", "catching_up", "temp_errors",
+    "dt", "err", "ed", "p", "i", "d", "pid", "out",
+]
+
+
+@app.get('/api/firings/<fid>')
+def api_firing_detail(fid):
+    '''one firing with all its samples from db/firings.db as json.
+    fid is the stable db id from /api/firings. samples are oldest
+    first, one dict per duty cycle keyed by
+    FIRING_DETAIL_SAMPLE_COLS. a single indexed query, so this runs
+    in the request handler like the firing list.'''
+    try:
+        wanted = int(fid)
+    except (TypeError, ValueError):
+        return bottle.HTTPResponse(
+            json.dumps({"success": False, "error": "invalid firing id"}),
+            status=400,
+            headers={'Content-Type': 'application/json'})
+    db = _open_read_db()
+    if db is None:
+        return bottle.HTTPResponse(
+            json.dumps({"success": False,
+                        "error": "could not open firing database"}),
+            status=500,
+            headers={'Content-Type': 'application/json'})
+    try:
+        frow = db._con.execute(
+            "SELECT id, profile, run_id, run_started, started_wall,"
+            " totaltime, kp, ki, kd FROM firings WHERE id = ?",
+            (wanted,)).fetchone()
+        if frow is None:
+            return bottle.HTTPResponse(
+                json.dumps({"success": False,
+                            "error": "firing not found"}),
+                status=404,
+                headers={'Content-Type': 'application/json'})
+        srows = db._con.execute(
+            "SELECT t, runtime, temp, target, state, heat,"
+            " cost, heat_rate, catching_up, temp_errors,"
+            " dt, err, ed, p, i, d, pid, out"
+            " FROM samples WHERE firing_id = ? ORDER BY id",
+            (frow[0],)).fetchall()
+        samples = [dict(zip(FIRING_DETAIL_SAMPLE_COLS, row))
+                   for row in srows]
+        first = samples[0]["t"] if samples else None
+        last = samples[-1]["t"] if samples else None
+        duration = 0
+        try:
+            if first is not None and last is not None \
+                    and float(last) >= float(first):
+                duration = int(float(last) - float(first))
+        except (TypeError, ValueError):
+            duration = 0
+        firing = {"id": frow[0], "profile": frow[1], "run_id": frow[2],
+                  "run_started": frow[3], "started_wall": frow[4],
+                  "totaltime": frow[5], "kp": frow[6], "ki": frow[7],
+                  "kd": frow[8],
+                  "start": _wall_to_stamp(first) if first else '',
+                  "end": _wall_to_stamp(last) if last else '',
+                  "duration": duration, "samples": len(samples)}
+        return json.dumps({"success": True, "firing": firing,
+                           "samples": samples})
+    except bottle.HTTPResponse:
+        raise
+    except Exception as e:
+        log.error("firing detail failed for %s: %s" % (fid, e))
+        return bottle.HTTPResponse(
+            json.dumps({"success": False,
+                        "error": "firing lookup failed: %s" % e}),
+            status=500,
+            headers={'Content-Type': 'application/json'})
+    finally:
+        db.close()
 
 
 @app.get('/api/firings/<fid>/csv')
