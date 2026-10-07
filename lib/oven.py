@@ -463,6 +463,19 @@ class Oven(threading.Thread):
         self.ended_run_sequence = max(self.ended_run_sequence, self.run_sequence)
         self.idle_since = time.time()
         self.reset()
+        # the firing's identity ends here: clear the watcher's stamp
+        # synchronously so the save below writes run_started=None and
+        # later idle broadcasts/db writes cannot reuse the finished
+        # firing's stamp. tolerant of test stubs without clear().
+        try:
+            watcher = getattr(self, 'ovenwatcher', None)
+            if watcher is not None:
+                if hasattr(watcher, 'clear'):
+                    watcher.clear()
+                else:
+                    watcher.started = None
+        except Exception:
+            pass
         self.save_automatic_restart_state()
         self.end_of_run(reason, context, was_active)
 
@@ -786,8 +799,13 @@ class Oven(threading.Thread):
         tmp = config.automatic_restart_state_file + ".tmp"
         state = self.get_state()
         watcher = getattr(self, 'ovenwatcher', None)
-        started = getattr(watcher, 'started', None)
         try:
+            if hasattr(watcher, 'active_run_started'):
+                started = watcher.active_run_started()
+            elif self.state in ('RUNNING', 'PAUSED'):
+                started = getattr(watcher, 'started', None)
+            else:
+                started = None
             state['run_started'] = started.timestamp() if started else None
         except Exception:
             state['run_started'] = None

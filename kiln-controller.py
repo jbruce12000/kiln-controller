@@ -1035,9 +1035,14 @@ def _history_row(pid, sample):
 def _current_run_started():
     '''run_started of the firing in progress, or None. the watcher
     stamps it when a run begins (start button, schedule, api,
-    automatic restart).'''
+    automatic restart). None while idle so the history endpoint
+    reports "no firing in progress" instead of the last firing.'''
     try:
-        started = getattr(ovenWatcher, 'started', None)
+        if hasattr(ovenWatcher, 'active_run_started'):
+            started = ovenWatcher.active_run_started()
+        else:
+            # third-party/test stub without the gate: legacy behavior
+            started = getattr(ovenWatcher, 'started', None)
         return started.timestamp() if started else None
     except Exception:
         return None

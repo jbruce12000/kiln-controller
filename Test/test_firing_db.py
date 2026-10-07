@@ -209,3 +209,23 @@ def test_prune_uses_config_default_when_no_arg(monkeypatch, tmp_path):
         db.record_state(make_state(5000.0 + i))
     assert db.prune_old_firings() == (2, 2)
     db.close()
+
+
+def test_idle_state_with_stale_stamp_stays_unattached(tmp_path):
+    '''defense in depth: an idle broadcast carrying a stale run_started
+    (e.g. from before the watcher cleared its identity) must not
+    attach idle samples to the finished firing.'''
+    db = FiringDb(str(tmp_path / "t.db"), prune_on_start=False)
+    running = make_state(1700000000.0)
+    assert db.record_state(running) is True
+    idle = make_state(1700000000.0, runtime=2)
+    idle['state'] = 'IDLE'
+    assert db.record_state(idle) is True
+    con = sqlite3.connect(db.path)
+    assert con.execute(
+        "SELECT COUNT(*) FROM samples WHERE firing_id IS NULL").fetchone() \
+        == (1,)
+    assert con.execute(
+        "SELECT COUNT(*) FROM samples WHERE firing_id IS NOT NULL").fetchone() \
+        == (1,)
+    db.close()

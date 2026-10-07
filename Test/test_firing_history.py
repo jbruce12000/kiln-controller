@@ -66,8 +66,9 @@ def test_history_rounds_and_keeps_pid_time(monkeypatch, tmp_path):
 def test_history_defaults_to_current_run(monkeypatch, tmp_path):
     path, ids = _seed_db(tmp_path)
     _use_db(monkeypatch, path)
+    ts = types.SimpleNamespace(timestamp=lambda: 1700000000.0)
     started = types.SimpleNamespace(
-        started=types.SimpleNamespace(timestamp=lambda: 1700000000.0))
+        started=ts, active_run_started=lambda: ts)
     monkeypatch.setattr(controller, 'ovenWatcher', started)
     monkeypatch.setattr(
         controller.bottle, 'request',

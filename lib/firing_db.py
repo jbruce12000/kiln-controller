@@ -209,6 +209,12 @@ class FiringDb:
             if t is None:
                 t = time.time()
             run_started = oven_state.get("run_started")
+            # defense in depth: only active firings own samples. a
+            # stale run_started stamp on an idle broadcast (e.g. from
+            # before the watcher cleared its identity) must not attach
+            # idle samples to the finished firing.
+            if oven_state.get("state") not in ("RUNNING", "PAUSED"):
+                run_started = None
             with self._lock:
                 with self._con:
                     if run_started is not None:

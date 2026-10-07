@@ -38,10 +38,22 @@ class OvenWatcher(threading.Thread):
 
             # stamp the run start time so clients can tell when a new run
             # has begun (from the start button, a scheduled run, an api
-            # command, or an automatic restart)
-            if self.started:
-                oven_state['run_started'] = self.started.timestamp()
+            # command, or an automatic restart). idle broadcasts carry
+            # None: reusing the previous stamp would attach idle samples
+            # to the finished firing in the db.
+            try:
+                active = self.active_run_started()
+            except Exception:
+                active = None
+            if active is not None:
+                oven_state['run_started'] = active.timestamp()
             else:
+                # drop the identity the moment the oven goes idle so
+                # the backlog and later broadcasts cannot reuse it
+                if getattr(self, 'started', None) is not None and \
+                        getattr(getattr(self, 'oven', None),
+                                'state', None) not in ('RUNNING', 'PAUSED'):
+                    self.started = None
                 oven_state['run_started'] = None
 
             if self.mqtt:
@@ -72,6 +84,23 @@ class OvenWatcher(threading.Thread):
             # so the resumed firing keeps its original identity)
             self.started = datetime.datetime.fromtimestamp(float(started))
 
+    def clear(self):
+        '''end the current run identity. called when a firing ends so
+        later idle broadcasts carry run_started=None instead of the
+        previous firing's stamp (which would attach idle samples to
+        that firing in the db and make the ui think a run is still
+        in progress). last_profile is kept for display.'''
+        self.started = None
+
+    def active_run_started(self):
+        '''run start time while a firing is active, else None. gates
+        on the oven state so a stale stamp can never leak into idle
+        broadcasts, backlogs, or db writes.'''
+        if getattr(getattr(self, 'oven', None), 'state', None) \
+                not in ('RUNNING', 'PAUSED'):
+            return None
+        return getattr(self, 'started', None)
+
     def add_observer(self,observer):
         if self.last_profile:
             p = {
@@ -82,10 +111,14 @@ class OvenWatcher(threading.Thread):
         else:
             p = None
         
+        try:
+            active = self.active_run_started()
+        except Exception:
+            active = None
         backlog = {
             'type': "backlog",
             'profile': p,
-            'run_started': self.started.timestamp() if self.started else None,
+            'run_started': active.timestamp() if active else None,
         }
         backlog_json = json.dumps(backlog)
         try:

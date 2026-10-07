@@ -101,7 +101,7 @@ def test_backlog_profile_data_c_scale(monkeypatch):
 
 
 def test_backlog_includes_run_started():
-    watcher = make_watcher()
+    watcher = make_watcher(state="RUNNING")
     profile = types.SimpleNamespace(name="test-fast", data=[[0, 200]])
     watcher.record(profile)
     sock = FakeSocket()
@@ -110,12 +110,52 @@ def test_backlog_includes_run_started():
     assert payload['run_started'] == watcher.started.timestamp()
 
 
+def test_backlog_run_started_null_when_idle_after_run():
+    '''a finished firing must not leak its stamp into the backlog:
+    idle broadcasts carry None so new clients clear state and idle
+    samples stay out of the finished firing in the db.'''
+    watcher = make_watcher(state="IDLE")
+    profile = types.SimpleNamespace(name="test-fast", data=[[0, 200]])
+    watcher.record(profile)
+    sock = FakeSocket()
+    watcher.add_observer(sock)
+    payload = json.loads(sock.sent[0])
+    assert payload['run_started'] is None
+
+
 def test_backlog_run_started_null_when_idle():
     watcher = make_watcher()
     sock = FakeSocket()
     watcher.add_observer(sock)
     payload = json.loads(sock.sent[0])
     assert payload['run_started'] is None
+
+
+def test_run_loop_idle_clears_stale_started(monkeypatch):
+    '''idle broadcasts carry None and drop the finished firing's
+    identity so later samples cannot attach to it in the db.'''
+    watcher = make_watcher(state="IDLE")
+    profile = types.SimpleNamespace(name="test-fast", data=[[0, 200]])
+    watcher.record(profile)
+    assert watcher.started is not None
+    sock = FakeSocket()
+    watcher.observers.append(sock)
+
+    sleeps = [0]
+
+    def fake_sleep(secs):
+        sleeps[0] += 1
+        if sleeps[0] >= 1:
+            raise StopIteration
+
+    monkeypatch.setattr(ovenWatcher.time, 'sleep', fake_sleep)
+
+    with pytest.raises(StopIteration):
+        watcher.run()
+
+    payload = json.loads(sock.sent[0])
+    assert payload['run_started'] is None
+    assert watcher.started is None
 
 
 def test_run_loop_stamps_run_started(monkeypatch):
