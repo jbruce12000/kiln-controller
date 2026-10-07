@@ -1703,6 +1703,27 @@ function formatCountdown(secs) {
 var pending_schedules = [];
 var schedule_timer = null;
 
+function scheduleRunBadge(r) {
+    if (r.status === 'waiting') { return 'waiting'; }
+    if (r.chain_after) { return 'queued'; }
+    return 'pending';
+}
+
+function scheduleCountdownText(r, now) {
+    // a chained firing starts after the firing it follows actually ends
+    // (catch-up can stretch that past the estimate), so its start_time
+    // is only an estimate and must never count down like a fixed time.
+    if (r.chain_after) { return 'waiting for previous firing'; }
+    return r.start_time - now > 0 ? formatCountdown(r.start_time - now) : 'starting...';
+}
+
+function scheduleMetaText(r) {
+    if (r.chain_after) {
+        return 'After the previous run finishes.';
+    }
+    return 'Starts ' + scheduleTime(r);
+}
+
 function startScheduleTimer() {
     if (schedule_timer) { return; }
     schedule_timer = setInterval(function() {
@@ -1712,9 +1733,7 @@ function startScheduleTimer() {
             var r = pending_schedules[i];
             var el = document.getElementById('schedule-countdown-' + r.id);
             if (el) {
-                el.textContent = r.start_time - now > 0
-                    ? formatCountdown(r.start_time - now)
-                    : 'starting...';
+                el.textContent = scheduleCountdownText(r, now);
             }
         }
     }, 1000);
@@ -1735,11 +1754,14 @@ function listScheduledRuns() {
         var html = '';
         for (var i = 0; i < runs.length; i++) {
             var r = runs[i];
-            var left = r.start_time - (Date.now() / 1000);
+            var now = Date.now() / 1000;
+            var meta = r.chain_after
+                ? scheduleMetaText(r)
+                : scheduleMetaText(r) + ' &middot; <span id="schedule-countdown-' + r.id + '">' + scheduleCountdownText(r, now) + '</span>';
             html += '<div class="profile-row">'
                 + '<div class="profile-info">'
-                + '<div class="profile-name">' + r.profile + ' <span class="badge text-bg-primary">pending</span></div>'
-                + '<div class="profile-meta">Starts ' + scheduleTime(r) + ' &middot; in <span id="schedule-countdown-' + r.id + '">' + (left > 0 ? formatCountdown(left) : 'starting...') + '</span></div>'
+                + '<div class="profile-name">' + r.profile + ' <span class="badge text-bg-primary">' + scheduleRunBadge(r) + '</span></div>'
+                + '<div class="profile-meta">' + meta + '</div>'
                 + '</div>'
                 + '<div class="btn-group">'
                 + '<button type="button" class="btn btn-outline-danger btn-sm" onclick="cancelSchedule(\'' + r.id + '\')"><i class="bi bi-x-lg"></i> Cancel</button>'
