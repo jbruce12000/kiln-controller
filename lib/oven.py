@@ -149,11 +149,19 @@ class TempSensorReal(TempSensor):
             self.status.good()
             return temp
         except ThermocoupleError as tce:
+            raw = getattr(tce, "orig_message", None)
+            if raw and raw != tce.message:
+                detail = "%s (raw: %s)" % (tce.message, raw)
+            else:
+                detail = tce.message
             if tce.ignore:
-                log.error("Problem reading temp (ignored) %s" % (tce.message))
+                log.error("Problem reading temp (ignored) %s" % (detail))
                 self.status.good()
             else:
-                log.error("Problem reading temp %s" % (tce.message))
+                # exc_info logs the traceback including the chained
+                # underlying RuntimeError, so "unknown" errors can be
+                # diagnosed from the log.
+                log.error("Problem reading temp %s" % (detail), exc_info=True)
                 self.status.bad()
         return None
 
@@ -244,8 +252,11 @@ class Max31855(TempSensorReal):
             return self.thermocouple.temperature_NIST
         except RuntimeError as rte:
             if rte.args and rte.args[0]:
-                raise Max31855_Error(rte.args[0])
-            raise Max31855_Error('unknown')
+                raise Max31855_Error(rte.args[0]) from rte
+            # Bare RuntimeError() with no message has been seen from
+            # blinka/spi layers; keep the repr so the logs show more
+            # than just "unknown".
+            raise Max31855_Error(repr(rte)) from rte
 
 class ThermocoupleError(Exception):
     '''
