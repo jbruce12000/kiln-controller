@@ -11,8 +11,10 @@ import tarfile
 import io
 import re
 import base64
+import sqlite3
 import subprocess
 import importlib
+import tempfile
 import threading
 
 import requests
@@ -162,9 +164,9 @@ def handle_api():
 
 @app.get('/api/dump')
 def api_dump():
-    '''download config, state, all profiles, and logs as a tar.gz
-    archive. refused while a firing is active so the journal replay can
-    never interfere with kiln control.'''
+    '''download config, state, all profiles, firing db, and logs as a
+    tar.gz archive. refused while a firing is active so the journal
+    replay can never interfere with kiln control.'''
     if _firing_active():
         return bottle.HTTPResponse(
             json.dumps({"success": False,
@@ -178,6 +180,8 @@ def api_dump():
         for filename in profile_files():
             _tar_add_path(tar, os.path.join('profiles', filename),
                           os.path.join(profile_path, filename))
+        _tar_add_db(tar, 'firings.db',
+                    getattr(config, 'firing_db_file', None))
         _tar_add_bytes(tar, 'kiln.logs',
                        '\n'.join(gather_log_lines()) + '\n')
     out.seek(0)
@@ -218,6 +222,47 @@ def _tar_add_path(tar, arcname, path):
             _tar_add_bytes(tar, arcname, f.read())
     except Exception:
         log.error("could not add %s to config dump" % path)
+
+def _tar_add_binary(tar, arcname, data):
+    '''add in-memory bytes to a tar archive.'''
+    info = tarfile.TarInfo(arcname)
+    info.size = len(data)
+    tar.addfile(info, io.BytesIO(data))
+
+def _tar_add_db(tar, arcname, path):
+    '''add a consistent copy of the sqlite firing db to a tar
+    archive. uses the sqlite backup api into a temp file so the copy
+    includes WAL content and is never a torn read, even if the oven
+    loop wrote recently. skips the file (like _tar_add_path) when
+    the db is missing or unreadable.'''
+    if not path or not os.path.isfile(path):
+        log.error("could not add %s to config dump" % path)
+        return
+    tmp = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.db',
+                                         delete=False) as f:
+            tmp = f.name
+        src = sqlite3.connect('file:%s?mode=ro' % path, uri=True,
+                              timeout=10)
+        try:
+            dst = sqlite3.connect(tmp, timeout=10)
+            try:
+                src.backup(dst)
+            finally:
+                dst.close()
+        finally:
+            src.close()
+        with open(tmp, 'rb') as f:
+            _tar_add_binary(tar, arcname, f.read())
+    except Exception:
+        log.error("could not add %s to config dump" % path)
+    finally:
+        if tmp:
+            try:
+                os.unlink(tmp)
+            except Exception:
+                pass
 
 def gather_log_lines(since=None, until=None):
     '''gather kiln log lines from the systemd journal for the

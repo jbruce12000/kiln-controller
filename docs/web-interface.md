@@ -243,7 +243,7 @@ See the full `config.py` file and its comments for every available setting.
 ### Config Dump
 
 At the very bottom of the Config tab, **Config Dump** downloads a zip of your
-config, profiles, state, and logs -- useful when asking for help on the forum
+config, profiles, state, firing database, and logs -- useful when asking for help on the forum
 or filing a bug report.
 
 ---
