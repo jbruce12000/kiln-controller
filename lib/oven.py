@@ -26,6 +26,12 @@ class DupFilter(object):
         self.msgs.add(record.msg)
         return rv
 
+class RestartRetry(Exception):
+    '''a resume was requested but its profile is not available right now.
+    raised by automatic_restart() so run() can preserve the resume file
+    and retry on a later tick without logging an error every second.'''
+
+
 class Duplogger():
     def __init__(self):
         self.log = logging.getLogger("%s.dupfree" % (__name__))
@@ -821,6 +827,17 @@ class Oven(threading.Thread):
         except Exception:
             state['run_started'] = None
         state['ended_run_sequence'] = self.ended_run_sequence
+        # embed the full profile so a restart does not depend on the
+        # profile file still being on disk under "<name>.json": runs
+        # started from the ui without saving (or renamed/deleted
+        # afterwards) otherwise resume as an unresolvable filename.
+        try:
+            if self.profile is not None:
+                state['profile_data'] = {"name": self.profile.name,
+                                         "data": self.profile.data}
+        except Exception as e:
+            log.error("could not embed profile data in restart state: %s"
+                      % (e))
         with open(tmp, 'w', encoding='utf-8') as f:
             json.dump(state, f, ensure_ascii=False, indent=4)
             f.flush()
@@ -869,16 +886,97 @@ class Oven(threading.Thread):
             return False
         return True
 
-    def automatic_restart(self):
-        with open(config.automatic_restart_state_file) as infile: d = json.load(infile)
-        startat = d["runtime"]/60
-        filename = "%s.json" % (d["profile"])
-        profile_path = os.path.abspath(os.path.join(os.path.dirname( __file__ ), '..', 'storage','profiles',filename))
+    def _load_profile_by_name(self, wanted):
+        '''load a stored profile by its internal name. profiles are
+        matched on the "name" inside the file (like find_profile in
+        kiln-controller.py), never by assuming the filename is
+        "<name>.json", and the configured profiles directory is used
+        instead of a hardcoded path. returns a Profile or None when no
+        stored profile carries that name.'''
+        try:
+            filenames = os.listdir(config.kiln_profiles_directory)
+        except OSError:
+            return None
+        for filename in filenames:
+            path = os.path.join(config.kiln_profiles_directory, filename)
+            try:
+                with open(path, 'r') as f:
+                    obj = json.load(f)
+            except (IOError, ValueError):
+                continue
+            if not isinstance(obj, dict):
+                continue
+            if obj.get('name') != wanted:
+                continue
+            try:
+                return Profile(json.dumps(obj))
+            except Exception:
+                continue
+        return None
 
-        log.info("automatically restarting profile = %s at minute = %d" % (profile_path,startat))
-        with open(profile_path) as infile:
-            profile_json = json.dumps(json.load(infile))
-        profile = Profile(profile_json)
+    def _clear_failed_resume(self, d):
+        '''give up on an unresumable firing: go IDLE and overwrite the
+        resume file with that (so later ticks stop retrying), then emit
+        restart_not_resumed so the loss is visible instead of silent.'''
+        try:
+            runtime = float(d.get("runtime", 0) or 0)
+        except (TypeError, ValueError):
+            runtime = 0
+        try:
+            self.reset()
+            self.save_automatic_restart_state()
+        except Exception as e:
+            log.error("could not clear failed automatic restart state: %s"
+                      % (e))
+        self._emit('restart_not_resumed',
+                   profile=d.get('profile'),
+                   runtime_minutes=round(runtime / 60))
+
+    def automatic_restart(self):
+        # the state file itself being unreadable (torn write from an
+        # unclean shutdown) is transient: let it bubble so run()
+        # preserves the file and a later tick retries.
+        with open(config.automatic_restart_state_file) as infile: d = json.load(infile)
+        try:
+            startat = float(d.get("runtime", 0) or 0) / 60
+        except (TypeError, ValueError):
+            log.error("automatic restart not possible, invalid runtime %r"
+                      % (d.get("runtime"),))
+            self._clear_failed_resume(d)
+            return False
+
+        profile = None
+        # prefer the profile embedded in the resume file: it survives
+        # unsaved ui runs and renamed/deleted profile files.
+        saved = d.get("profile_data")
+        if isinstance(saved, dict) and saved.get("name") \
+                and isinstance(saved.get("data"), list):
+            try:
+                profile = Profile(json.dumps({"name": saved["name"],
+                                              "data": saved["data"]}))
+            except Exception as e:
+                log.error("automatic restart not possible, saved profile "
+                          "data is invalid: %s" % (e))
+                profile = None
+        wanted = d.get("profile")
+        if profile is None and wanted:
+            profile = self._load_profile_by_name(wanted)
+            if profile is None:
+                # transient: the file may reappear (re-synced) before
+                # the restart window expires. duplog keeps the 1/sec
+                # retry from spamming the syslog; run() preserves the
+                # resume file by raising RestartRetry instead of a
+                # per-second ERROR.
+                duplog.info("automatic restart waiting for profile %s, "
+                            "retrying" % (wanted,))
+                raise RestartRetry("profile %s not found" % (wanted,))
+        if profile is None:
+            log.error("automatic restart not possible, no resumable "
+                      "profile (profile=%r)" % (wanted,))
+            self._clear_failed_resume(d)
+            return False
+
+        log.info("automatically restarting profile = %s at minute = %d" % (wanted or profile.name,startat))
         resume_state = d.get("state")
         self.run_profile(profile, startat=startat, allow_seek=False)  # We don't want a seek on an auto restart.
         # a restart continues the SAME firing, it does not start a new
@@ -908,7 +1006,10 @@ class Oven(threading.Thread):
             # the outage struck while paused: stay paused (and do not
             # silently unpause someone's kiln), runtime stays frozen.
             self.state = "PAUSED"
-        self.cost = d["cost"]
+        try:
+            self.cost = float(d.get("cost", 0) or 0)
+        except (TypeError, ValueError):
+            self.cost = 0
         time.sleep(1)
         # the control thread starts before the watcher is attached at
         # boot; a missing watcher must not fail the restart (the
@@ -929,9 +1030,10 @@ class Oven(threading.Thread):
         else:
             log.error("restarted without ovenwatcher; new clients will miss this run's backlog")
         self._emit('restart_resumed',
-                   profile=d["profile"],
+                   profile=profile.name,
                    runtime_minutes=round(startat),
                    cost=round(self.cost, 2))
+        return True
 
     def set_ovenwatcher(self,watcher):
         log.info("ovenwatcher set in oven class")
@@ -965,6 +1067,19 @@ class Oven(threading.Thread):
             except StopIteration:
                 # loop-termination sentinel, not an error
                 raise
+            except RestartRetry:
+                # the resume file asks for a profile that is not on
+                # disk right now. automatic_restart() already logged
+                # it once via duplog; stay safe WITHOUT saving so the
+                # resume file survives and a later tick retries, and
+                # without a per-second ERROR that spams the syslog.
+                # reset() also cuts the relay on real ovens.
+                try:
+                    self.reset()
+                except Exception as abort_error:
+                    log.error("could not reset oven after deferred "
+                              "restart: %s" % (abort_error))
+                time.sleep(1)
             except Exception as e:
                 log.error("oven control loop error: %s" % (e))
                 try:

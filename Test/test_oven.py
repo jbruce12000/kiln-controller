@@ -15,6 +15,7 @@ from lib.oven import (
     Oven,
     PID,
     Profile,
+    RestartRetry,
     SimulatedOven,
     TempSensorReal,
     TempTracker,
@@ -749,6 +750,7 @@ def test_automatic_restart(tmp_path, monkeypatch):
     }))
 
     monkeypatch.setattr(config, 'automatic_restart_state_file', str(state_file))
+    monkeypatch.setattr(config, 'kiln_profiles_directory', str(profiles_dir))
     monkeypatch.setattr(oven_module(), '__file__', str(storage / 'oven.py'))
     monkeypatch.setattr(oven_module().time, 'sleep', lambda s: None)
 
@@ -774,8 +776,8 @@ def test_automatic_restart(tmp_path, monkeypatch):
 
 
 def _restart_env(tmp_path, monkeypatch, state):
-    '''a rebooted oven pointed at a tmp state file; profiles resolve
-    next to a fake oven module file. returns (oven, state_file).'''
+    '''a rebooted oven pointed at a tmp state file and tmp profiles
+    directory. returns (oven, state_file).'''
     profiles_dir = tmp_path / 'storage' / 'profiles'
     profiles_dir.mkdir(parents=True, exist_ok=True)
     state_file = tmp_path / 'state.json'
@@ -783,6 +785,7 @@ def _restart_env(tmp_path, monkeypatch, state):
     monkeypatch.setattr(config, 'automatic_restarts', True)
     monkeypatch.setattr(config, 'automatic_restart_state_file',
                         str(state_file))
+    monkeypatch.setattr(config, 'kiln_profiles_directory', str(profiles_dir))
     monkeypatch.setattr(config, 'thermocouple_offset', 0)
     monkeypatch.setattr(oven_module(), '__file__',
                         str(tmp_path / 'storage' / 'oven.py'))
@@ -838,6 +841,79 @@ def test_failed_restart_preserves_resume_file(tmp_path, monkeypatch):
     assert oven.state == "RUNNING"
     assert oven.profile.name == "test-fast"
     assert oven.runtime == pytest.approx(60)
+
+
+def test_restart_missing_profile_retries_quietly(tmp_path, monkeypatch):
+    '''a missing profile file is transient (it may be re-synced): the
+    restart raises RestartRetry so run() preserves the resume file and
+    retries without a per-second ERROR spamming the syslog.'''
+    oven, state_file = _restart_env(
+        tmp_path, monkeypatch,
+        {'state': 'RUNNING', 'runtime': 60, 'profile': 'test-fast',
+         'cost': 1.0})
+    with pytest.raises(RestartRetry):
+        oven.automatic_restart()
+    assert oven.state == "IDLE"
+    assert json.loads(state_file.read_text())['state'] == "RUNNING"
+
+
+def test_restart_prefers_embedded_profile_data(tmp_path, monkeypatch):
+    '''runs started from unsaved ui profiles resume from the profile
+    embedded in the state file even when no file exists on disk.'''
+    oven, _ = _restart_env(
+        tmp_path, monkeypatch,
+        {'state': 'RUNNING', 'runtime': 60, 'profile': 't',
+         'profile_data': {'name': 't', 'data': [[0, 20], [600, 100]]},
+         'cost': 1.0})
+    assert oven.automatic_restart() is True
+    assert oven.state == "RUNNING"
+    assert oven.profile.name == "t"
+
+
+def test_restart_matches_profile_by_name_not_filename(tmp_path,
+                                                      monkeypatch):
+    '''a stored profile renamed on disk still resumes: lookup matches
+    the internal name, never "<name>.json".'''
+    oven, _ = _restart_env(
+        tmp_path, monkeypatch,
+        {'state': 'RUNNING', 'runtime': 60, 'profile': 'test-fast',
+         'cost': 1.0})
+    with open(tmp_path / 'storage' / 'profiles' / 'renamed.json',
+              'w') as f:
+        f.write(open(os.path.join(os.path.dirname(__file__),
+                                   'test-fast.json')).read())
+    assert oven.automatic_restart() is True
+    assert oven.profile.name == "test-fast"
+
+
+def test_restart_without_resumable_profile_clears_resume(tmp_path,
+                                                         monkeypatch):
+    '''a resume with neither embedded data nor a profile name can never
+    succeed: it is cleared to IDLE (stopping the 1/sec retry loop) and
+    reports the loss instead of raising forever.'''
+    oven, state_file = _restart_env(
+        tmp_path, monkeypatch,
+        {'state': 'RUNNING', 'runtime': 60, 'profile': None, 'cost': 1.0})
+    assert oven.automatic_restart() is False
+    assert oven.state == "IDLE"
+    assert json.loads(state_file.read_text())['state'] == "IDLE"
+    assert oven.should_i_automatic_restart() is False
+
+
+def test_save_state_embeds_profile_data(tmp_path, monkeypatch):
+    '''the resume file carries the full profile so restarts do not
+    depend on the profile file.'''
+    monkeypatch.setattr(config, 'automatic_restart_state_file',
+                        str(tmp_path / 'state.json'))
+    oven = Oven()
+    oven.profile = Profile('{"name":"t","data":[[0, 20],[600, 100]]}')
+    oven.state = 'RUNNING'
+    oven.save_state()
+    with open(tmp_path / 'state.json') as f:
+        d = json.load(f)
+    assert d['profile'] == 't'
+    assert d['profile_data'] == {'name': 't',
+                                 'data': [[0, 20], [600, 100]]}
 
 
 def test_restart_without_ovenwatcher_attached(tmp_path, monkeypatch):
@@ -1082,6 +1158,9 @@ def test_run_paused_branch(monkeypatch):
 
     monkeypatch.setattr(oven_module().Oven, 'update_runtime', lambda self: calls.append('runtime'))
     monkeypatch.setattr(oven_module().Oven, 'update_target_temp', lambda self: calls.append('target'))
+    # stubbed: the real one would write the real state.json restart file
+    monkeypatch.setattr(oven_module().Oven, 'save_automatic_restart_state',
+                        lambda self: calls.append('save'), raising=False)
     monkeypatch.setattr(oven_module().Oven, 'heat_then_cool',
                         lambda self: calls.append('heat'), raising=False)
     monkeypatch.setattr(oven_module().Oven, 'reset_if_emergency', lambda self: calls.append('emergency'))
@@ -1096,7 +1175,8 @@ def test_run_paused_branch(monkeypatch):
     with pytest.raises(StopIteration):
         oven.run()
 
-    assert calls == (['runtime', 'target', 'heat', 'emergency', 'ended'] * 2)
+    assert calls == (['runtime', 'target', 'save', 'heat', 'emergency',
+                      'ended'] * 2)
 
 
 def test_run_running_branch(monkeypatch):
