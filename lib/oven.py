@@ -1056,6 +1056,24 @@ class SimulatedOven(Oven):
         self.start()
         log.info("SimulatedOven started")
 
+    def reset_simulated_temperature(self):
+        '''return the simulated kiln to its default start temp
+        (config.sim_t_env). called when a simulated run ends or is
+        stopped so the next run starts cold instead of inheriting the
+        previous firing's heat.'''
+        self.t_env = to_c(config.sim_t_env)
+        self.t = self.t_env
+        self.t_h = self.t_env
+        self.temperature = self.t_env
+        try:
+            self.board.temp_sensor.simulated_temperature = self.t_env
+        except AttributeError:
+            pass
+
+    def abort_run(self, reason='stopped'):
+        super().abort_run(reason=reason)
+        self.reset_simulated_temperature()
+
     # runtime is in sped up time, start_time is epoch seconds (real time)
     def get_start_time(self):
         return time.time() - self.runtime / self.speedup_factor
