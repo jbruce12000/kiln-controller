@@ -654,6 +654,63 @@ def test_backfill_no_growl_for_stale_response(js):
 
 
 ########################################################################
+# overview live series vs the profiles list arriving late
+########################################################################
+
+def _setup_update_profile_context(js):
+    src = open(JS_PATH).read()
+    js.eval(extract_function(src, 'updateProfile'))
+    js.eval('var state = "IDLE";')
+    js.eval('var run_started = null;')
+    js.eval('var running_profile_name = null;')
+    js.eval('var backlog_profile_name = null;')
+    js.eval('var selected_profile = 0;')
+    js.eval('var selected_profile_name = "";')
+    js.eval('var profiles = [{ name: "bisque", data: [[0, 65], [3600, 1000]] },'
+            ' { name: "glaze", data: [[0, 65], [3600, 1500]] }];')
+    js.eval('var graph = { profile: { data: [] }, live: { data: [] } };')
+    js.eval('function syncChartData() {}')
+    js.eval('function updateAxis() {}')
+    js.eval('function updateProfileTable() {}')
+    js.eval('function renderProfiles() {}')
+    js.eval('function updateSelectedProfileLabel() {}')
+
+
+def test_update_profile_keeps_backfilled_live_for_firing_schedule(js):
+    # a shift-reload replays the backlog while state is still IDLE (no
+    # live tick has arrived yet), and the profiles list often lands
+    # after the history backfill filled the white series. adopting the
+    # firing's own schedule must not wipe that just-loaded history.
+    _setup_update_profile_context(js)
+    js.eval('backlog_profile_name = "bisque";')
+    js.eval('run_started = 1700000000.0;')
+    js.eval('graph.live.data = [[60, 200, 1700000060.0],'
+            ' [120, 300, 1700000120.0]];')
+    js.eval('updateProfile(0);')
+    assert js.eval('graph.live.data.length') == 2
+    assert js.eval('JSON.stringify(graph.profile.data)') == \
+        '[[0,65],[3600,1000]]'
+
+
+def test_update_profile_clears_live_when_leaving_firing_schedule(js):
+    _setup_update_profile_context(js)
+    js.eval('backlog_profile_name = "bisque";')
+    js.eval('run_started = 1700000000.0;')
+    js.eval('graph.live.data = [[60, 200, 1700000060.0]];')
+    js.eval('updateProfile(1);')
+    assert js.eval('graph.live.data.length') == 0
+    assert js.eval('JSON.stringify(graph.profile.data)') == \
+        '[[0,65],[3600,1500]]'
+
+
+def test_update_profile_clears_live_when_idle(js):
+    _setup_update_profile_context(js)
+    js.eval('graph.live.data = [[60, 200, 1700000060.0]];')
+    js.eval('updateProfile(0);')
+    assert js.eval('graph.live.data.length') == 0
+
+
+########################################################################
 # config editor tab
 ########################################################################
 

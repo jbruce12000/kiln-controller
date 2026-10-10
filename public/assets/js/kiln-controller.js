@@ -639,7 +639,16 @@ function setEditMode(on) {
        selected_profile_name = profiles[id].name;
        graph.profile.data = profiles[id].data;
        if (state != "RUNNING" && state != "PAUSED") {
-           graph.live.data = [];
+           // A fresh page load mid-firing backfills the white live
+           // series from the db, but the profiles list arrives over
+           // its own socket and often lands after that backfill (a
+           // shift-reload reorders the arrivals). Wiping here would
+           // discard the just-loaded history, so only clear live data
+           // when leaving the firing's own schedule.
+           var firing_name = running_profile_name || backlog_profile_name;
+           if (profiles[id].name !== firing_name) {
+               graph.live.data = [];
+           }
        }
        syncChartData();
        updateAxis();
