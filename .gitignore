@@ -15,3 +15,4 @@ db/*.db
 db/*.db-wal
 db/*.db-shm
 venv/*
+kiln_controller.egg-info/

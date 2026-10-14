@@ -86,7 +86,7 @@ Download [Raspberry PI OS](https://www.raspberrypi.org/software/). Use Rasberry 
     $ cd kiln-controller
     $ python3 -m venv venv
     $ source venv/bin/activate
-    $ pip install -r requirements.txt
+    $ pip install -e .
 
 *Note: The above steps work on ubuntu if you prefer*
 
