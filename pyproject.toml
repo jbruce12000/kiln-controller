@@ -49,3 +49,6 @@ select = ["F"] # Pyflakes style linting
 
 [tool.pytest.ini_options]
 testpaths = ["Test"]
+
+[tool.setuptools]
+packages = [] # needed because of repo'S flat layout
