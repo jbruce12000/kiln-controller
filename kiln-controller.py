@@ -46,6 +46,9 @@ from alerts import (AlertStore, AlertManager, LogSink, MqttSink,
                      WebhookSink, ALERTS, validate_delivery)
 from mqttout import enabled as mqtt_enabled
 from firing_db import FiringDb
+from version import __version__
+
+log.info("kiln controller version %s" % __version__)
 
 app = bottle.Bottle()
 
@@ -175,6 +178,7 @@ def api_dump():
             headers={'Content-Type': 'application/json'})
     out = io.BytesIO()
     with tarfile.open(fileobj=out, mode='w:gz') as tar:
+        _tar_add_bytes(tar, 'version.txt', __version__ + '\n')
         _tar_add_path(tar, 'config.py', config.__file__)
         _tar_add_path(tar, 'state.json', config.automatic_restart_state_file)
         for filename in profile_files():
@@ -2197,6 +2201,7 @@ def delete_profile(profile):
 
 def get_config():
     return json.dumps({"simulate": config.simulate,
+        "version": __version__,
         "temp_scale": config.temp_scale,
         "time_scale_slope": config.time_scale_slope,
         "time_scale_profile": config.time_scale_profile,

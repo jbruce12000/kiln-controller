@@ -82,6 +82,31 @@ uv run ruff check .
   `lgpio` (via `rpi-lgpio`) only ships wheels for those, so Python 3.13+
   currently fails to install unless you build `lgpio` from source (requires `swig`).
 
+## Versioning and Releasing
+
+The running version is defined in one place: `lib/version.py`. It is shown in
+the web UI footer and included in the config dump (`version.txt`), so a bug
+report can always be tied to a release.
+
+Releases are tagged in git as `vX.Y.Z` (the project restarted versioning at
+`2.0.0`; move up from there). A test keeps `lib/version.py` and
+`pyproject.toml` in sync, so bumping is a two-file change:
+
+```bash
+# 1. bump both declarations to the same number
+$EDITOR lib/version.py pyproject.toml
+
+# 2. commit and tag the release
+git commit -am "Release v2.1.0"
+git tag -a v2.1.0 -m "v2.1.0"
+git push origin main
+git push origin v2.1.0
+```
+
+CI runs the test suite on every push, so a tag is only as good as the commit
+it points at. Never re-tag a released version — bump to the next number
+instead.
+
 ## Submitting Changes
 
 1. Fork the repository and create a feature branch

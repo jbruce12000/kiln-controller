@@ -17,6 +17,7 @@ import pytest
 import config
 import oven
 import ovenWatcher
+import version
 
 
 class StubOven:
@@ -135,8 +136,9 @@ def test_api_dump_returns_targz(monkeypatch, tmp_path):
     assert set(tar.getnames()) == {
         'config.py', 'state.json',
         'profiles/cone-05.json', 'profiles/bisque.json',
-        'firings.db', 'kiln.logs',
+        'firings.db', 'kiln.logs', 'version.txt',
     }
+    assert tar.extractfile('version.txt').read().decode().strip() == version.__version__
     assert 'INFO oven: temp=100' in tar.extractfile('kiln.logs').read().decode()
     assert '{"state": "RUNNING"}' in tar.extractfile('state.json').read().decode()
     profile = json.loads(tar.extractfile('profiles/cone-05.json').read().decode())
@@ -170,7 +172,8 @@ def test_api_dump_without_profiles(monkeypatch, tmp_path):
                         str(tmp_path / 'missing.db'))
     resp = controller.api_dump()
     tar = tarfile.open(fileobj=io.BytesIO(resp.body), mode='r:gz')
-    assert set(tar.getnames()) == {'config.py', 'state.json', 'kiln.logs'}
+    assert set(tar.getnames()) == {'config.py', 'state.json', 'kiln.logs',
+                                    'version.txt'}
 
 
 def test_api_dump_skips_missing_db(monkeypatch, tmp_path):
@@ -190,7 +193,8 @@ def test_api_dump_skips_missing_db(monkeypatch, tmp_path):
     resp = controller.api_dump()
     tar = tarfile.open(fileobj=io.BytesIO(resp.body), mode='r:gz')
     assert 'firings.db' not in tar.getnames()
-    assert set(tar.getnames()) == {'config.py', 'state.json', 'kiln.logs'}
+    assert set(tar.getnames()) == {'config.py', 'state.json', 'kiln.logs',
+                                    'version.txt'}
 
 
 def test_api_dump_refused_while_firing(monkeypatch, tmp_path):
@@ -576,9 +580,10 @@ def test_get_config():
     d = json.loads(controller.get_config())
     assert set(d) == {'simulate', 'temp_scale', 'time_scale_slope',
                       'time_scale_profile', 'kwh_rate', 'currency_type',
-                      'github_sharing_enabled'}
+                      'github_sharing_enabled', 'version'}
     assert d['kwh_rate'] == config.kwh_rate
     assert d['simulate'] == config.simulate
+    assert d['version'] == version.__version__
 
 
 ########################################################################

@@ -682,6 +682,13 @@ function setEditMode(on) {
         badge.style.display = show ? 'inline-flex' : 'none';
     }
 
+    function renderAppVersion(version)
+    {
+        var el = document.getElementById('app_version');
+        if (!el || !version) { return; }
+        el.innerHTML = 'Kiln Controller v' + escHtml(version);
+    }
+
     function updateOverviewStatus()
     {
         var badge = document.getElementById('overview_status');
@@ -2605,6 +2612,7 @@ function init()
         time_scale_profile = x.time_scale_profile;
         kwh_rate = x.kwh_rate;
         currency_type = x.currency_type;
+        renderAppVersion(x.version);
 
         if (temp_scale == "c") {temp_scale_display = "C";} else {temp_scale_display = "F";}
         var heatRateUnits = $('heat-rate-units');

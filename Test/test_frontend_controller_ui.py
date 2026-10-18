@@ -43,6 +43,7 @@ def js():
     context.eval(extract_function(src, 'updateSelectedProfileLabel'))
     context.eval(extract_function(src, 'profileDescription'))
     context.eval(extract_function(src, 'toggleSimBadge'))
+    context.eval(extract_function(src, 'renderAppVersion'))
     context.eval(extract_function(src, 'updateOverviewStatus'))
     context.eval(extract_function(src, 'clear_persisted_all'))
     context.eval(extract_function(src, 'prune_persisted_all'))
@@ -353,6 +354,33 @@ def test_sim_badge_hidden_when_real(js):
 def test_sim_badge_ignores_missing_element(js):
     js.eval('document = { getElementById: function(id) { return null; } };')
     assert js.eval('(function(){ try { toggleSimBadge(true); return "ok"; } catch (e) { return "throw"; } })()') == 'ok'
+
+
+########################################################################
+# app version footer
+########################################################################
+
+def test_version_footer_shows_version(js):
+    js.eval('var el = { innerHTML: "" };')
+    js.eval('document = { getElementById: function(id) { return id === "app_version" ? el : null; } };')
+    js.eval('renderAppVersion("2.0.0");')
+    assert js.eval('el.innerHTML') == 'Kiln Controller v2.0.0'
+
+
+def test_version_footer_escapes_html(js):
+    js.eval('var el = { innerHTML: "" };')
+    js.eval('document = { getElementById: function(id) { return id === "app_version" ? el : null; } };')
+    js.eval('renderAppVersion("<script>");')
+    assert '<script>' not in js.eval('el.innerHTML')
+
+
+def test_version_footer_ignores_missing_element_or_version(js):
+    js.eval('document = { getElementById: function(id) { return null; } };')
+    assert js.eval('(function(){ try { renderAppVersion("2.0.0"); return "ok"; } catch (e) { return "throw"; } })()') == 'ok'
+    js.eval('var el = { innerHTML: "unchanged" };')
+    js.eval('document = { getElementById: function(id) { return id === "app_version" ? el : null; } };')
+    js.eval('renderAppVersion(undefined);')
+    assert js.eval('el.innerHTML') == 'unchanged'
 
 
 ########################################################################
