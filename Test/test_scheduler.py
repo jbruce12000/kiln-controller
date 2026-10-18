@@ -57,7 +57,7 @@ def test_cancel_missing_returns_false(scheduler):
 
 def test_cancel_keeps_unrelated_runs(scheduler):
     a = scheduler.add('profile-a', time.time() + 3600)
-    b = scheduler.add('profile-b', time.time() + 7200)
+    scheduler.add('profile-b', time.time() + 7200)
     assert scheduler.cancel(a['id']) is True
     assert [r['profile'] for r in scheduler.list()] == ['profile-b']
 

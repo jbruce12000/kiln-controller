@@ -1,13 +1,14 @@
 VENV := venv
 PYTHON := $(VENV)/bin/python3
+UV := uv
 
 .PHONY: test lint dev-setup
 
 test:
-	uv run pytest Test -q
+	$(UV) run pytest Test -q
 
 lint:
-	uv run ruff check .
+	$(UV) run ruff check .
 
 dev-setup:
-	UV_PROJECT_ENVIRONMENT=$(VENV) uv sync
+	UV_PROJECT_ENVIRONMENT=$(VENV) $(UV) sync
