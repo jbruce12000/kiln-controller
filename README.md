@@ -90,6 +90,8 @@ Download [Raspberry PI OS](https://www.raspberrypi.org/software/). Use Rasberry 
 
 *Note: The above steps work on ubuntu if you prefer*
 
+For development and contributing, see [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ### Raspberry PI deployment
 
 If you're done playing around with simulations and want to deploy the code on a Raspberry PI to control a kiln, you'll need to do this in addition to the stuff listed above:
