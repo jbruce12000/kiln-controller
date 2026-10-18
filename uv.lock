@@ -579,6 +579,7 @@ dependencies = [
     { name = "greenlet" },
     { name = "paho-mqtt" },
     { name = "requests" },
+    { name = "rpi-lgpio" },
     { name = "setuptools" },
     { name = "websocket-client" },
 ]
@@ -602,6 +603,7 @@ requires-dist = [
     { name = "greenlet", specifier = "==3.5.6" },
     { name = "paho-mqtt", specifier = "==2.1.0" },
     { name = "requests", specifier = "==2.34.2" },
+    { name = "rpi-lgpio", specifier = "==0.6" },
     { name = "setuptools", specifier = "==84.0.0" },
     { name = "websocket-client", specifier = "==1.9.0" },
 ]
@@ -612,6 +614,20 @@ dev = [
     { name = "pytest", specifier = ">=9.1.1,<10" },
     { name = "ruff", specifier = ">=0.16.9,<0.17" },
     { name = "tomli", specifier = ">=2.4.1,<3" },
+]
+
+[[package]]
+name = "lgpio"
+version = "0.2.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/56/33/26ec2e8049eaa2f077bf23a12dc61ca559fbfa7bea0516bf263d657ae275/lgpio-0.2.2.0.tar.gz", hash = "sha256:11372e653b200f76a0b3ef8a23a0735c85ec678a9f8550b9893151ed0f863fff", size = 90087, upload-time = "2024-03-29T21:59:55.901Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/78/4e/5721ae44b29e4fe9175f68c881694e3713066590739a7c87f8cee2835c25/lgpio-0.2.2.0-cp311-cp311-linux_armv7l.whl", hash = "sha256:5b3c403e1fba9c17d178f1bde102726c548fc5c4fc1ccf5ec3e18f3c08e07e04", size = 382992, upload-time = "2024-03-29T22:00:45.039Z" },
+    { url = "https://files.pythonhosted.org/packages/88/53/e57a22fe815fc68d0991655c1105b8ed872a68491d32e4e0e7d10ffb5c4d/lgpio-0.2.2.0-cp311-cp311-manylinux_2_34_aarch64.whl", hash = "sha256:a2f71fb95b149d8ac82c7c6bae70f054f6dc42a006ad35c90c7d8e54921fbcf4", size = 364848, upload-time = "2024-04-01T22:49:45.889Z" },
+    { url = "https://files.pythonhosted.org/packages/a4/71/11f4e3d76400e4ca43f9f9b014f5a86d9a265340c0bea45cce037277eb34/lgpio-0.2.2.0-cp311-cp311-manylinux_2_34_x86_64.whl", hash = "sha256:e9f4f3915abe5ae0ffdb4b96f485076d80a663876d839e2d3fd9218a71b9873e", size = 370183, upload-time = "2024-04-13T14:08:14.139Z" },
+    { url = "https://files.pythonhosted.org/packages/fe/73/e56c9afb845df53492d42bdea01df9895272bccfdd5128f34719c3a07990/lgpio-0.2.2.0-cp312-cp312-linux_armv7l.whl", hash = "sha256:6c65ac42e878764d04a71ed12fe6d46089b36e9e8127722bf29bb2e4bc91de22", size = 383956, upload-time = "2024-03-29T22:00:47.315Z" },
+    { url = "https://files.pythonhosted.org/packages/3b/1c/becd00f66d2c65feed9a668ff9d91732394cb6baba7bec505d55de0e30c9/lgpio-0.2.2.0-cp312-cp312-manylinux_2_34_aarch64.whl", hash = "sha256:d907db79292c721c605af08187385ddb3b7af09907e1ffca56cf0cd6558ace0a", size = 366058, upload-time = "2024-04-01T22:49:47.615Z" },
+    { url = "https://files.pythonhosted.org/packages/4c/7a/e3b4e5225c9792c4092b2cc07504746acbe62d0a8e4cb023bdf65f6430cf/lgpio-0.2.2.0-cp312-cp312-manylinux_2_34_x86_64.whl", hash = "sha256:2aadff092f642fcdada8457c158f87259dfda3a89ec19bae0b99ff22b34aac4b", size = 372103, upload-time = "2024-04-13T14:08:16.351Z" },
 ]
 
 [[package]]
@@ -782,6 +798,18 @@ wheels = [
 ]
 
 [[package]]
+name = "rpi-lgpio"
+version = "0.6"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "lgpio" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/6e/6d/7b6cb0def16abda6af89d16a3363d4036501bf042f9c67668aad3b34927f/rpi_lgpio-0.6.tar.gz", hash = "sha256:84579b11d543bb8abdddc1e10fcd6bdc2819e5897be72d6949a2b044d71fb73e", size = 12723, upload-time = "2024-05-11T16:09:29.463Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/da/a9/06b843528e47ded0dd276537e9c56e7aec7c841b3b2749274e7d8121dab5/rpi_lgpio-0.6-py3-none-any.whl", hash = "sha256:0930b6e0ffbfbeee9366fbfa5038d29a7606be96a5229d570b1f81be8f776777", size = 11880, upload-time = "2024-05-11T16:09:27.75Z" },
+]
+
+[[package]]
 name = "ruff"
 version = "0.16.9"
 source = { registry = "https://pypi.org/simple" }
@@ -910,11 +938,11 @@ wheels = [
 
 [[package]]
 name = "urllib3"
-version = "2.7.0"
+version = "2.8.0"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/53/0c/06f8b233b8fd13b9e5ee11424ef85419ba0d8ba0b3138bf360be2ff56953/urllib3-2.7.0.tar.gz", hash = "sha256:231e0ec3b63ceb14667c67be60f2f2c40a518cb38b03af60abc813da26505f4c", size = 433602, upload-time = "2026-05-07T16:13:18.596Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/05/b17359e1cefb4f909b5e40b1b90a496d987258916dbbf88e842c729f510e/urllib3-2.8.0.tar.gz", hash = "sha256:63bf2ead4c879426ebf22ef2a781eeb4aa3b4ae798a0435506f8687fd5bb9b63", size = 458972, upload-time = "2026-09-15T19:29:36.253Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/7f/3e/5db95bcf282c52709639744ca2a8b149baccf648e39c8cc87553df9eae0c/urllib3-2.7.0-py3-none-any.whl", hash = "sha256:9fb4c81ebbb1ce9531cce37674bbc6f1360472bc18ca9a553ede278ef7276897", size = 131087, upload-time = "2026-05-07T16:13:17.151Z" },
+    { url = "https://files.pythonhosted.org/packages/92/9d/c4e665119135114480843e7ab388fa94d8480650450e6f8e26b70d323a4c/urllib3-2.8.0-py3-none-any.whl", hash = "sha256:0cf3cae568d36aa9576b28dfb35f11328f1cb974ca7647d9475ebb86c75ac6e3", size = 135717, upload-time = "2026-09-15T19:29:34.577Z" },
 ]
 
 [[package]]
