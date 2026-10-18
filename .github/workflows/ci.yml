@@ -24,7 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.3.0
 
       - name: Sync dependencies (fails if uv.lock is stale)
         run: uv sync --locked --python ${{ matrix.python-version }}
