@@ -36,6 +36,7 @@ dependencies = [
 dev = [
     "black >=26.5.1,<27",
     "pytest >=9.1.1,<10",
+    "quickjs>=1.19.4",
     "ruff>=0.16.9,<0.18",
     "tomli >=2.4.1,<3",
 ]

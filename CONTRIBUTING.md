@@ -81,6 +81,10 @@ uv run ruff check .
 - Python 3.11+ is required. Note: 3.11 and 3.12 are the tested versions —
   `lgpio` (via `rpi-lgpio`) only ships wheels for those, so Python 3.13+
   currently fails to install unless you build `lgpio` from source (requires `swig`).
+- `quickjs` runs the JavaScript in `public/assets/js/` so the frontend tests
+  can exercise it. It publishes wheels for x86_64, macOS, and Windows only, so
+  on a Raspberry Pi (ARM) it is compiled from source and needs a C toolchain
+  (for Raspberry Pi OS: `sudo apt install build-essential`).
 
 ## Versioning and Releasing
 
