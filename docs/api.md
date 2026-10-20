@@ -31,6 +31,10 @@ update alert delivery settings (any subset; see [alerts.md](alerts.md))
 
     curl -d '{"delivery": {"webhook_enabled": true, "webhook_url": "https://ntfy.sh/my-kiln", "mqtt_enabled": true, "mqtt_topic": "kiln/alert"}}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api/alerts
 
+send a test alert to verify delivery config (delivery failures show up in the log)
+
+    curl -X POST http://0.0.0.0:8081/api/alerts/test
+
 pause a run (maintain current temperature until resume)
 
     curl -d '{"cmd":"pause"}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
