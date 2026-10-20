@@ -1818,16 +1818,21 @@ def test_handle_control_run_and_stop(monkeypatch):
     ])
     runs = []
     stops = []
+    alerts = []
     monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
     monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
-    monkeypatch.setattr(controller.oven, 'run_profile', lambda profile: runs.append(profile.name))
+    monkeypatch.setattr(controller.oven, 'run_profile', lambda profile, **kw: runs.append(profile.name))
     monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
     monkeypatch.setattr(controller.oven, 'abort_run', lambda: stops.append(True))
+    monkeypatch.setattr(controller.alert_manager, 'emit',
+                        lambda alert_id, context=None: alerts.append((alert_id, context)))
 
     controller.handle_control()
 
     assert runs == ['cone-05']
     assert stops == [True]
+    # the web ui's start button must raise run_started like the api does
+    assert alerts == [('run_started', {'profile': 'cone-05', 'startat_minutes': 0})]
 
 
 def test_handle_control_run_without_profile_is_ignored(monkeypatch):
@@ -1840,7 +1845,7 @@ def test_handle_control_run_without_profile_is_ignored(monkeypatch):
     runs = []
     stops = []
     monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
-    monkeypatch.setattr(controller.oven, 'run_profile', lambda profile: runs.append(profile.name))
+    monkeypatch.setattr(controller.oven, 'run_profile', lambda profile, **kw: runs.append(profile.name))
     monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
     monkeypatch.setattr(controller.oven, 'abort_run', lambda: stops.append(True))
 
@@ -1861,7 +1866,7 @@ def test_handle_control_survives_bad_messages(monkeypatch):
     runs = []
     stops = []
     monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
-    monkeypatch.setattr(controller.oven, 'run_profile', lambda profile: runs.append(profile.name))
+    monkeypatch.setattr(controller.oven, 'run_profile', lambda profile, **kw: runs.append(profile.name))
     monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
     monkeypatch.setattr(controller.oven, 'abort_run', lambda: stops.append(True))
 
