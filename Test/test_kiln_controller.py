@@ -21,12 +21,12 @@ import version
 
 
 class StubOven:
-    '''replaces SimulatedOven/RealOven so importing the controller
-    does not spawn any hardware or simulation threads.'''
+    """replaces SimulatedOven/RealOven so importing the controller
+    does not spawn any hardware or simulation threads."""
 
     def __init__(self, *args, **kwargs):
         self.pid = types.SimpleNamespace(pidstats={})
-        self.state = 'IDLE'
+        self.state = "IDLE"
         self.run_sequence = 0
         self.ended_run_sequence = 0
         self.idle_since = time.time()
@@ -44,8 +44,7 @@ class StubOven:
         pass
 
     def get_display_pidstats(self):
-        return {'ispoint': 0, 'setpoint': 0, 'err': 0,
-                'pid': 0, 'p': 0, 'i': 0, 'd': 0}
+        return {"ispoint": 0, "setpoint": 0, "err": 0, "pid": 0, "p": 0, "i": 0, "d": 0}
 
 
 class StubOvenWatcher:
@@ -60,8 +59,8 @@ class StubOvenWatcher:
 
 
 def load_controller():
-    path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'kiln-controller.py'))
-    spec = importlib.util.spec_from_file_location('kiln_controller', path)
+    path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "kiln-controller.py"))
+    spec = importlib.util.spec_from_file_location("kiln_controller", path)
     module = importlib.util.module_from_spec(spec)
 
     saved = (oven.SimulatedOven, oven.RealOven, ovenWatcher.OvenWatcher)
@@ -80,143 +79,139 @@ controller = load_controller()
 
 @pytest.fixture(autouse=True)
 def fast_sleeps(monkeypatch):
-    '''handler/poll loops yield via gevent.sleep (fix #4) or legacy
+    """handler/poll loops yield via gevent.sleep (fix #4) or legacy
     time.sleep; stub both so websocket and fork tests never really
-    wait their delay seconds'''
-    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
-    monkeypatch.setattr(controller.gevent, 'sleep', lambda secs: None)
+    wait their delay seconds"""
+    monkeypatch.setattr(controller.time, "sleep", lambda secs: None)
+    monkeypatch.setattr(controller.gevent, "sleep", lambda secs: None)
 
 
 ########################################################################
 # routes
 ########################################################################
 
+
 def test_index_serves_spa(monkeypatch):
     html = controller.index()
-    assert html.headers['Content-Type'].startswith('text/html')
+    assert html.headers["Content-Type"].startswith("text/html")
 
 
 def test_state_redirects_to_details():
     with pytest.raises(bottle.HTTPResponse) as excinfo:
         controller.state()
     assert excinfo.value.status_code == 302
-    assert excinfo.value.headers['Location'].endswith('/#details')
+    assert excinfo.value.headers["Location"].endswith("/#details")
 
 
 def test_api_dump_returns_targz(monkeypatch, tmp_path):
     monkeypatch.setattr(
-        controller.subprocess, 'check_output',
-        lambda *a, **k: b'2024-01-01 INFO oven: temp=100\n'
-                        b'2024-01-01 ERROR kiln-controller: boom\n')
-    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
-    state_file = tmp_path / 'state.json'
+        controller.subprocess,
+        "check_output",
+        lambda *a, **k: b"2024-01-01 INFO oven: temp=100\n2024-01-01 ERROR kiln-controller: boom\n",
+    )
+    monkeypatch.setattr(controller.oven, "state", "IDLE")
+    state_file = tmp_path / "state.json"
     state_file.write_text('{"state": "RUNNING"}')
-    monkeypatch.setattr(config, 'automatic_restart_state_file', str(state_file))
-    profiles_dir = tmp_path / 'profiles'
+    monkeypatch.setattr(config, "automatic_restart_state_file", str(state_file))
+    profiles_dir = tmp_path / "profiles"
     profiles_dir.mkdir()
-    (profiles_dir / 'cone-05.json').write_text(
-        json.dumps({'name': 'cone-05', 'data': [[0, 200]]}))
-    (profiles_dir / 'bisque.json').write_text(
-        json.dumps({'name': 'bisque', 'data': [[0, 100]]}))
-    monkeypatch.setattr(controller, 'profile_path', str(profiles_dir))
-    db_path = tmp_path / 'firings.db'
+    (profiles_dir / "cone-05.json").write_text(json.dumps({"name": "cone-05", "data": [[0, 200]]}))
+    (profiles_dir / "bisque.json").write_text(json.dumps({"name": "bisque", "data": [[0, 100]]}))
+    monkeypatch.setattr(controller, "profile_path", str(profiles_dir))
+    db_path = tmp_path / "firings.db"
     con = sqlite3.connect(str(db_path))
     con.execute("CREATE TABLE firings (id INTEGER PRIMARY KEY, profile TEXT)")
     con.execute("INSERT INTO firings (profile) VALUES ('cone-05')")
     con.commit()
     con.close()
-    monkeypatch.setattr(config, 'firing_db_file', str(db_path))
+    monkeypatch.setattr(config, "firing_db_file", str(db_path))
 
     resp = controller.api_dump()
-    assert resp.headers['Content-Type'] == 'application/gzip'
-    assert 'attachment' in resp.headers['Content-Disposition']
-    assert 'kiln-config-dump.tar.gz' in resp.headers['Content-Disposition']
+    assert resp.headers["Content-Type"] == "application/gzip"
+    assert "attachment" in resp.headers["Content-Disposition"]
+    assert "kiln-config-dump.tar.gz" in resp.headers["Content-Disposition"]
 
-    tar = tarfile.open(fileobj=io.BytesIO(resp.body), mode='r:gz')
+    tar = tarfile.open(fileobj=io.BytesIO(resp.body), mode="r:gz")
     assert set(tar.getnames()) == {
-        'config.py', 'state.json',
-        'profiles/cone-05.json', 'profiles/bisque.json',
-        'firings.db', 'kiln.logs', 'version.txt',
+        "config.py",
+        "state.json",
+        "profiles/cone-05.json",
+        "profiles/bisque.json",
+        "firings.db",
+        "kiln.logs",
+        "version.txt",
     }
-    assert tar.extractfile('version.txt').read().decode().strip() == version.__version__
-    assert 'INFO oven: temp=100' in tar.extractfile('kiln.logs').read().decode()
-    assert '{"state": "RUNNING"}' in tar.extractfile('state.json').read().decode()
-    profile = json.loads(tar.extractfile('profiles/cone-05.json').read().decode())
-    assert profile == {'name': 'cone-05', 'data': [[0, 200]]}
+    assert tar.extractfile("version.txt").read().decode().strip() == version.__version__
+    assert "INFO oven: temp=100" in tar.extractfile("kiln.logs").read().decode()
+    assert '{"state": "RUNNING"}' in tar.extractfile("state.json").read().decode()
+    profile = json.loads(tar.extractfile("profiles/cone-05.json").read().decode())
+    assert profile == {"name": "cone-05", "data": [[0, 200]]}
     # config.py must be the real repo config
-    assert 'emergency_shutoff_temp' in tar.extractfile('config.py').read().decode()
+    assert "emergency_shutoff_temp" in tar.extractfile("config.py").read().decode()
     # firings.db must be a queryable sqlite copy of the firing db
-    db_raw = tar.extractfile('firings.db').read()
-    assert db_raw[:6] == b'SQLite'
-    copy_path = tmp_path / 'firings-copy.db'
+    db_raw = tar.extractfile("firings.db").read()
+    assert db_raw[:6] == b"SQLite"
+    copy_path = tmp_path / "firings-copy.db"
     copy_path.write_bytes(db_raw)
     copy = sqlite3.connect(str(copy_path))
     try:
         rows = copy.execute("SELECT profile FROM firings").fetchall()
     finally:
         copy.close()
-    assert rows == [('cone-05',)]
+    assert rows == [("cone-05",)]
 
 
 def test_api_dump_without_profiles(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller.subprocess, 'check_output',
-                        lambda *a, **k: b'')
-    state_file = tmp_path / 'state.json'
-    state_file.write_text('{}')
-    monkeypatch.setattr(config, 'automatic_restart_state_file', str(state_file))
-    profiles_dir = tmp_path / 'profiles'
+    monkeypatch.setattr(controller.subprocess, "check_output", lambda *a, **k: b"")
+    state_file = tmp_path / "state.json"
+    state_file.write_text("{}")
+    monkeypatch.setattr(config, "automatic_restart_state_file", str(state_file))
+    profiles_dir = tmp_path / "profiles"
     profiles_dir.mkdir()
-    monkeypatch.setattr(controller, 'profile_path', str(profiles_dir))
-    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
-    monkeypatch.setattr(config, 'firing_db_file',
-                        str(tmp_path / 'missing.db'))
+    monkeypatch.setattr(controller, "profile_path", str(profiles_dir))
+    monkeypatch.setattr(controller.oven, "state", "IDLE")
+    monkeypatch.setattr(config, "firing_db_file", str(tmp_path / "missing.db"))
     resp = controller.api_dump()
-    tar = tarfile.open(fileobj=io.BytesIO(resp.body), mode='r:gz')
-    assert set(tar.getnames()) == {'config.py', 'state.json', 'kiln.logs',
-                                    'version.txt'}
+    tar = tarfile.open(fileobj=io.BytesIO(resp.body), mode="r:gz")
+    assert set(tar.getnames()) == {"config.py", "state.json", "kiln.logs", "version.txt"}
 
 
 def test_api_dump_skips_missing_db(monkeypatch, tmp_path):
     # an absent/unreadable firing db must not fail the dump, it is
     # just left out like any other unreadable file
-    monkeypatch.setattr(controller.subprocess, 'check_output',
-                        lambda *a, **k: b'')
-    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
-    state_file = tmp_path / 'state.json'
-    state_file.write_text('{}')
-    monkeypatch.setattr(config, 'automatic_restart_state_file', str(state_file))
-    profiles_dir = tmp_path / 'profiles'
+    monkeypatch.setattr(controller.subprocess, "check_output", lambda *a, **k: b"")
+    monkeypatch.setattr(controller.oven, "state", "IDLE")
+    state_file = tmp_path / "state.json"
+    state_file.write_text("{}")
+    monkeypatch.setattr(config, "automatic_restart_state_file", str(state_file))
+    profiles_dir = tmp_path / "profiles"
     profiles_dir.mkdir()
-    monkeypatch.setattr(controller, 'profile_path', str(profiles_dir))
-    monkeypatch.setattr(config, 'firing_db_file',
-                        str(tmp_path / 'does-not-exist.db'))
+    monkeypatch.setattr(controller, "profile_path", str(profiles_dir))
+    monkeypatch.setattr(config, "firing_db_file", str(tmp_path / "does-not-exist.db"))
     resp = controller.api_dump()
-    tar = tarfile.open(fileobj=io.BytesIO(resp.body), mode='r:gz')
-    assert 'firings.db' not in tar.getnames()
-    assert set(tar.getnames()) == {'config.py', 'state.json', 'kiln.logs',
-                                    'version.txt'}
+    tar = tarfile.open(fileobj=io.BytesIO(resp.body), mode="r:gz")
+    assert "firings.db" not in tar.getnames()
+    assert set(tar.getnames()) == {"config.py", "state.json", "kiln.logs", "version.txt"}
 
 
 def test_api_dump_refused_while_firing(monkeypatch, tmp_path):
     # the journal replay can take minutes, so a config dump must be
     # refused while a firing (running or paused) is active
-    for state in ('RUNNING', 'PAUSED'):
-        monkeypatch.setattr(controller.oven, 'state', state)
+    for state in ("RUNNING", "PAUSED"):
+        monkeypatch.setattr(controller.oven, "state", state)
         resp = controller.api_dump()
         assert resp.status_code == 409
         body = json.loads(resp.body)
-        assert body['success'] is False
-        assert 'firing is active' in body['error']
+        assert body["success"] is False
+        assert "firing is active" in body["error"]
 
 
 def test_api_dump_allowed_while_idle_or_tuning(monkeypatch, tmp_path):
     # tuning does not count as an active firing, so dumps are allowed
-    monkeypatch.setattr(controller.subprocess, 'check_output',
-                        lambda *a, **k: b'')
-    monkeypatch.setattr(config, 'firing_db_file',
-                        str(tmp_path / 'missing.db'))
-    for state in ('IDLE', 'TUNING'):
-        monkeypatch.setattr(controller.oven, 'state', state)
+    monkeypatch.setattr(controller.subprocess, "check_output", lambda *a, **k: b"")
+    monkeypatch.setattr(config, "firing_db_file", str(tmp_path / "missing.db"))
+    for state in ("IDLE", "TUNING"):
+        monkeypatch.setattr(controller.oven, "state", state)
         resp = controller.api_dump()
         assert resp.status_code != 409
 
@@ -225,8 +220,8 @@ def test_gather_log_lines_has_no_timeout():
     # the journal replay can legitimately take minutes, so gather_log_lines
     # must not impose a timeout on journalctl
     src = inspect.getsource(controller.gather_log_lines)
-    assert 'timeout 60' not in src
-    assert 'journalctl' in src
+    assert "timeout 60" not in src
+    assert "journalctl" in src
 
 
 def test_gather_log_lines_bounded_query(monkeypatch):
@@ -235,14 +230,14 @@ def test_gather_log_lines_bounded_query(monkeypatch):
     seen = {}
 
     def fake_check_output(cmd, **kwargs):
-        seen['cmd'] = cmd
-        return b''
+        seen["cmd"] = cmd
+        return b""
 
-    monkeypatch.setattr(controller.subprocess, 'check_output',
-                        fake_check_output)
-    assert controller.gather_log_lines(since='2026-08-12 19:20:18',
-                                       until='2026-08-12 20:00:00') == []
-    assert '--since' in seen['cmd'] and '--until' in seen['cmd']
+    monkeypatch.setattr(controller.subprocess, "check_output", fake_check_output)
+    assert (
+        controller.gather_log_lines(since="2026-08-12 19:20:18", until="2026-08-12 20:00:00") == []
+    )
+    assert "--since" in seen["cmd"] and "--until" in seen["cmd"]
     with pytest.raises(ValueError):
         controller.gather_log_lines(since='2026-08-12"; rm -rf /')
 
@@ -254,37 +249,50 @@ def test_gather_log_lines_bounded_query(monkeypatch):
 # journal can never stall the server again.
 ########################################################################
 
-_FIRING_L1 = ('x 2026-08-12 19:20:18,315 INFO oven: '
-              'Running schedule cone-05 starting at 0 minutes')
-_FIRING_S1 = ('x 2026-08-12 19:20:18,345 INFO oven: '
-              'temp=65.00, target=200.00, error=135.00, pid=0.00, '
-              'p=468.45, i=0.00, d=0.00, heat_on=0.40, heat_off=1.60, '
-              'run_time=0, total_time=54600, time_left=54599')
-_FIRING_S2 = ('x 2026-08-12 19:20:20,348 INFO oven: '
-              'temp=65.03, target=200.00, error=134.97, pid=0.00, '
-              'p=468.34, i=0.00, d=0.00, heat_on=0.40, heat_off=1.60, '
-              'run_time=2, total_time=54600, time_left=54598')
-_FIRING_L2 = ('x 2026-08-12 19:32:07,392 INFO oven: '
-              'Running schedule cone-05 starting at 4 minutes')
-_FIRING_S3 = ('x 2026-08-12 19:32:09,394 INFO oven: '
-              'temp=66.00, target=200.00, error=134.00, pid=0.00, '
-              'p=1.00, i=0.00, d=0.00, heat_on=0.40, heat_off=1.60, '
-              'run_time=0, total_time=54600, time_left=54598')
-_FIRING_RESUME = ('x 2026-08-12 19:32:07,380 INFO oven: automatically '
-                  'restarting profile = '
-                  '/home/jbruce/repos/kiln-controller/storage/profiles/'
-                  'cone-05.json at minute = ')
+_FIRING_L1 = "x 2026-08-12 19:20:18,315 INFO oven: Running schedule cone-05 starting at 0 minutes"
+_FIRING_S1 = (
+    "x 2026-08-12 19:20:18,345 INFO oven: "
+    "temp=65.00, target=200.00, error=135.00, pid=0.00, "
+    "p=468.45, i=0.00, d=0.00, heat_on=0.40, heat_off=1.60, "
+    "run_time=0, total_time=54600, time_left=54599"
+)
+_FIRING_S2 = (
+    "x 2026-08-12 19:20:20,348 INFO oven: "
+    "temp=65.03, target=200.00, error=134.97, pid=0.00, "
+    "p=468.34, i=0.00, d=0.00, heat_on=0.40, heat_off=1.60, "
+    "run_time=2, total_time=54600, time_left=54598"
+)
+_FIRING_L2 = "x 2026-08-12 19:32:07,392 INFO oven: Running schedule cone-05 starting at 4 minutes"
+_FIRING_S3 = (
+    "x 2026-08-12 19:32:09,394 INFO oven: "
+    "temp=66.00, target=200.00, error=134.00, pid=0.00, "
+    "p=1.00, i=0.00, d=0.00, heat_on=0.40, heat_off=1.60, "
+    "run_time=0, total_time=54600, time_left=54598"
+)
+_FIRING_RESUME = (
+    "x 2026-08-12 19:32:07,380 INFO oven: automatically "
+    "restarting profile = "
+    "/home/jbruce/repos/kiln-controller/storage/profiles/"
+    "cone-05.json at minute = "
+)
 
 
 @pytest.fixture
 def firings_state():
-    '''pristine firing snapshot, restored after the test.'''
+    """pristine firing snapshot, restored after the test."""
     state = controller._firings_state
-    saved = {k: (list(v) if isinstance(v, list) else v)
-             for k, v in state.items()}
-    state.update({"metas": [], "last_line": None, "last_stamp": None,
-                  "resume_pending": None,
-                  "updated": 0.0, "refreshing": False, "error": None})
+    saved = {k: (list(v) if isinstance(v, list) else v) for k, v in state.items()}
+    state.update(
+        {
+            "metas": [],
+            "last_line": None,
+            "last_stamp": None,
+            "resume_pending": None,
+            "updated": 0.0,
+            "refreshing": False,
+            "error": None,
+        }
+    )
     state.pop("starts_seen", None)
     yield state
     state.update(saved)
@@ -294,107 +302,129 @@ def test_parse_firings_groups_samples():
     firings = controller.parse_firings([_FIRING_L1, _FIRING_S1, _FIRING_S2])
     assert len(firings) == 1
     firing = firings[0]
-    assert (firing['id'], firing['profile']) == (0, 'cone-05')
-    assert firing['start'] == '2026-08-12 19:20:18,315'
-    assert firing['end'] == '2026-08-12 19:20:20,348'
-    assert len(firing['samples']) == 2
-    assert firing['samples'][0]['temp'] == '65.00'
-    assert firing['resumed'] is False
+    assert (firing["id"], firing["profile"]) == (0, "cone-05")
+    assert firing["start"] == "2026-08-12 19:20:18,315"
+    assert firing["end"] == "2026-08-12 19:20:20,348"
+    assert len(firing["samples"]) == 2
+    assert firing["samples"][0]["temp"] == "65.00"
+    assert firing["resumed"] is False
 
 
 def test_parse_firings_detects_resume_marker():
     firings = controller.parse_firings([_FIRING_RESUME, _FIRING_L2])
-    assert firings[0]['resumed'] is True
+    assert firings[0]["resumed"] is True
 
 
 def test_consolidate_firings_merges_restart_resume():
     # resume marker merges regardless of the gap; without one, only a
     # same-profile start within the merge window merges
-    lines = [_FIRING_L1, _FIRING_S1,
-             _FIRING_RESUME, _FIRING_L2, _FIRING_S3]
+    lines = [_FIRING_L1, _FIRING_S1, _FIRING_RESUME, _FIRING_L2, _FIRING_S3]
     merged = controller.consolidate_firings(controller.parse_firings(lines))
     assert len(merged) == 1
-    assert merged[0]['samples'] == \
-        controller.parse_firings(lines)[0]['samples'] + \
-        controller.parse_firings(lines)[1]['samples']
-    assert merged[0]['start'] == '2026-08-12 19:20:18,315'
-    assert merged[0]['end'] == '2026-08-12 19:32:09,394'
+    assert (
+        merged[0]["samples"]
+        == controller.parse_firings(lines)[0]["samples"]
+        + controller.parse_firings(lines)[1]["samples"]
+    )
+    assert merged[0]["start"] == "2026-08-12 19:20:18,315"
+    assert merged[0]["end"] == "2026-08-12 19:32:09,394"
 
 
 def test_consolidate_firings_splits_profile_and_gap():
     def run_line(ts, name):
-        return ('x %s INFO oven: Running schedule %s starting at 0 minutes'
-                % (ts, name))
+        return "x %s INFO oven: Running schedule %s starting at 0 minutes" % (ts, name)
 
     def sample_line(ts):
-        return ('x %s INFO oven: temp=65.00, target=200.00, error=1.00, '
-                'pid=0.00, p=1.00, i=0.00, d=0.00, heat_on=0.40, '
-                'heat_off=1.60, run_time=0, total_time=100, time_left=100'
-                % ts)
+        return (
+            "x %s INFO oven: temp=65.00, target=200.00, error=1.00, "
+            "pid=0.00, p=1.00, i=0.00, d=0.00, heat_on=0.40, "
+            "heat_off=1.60, run_time=0, total_time=100, time_left=100" % ts
+        )
 
-    lines = [run_line('2026-08-12 19:20:18,000', 'a'),
-             sample_line('2026-08-12 19:20:18,100'),
-             # same profile 44s later: continuation
-             run_line('2026-08-12 19:21:02,000', 'a'),
-             sample_line('2026-08-12 19:21:02,100'),
-             # same profile 39min later: a new firing
-             run_line('2026-08-12 20:00:00,000', 'a'),
-             sample_line('2026-08-12 20:00:02,000'),
-             # other profile: a new firing
-             run_line('2026-08-12 20:05:00,000', 'b'),
-             sample_line('2026-08-12 20:05:02,000')]
+    lines = [
+        run_line("2026-08-12 19:20:18,000", "a"),
+        sample_line("2026-08-12 19:20:18,100"),
+        # same profile 44s later: continuation
+        run_line("2026-08-12 19:21:02,000", "a"),
+        sample_line("2026-08-12 19:21:02,100"),
+        # same profile 39min later: a new firing
+        run_line("2026-08-12 20:00:00,000", "a"),
+        sample_line("2026-08-12 20:00:02,000"),
+        # other profile: a new firing
+        run_line("2026-08-12 20:05:00,000", "b"),
+        sample_line("2026-08-12 20:05:02,000"),
+    ]
     merged = controller.consolidate_firings(controller.parse_firings(lines))
-    assert [(f['id'], f['profile'], len(f['samples'])) for f in merged] == \
-        [(0, 'a', 2), (2, 'a', 1), (3, 'b', 1)]
+    assert [(f["id"], f["profile"], len(f["samples"])) for f in merged] == [
+        (0, "a", 2),
+        (2, "a", 1),
+        (3, "b", 1),
+    ]
 
 
 def test_merge_lines_consolidates_snapshot(firings_state):
-    assert controller._merge_firing_lines(
-        [_FIRING_L1, _FIRING_S1, _FIRING_RESUME,
-         _FIRING_L2, _FIRING_S3]) == 'ok'
-    metas = firings_state['metas']
+    assert (
+        controller._merge_firing_lines(
+            [_FIRING_L1, _FIRING_S1, _FIRING_RESUME, _FIRING_L2, _FIRING_S3]
+        )
+        == "ok"
+    )
+    metas = firings_state["metas"]
     assert len(metas) == 1
-    assert metas[0]['samples'] == 2
-    assert metas[0]['start'] == '2026-08-12 19:20:18,315'
-    assert metas[0]['end'] == '2026-08-12 19:32:09,394'
+    assert metas[0]["samples"] == 2
+    assert metas[0]["start"] == "2026-08-12 19:20:18,315"
+    assert metas[0]["end"] == "2026-08-12 19:32:09,394"
 
 
 def test_merge_lines_lost_anchor(firings_state):
-    firings_state['last_line'] = 'gone from the journal'
-    assert controller._merge_firing_lines(['something else']) == \
-        'lost-anchor'
+    firings_state["last_line"] = "gone from the journal"
+    assert controller._merge_firing_lines(["something else"]) == "lost-anchor"
 
 
 def _seed_db(tmp_path, firings=1, samples_per=2, profile="cone-05"):
-    '''seed a tmp firings.db; returns [(db_id, run_started)]. db ids
-    are stable autoincrement ids, newest last.'''
+    """seed a tmp firings.db; returns [(db_id, run_started)]. db ids
+    are stable autoincrement ids, newest last."""
     from firing_db import FiringDb
+
     path = str(tmp_path / "firings.db")
     db = FiringDb(path, prune_on_start=False)
     ids = []
     for i in range(firings):
         started = 1700000000.0 + i * 10000
         for j in range(samples_per):
-            db.record_state({
-                'runtime': j * 2, 'temperature': 65.0 + j,
-                'target': 200.0, 'state': 'RUNNING', 'heat': 1.0,
-                'totaltime': 100, 'cost': 0.1, 'heat_rate': 50.0,
-                'catching_up': False, 'temp_errors': 0,
-                'profile': profile if firings == 1 else "%s-%d" % (profile, i),
-                'run_id': i + 1,
-                'pidstats': {'p': 1.0, 'i': 0.5, 'd': 0.1,
-                             'err': 135.0, 'pid': 2.0, 'out': 0.5},
-                'run_started': started})
-        row = db._con.execute(
-            "SELECT id FROM firings WHERE run_started = ?",
-            (started,)).fetchone()
+            db.record_state(
+                {
+                    "runtime": j * 2,
+                    "temperature": 65.0 + j,
+                    "target": 200.0,
+                    "state": "RUNNING",
+                    "heat": 1.0,
+                    "totaltime": 100,
+                    "cost": 0.1,
+                    "heat_rate": 50.0,
+                    "catching_up": False,
+                    "temp_errors": 0,
+                    "profile": profile if firings == 1 else "%s-%d" % (profile, i),
+                    "run_id": i + 1,
+                    "pidstats": {
+                        "p": 1.0,
+                        "i": 0.5,
+                        "d": 0.1,
+                        "err": 135.0,
+                        "pid": 2.0,
+                        "out": 0.5,
+                    },
+                    "run_started": started,
+                }
+            )
+        row = db._con.execute("SELECT id FROM firings WHERE run_started = ?", (started,)).fetchone()
         ids.append((row[0], started))
     db.close()
     return path, ids
 
 
 def _use_db(monkeypatch, path):
-    monkeypatch.setattr(config, 'firing_db_file', path, raising=False)
+    monkeypatch.setattr(config, "firing_db_file", path, raising=False)
 
 
 def test_api_firings_lists_newest_first(monkeypatch, tmp_path):
@@ -402,23 +432,23 @@ def test_api_firings_lists_newest_first(monkeypatch, tmp_path):
     path, ids = _seed_db(tmp_path, firings=2, profile="cone-05")
     _use_db(monkeypatch, path)
     resp = json.loads(controller.api_firings())
-    assert resp['success'] is True
-    assert resp['refreshing'] is False
-    assert resp['error'] is None
-    assert [f['profile'] for f in resp['firings']] == \
-        ['cone-05-1', 'cone-05-0']
-    assert resp['firings'][0]['samples'] == 2
-    assert resp['firings'][0]['id'] == ids[1][0]
+    assert resp["success"] is True
+    assert resp["refreshing"] is False
+    assert resp["error"] is None
+    assert [f["profile"] for f in resp["firings"]] == ["cone-05-1", "cone-05-0"]
+    assert resp["firings"][0]["samples"] == 2
+    assert resp["firings"][0]["id"] == ids[1][0]
 
 
 def test_api_firings_empty_db(monkeypatch, tmp_path):
     from firing_db import FiringDb
+
     path = str(tmp_path / "empty.db")
     FiringDb(path, prune_on_start=False).close()
     _use_db(monkeypatch, path)
     resp = json.loads(controller.api_firings())
-    assert resp['success'] is True
-    assert resp['firings'] == []
+    assert resp["success"] is True
+    assert resp["firings"] == []
 
 
 def test_api_firings_kicks_stale_refresh(monkeypatch, tmp_path):
@@ -426,8 +456,8 @@ def test_api_firings_kicks_stale_refresh(monkeypatch, tmp_path):
     path, _ = _seed_db(tmp_path)
     _use_db(monkeypatch, path)
     resp = json.loads(controller.api_firings())
-    assert resp['success'] is True
-    assert resp['refreshing'] is False
+    assert resp["success"] is True
+    assert resp["refreshing"] is False
 
 
 def test_api_firing_csv_serves_db_samples(monkeypatch, tmp_path):
@@ -435,39 +465,35 @@ def test_api_firing_csv_serves_db_samples(monkeypatch, tmp_path):
     _use_db(monkeypatch, path)
     resp = controller.api_firing_csv(str(ids[0][0]))
     assert resp.status_code == 200
-    assert resp.headers['Content-Type'] == 'text/csv'
-    assert 'attachment' in resp.headers['Content-Disposition']
+    assert resp.headers["Content-Type"] == "text/csv"
+    assert "attachment" in resp.headers["Content-Disposition"]
     rows = resp.body.strip().splitlines()
-    assert rows[0].split(',') == controller.FIRING_CSV_COLUMNS
+    assert rows[0].split(",") == controller.FIRING_CSV_COLUMNS
     assert len(rows) == 4  # header plus three samples
-    assert 'cone-05' in rows[1]
+    assert "cone-05" in rows[1]
 
 
 def test_api_firing_csv_rejects_bad_ids(monkeypatch, tmp_path):
     path, _ = _seed_db(tmp_path)
     _use_db(monkeypatch, path)
-    assert controller.api_firing_csv('nope').status_code == 400
-    assert controller.api_firing_csv('99').status_code == 404
+    assert controller.api_firing_csv("nope").status_code == 400
+    assert controller.api_firing_csv("99").status_code == 404
 
 
 def test_api_firings_refresh_starts_background(monkeypatch):
     # refresh is a no-op now: the db listing never goes stale
-    assert controller.api_firings_refresh() == {"success": True,
-                                                "refreshing": False}
+    assert controller.api_firings_refresh() == {"success": True, "refreshing": False}
 
 
 def _tail_lines_chronological():
-    '''chronological journal window: three separate firings, newest last.'''
+    """chronological journal window: three separate firings, newest last."""
     return [
-        'x 2026-08-16 14:04:33,776 INFO oven: Running schedule test-fast '
-        'starting at 0 minutes',
-        'x 2026-08-16 14:05:44,295 INFO oven: Running schedule candling '
-        'starting at 0 minutes',
-        'x 2026-08-17 02:51:57,993 INFO oven: Running schedule glaze '
-        'starting at 0 minutes',
-        'x 2026-08-17 02:52:00,000 INFO oven: temp=70.00, target=150.00, '
-        'error=1.00, pid=1.00, p=1.00, i=0.00, d=0.00, heat_on=2.00, '
-        'heat_off=0.00, run_time=0, total_time=200, time_left=200',
+        "x 2026-08-16 14:04:33,776 INFO oven: Running schedule test-fast starting at 0 minutes",
+        "x 2026-08-16 14:05:44,295 INFO oven: Running schedule candling starting at 0 minutes",
+        "x 2026-08-17 02:51:57,993 INFO oven: Running schedule glaze starting at 0 minutes",
+        "x 2026-08-17 02:52:00,000 INFO oven: temp=70.00, target=150.00, "
+        "error=1.00, pid=1.00, p=1.00, i=0.00, d=0.00, heat_on=2.00, "
+        "heat_off=0.00, run_time=0, total_time=200, time_left=200",
     ]
 
 
@@ -486,20 +512,17 @@ def test_reverse_tail_lines_stops_after_enough_starts(monkeypatch):
         def __init__(self):
             # newest-first, with more lines after the second start
             # that must never be read
-            self.stdout = FakeStdout(
-                _tail_lines_chronological()[::-1] + ['OLD LINE'])
+            self.stdout = FakeStdout(_tail_lines_chronological()[::-1] + ["OLD LINE"])
 
         def terminate(self):
-            seen['terminated'] = True
+            seen["terminated"] = True
 
         def wait(self, timeout=None):
             return 0
 
-    monkeypatch.setattr(controller.subprocess, 'Popen',
-                        lambda *a, **k: FakeProc())
-    assert list(controller._reverse_tail_lines(2)) == \
-        _tail_lines_chronological()[::-1][:3]
-    assert seen.get('terminated') is True
+    monkeypatch.setattr(controller.subprocess, "Popen", lambda *a, **k: FakeProc())
+    assert list(controller._reverse_tail_lines(2)) == _tail_lines_chronological()[::-1][:3]
+    assert seen.get("terminated") is True
 
 
 def test_tail_build_uses_recent_window(monkeypatch, firings_state):
@@ -508,370 +531,373 @@ def test_tail_build_uses_recent_window(monkeypatch, firings_state):
     assert controller.FIRING_LIST_LIMIT + 1 == 21
     many = []
     for i in range(21):
-        many.append('x 2026-10-03 12:%02d:00,000 INFO oven: Running '
-                    'schedule p%d starting at 0 minutes' % (i, i))
-    monkeypatch.setattr(controller, 'gather_log_lines',
-                        lambda since=None, until=None: list(many))
+        many.append(
+            "x 2026-10-03 12:%02d:00,000 INFO oven: Running "
+            "schedule p%d starting at 0 minutes" % (i, i)
+        )
+    monkeypatch.setattr(controller, "gather_log_lines", lambda since=None, until=None: list(many))
 
     def no_reverse(want):
-        raise AssertionError('slow path must not run')
+        raise AssertionError("slow path must not run")
 
-    monkeypatch.setattr(controller, '_reverse_tail_lines', no_reverse)
+    monkeypatch.setattr(controller, "_reverse_tail_lines", no_reverse)
     controller._tail_build_firings()
-    metas = firings_state['metas']
+    metas = firings_state["metas"]
     assert len(metas) == 20
-    assert metas[0]['profile'] == 'p1'  # oldest extra start bounds it
-    assert metas[-1]['profile'] == 'p20'
+    assert metas[0]["profile"] == "p1"  # oldest extra start bounds it
+    assert metas[-1]["profile"] == "p20"
 
 
 def test_tail_build_lists_recent_firings(monkeypatch, firings_state):
     # too few starts in the recent window: stream the journal tail
     # newest-first instead
-    monkeypatch.setattr(controller, 'gather_log_lines',
-                        lambda since=None, until=None: [])
-    monkeypatch.setattr(controller, '_reverse_tail_lines',
-                        lambda want:
-                        iter(_tail_lines_chronological()[::-1]))
+    monkeypatch.setattr(controller, "gather_log_lines", lambda since=None, until=None: [])
+    monkeypatch.setattr(
+        controller, "_reverse_tail_lines", lambda want: iter(_tail_lines_chronological()[::-1])
+    )
     controller._tail_build_firings()
-    metas = firings_state['metas']
-    assert [m['profile'] for m in metas] == ['test-fast', 'candling',
-                                            'glaze']
-    assert metas[-1]['samples'] == 1
+    metas = firings_state["metas"]
+    assert [m["profile"] for m in metas] == ["test-fast", "candling", "glaze"]
+    assert metas[-1]["samples"] == 1
     # the newest raw line anchors incremental refreshes
-    assert firings_state['last_line'].startswith('x 2026-08-17 02:52:00')
-    assert firings_state['last_stamp'] == '2026-08-17 02:52:00'
+    assert firings_state["last_line"].startswith("x 2026-08-17 02:52:00")
+    assert firings_state["last_stamp"] == "2026-08-17 02:52:00"
     # each firing is bounded by the next firing's start
-    assert metas[0]['until'] == '2026-08-16 14:05:44'
-    assert metas[-1]['until'] is None
+    assert metas[0]["until"] == "2026-08-16 14:05:44"
+    assert metas[-1]["until"] is None
 
 
 def test_tail_build_empty_journal(monkeypatch, firings_state):
-    monkeypatch.setattr(controller, 'gather_log_lines',
-                        lambda since=None, until=None: [])
-    monkeypatch.setattr(controller, '_reverse_tail_lines',
-                        lambda want: iter([]))
+    monkeypatch.setattr(controller, "gather_log_lines", lambda since=None, until=None: [])
+    monkeypatch.setattr(controller, "_reverse_tail_lines", lambda want: iter([]))
     controller._tail_build_firings()
-    assert firings_state['metas'] == []
-    assert firings_state['last_line'] is None
+    assert firings_state["metas"] == []
+    assert firings_state["last_line"] is None
 
 
 def test_api_firings_ids_are_stable(monkeypatch, tmp_path):
-    path, ids = _seed_db(tmp_path, firings=3, samples_per=1,
-                         profile="glaze")
+    path, ids = _seed_db(tmp_path, firings=3, samples_per=1, profile="glaze")
     _use_db(monkeypatch, path)
     resp = json.loads(controller.api_firings())
     # newest first, stable db ids (not positional indexes)
-    assert [(f['id'], f['profile']) for f in resp['firings']] == \
-        [(ids[2][0], 'glaze-2'), (ids[1][0], 'glaze-1'),
-         (ids[0][0], 'glaze-0')]
+    assert [(f["id"], f["profile"]) for f in resp["firings"]] == [
+        (ids[2][0], "glaze-2"),
+        (ids[1][0], "glaze-1"),
+        (ids[0][0], "glaze-0"),
+    ]
     # csv addresses the db id directly
     csv_resp = controller.api_firing_csv(str(ids[2][0]))
     assert csv_resp.status_code == 200
-    assert 'glaze-2' in csv_resp.body
-
-
+    assert "glaze-2" in csv_resp.body
 
 
 ########################################################################
 # config helpers
 ########################################################################
 
+
 def test_get_config():
     d = json.loads(controller.get_config())
-    assert set(d) == {'simulate', 'temp_scale', 'time_scale_slope',
-                      'time_scale_profile', 'kwh_rate', 'currency_type',
-                      'github_sharing_enabled', 'version'}
-    assert d['kwh_rate'] == config.kwh_rate
-    assert d['simulate'] == config.simulate
-    assert d['version'] == version.__version__
+    assert set(d) == {
+        "simulate",
+        "temp_scale",
+        "time_scale_slope",
+        "time_scale_profile",
+        "kwh_rate",
+        "currency_type",
+        "github_sharing_enabled",
+        "version",
+    }
+    assert d["kwh_rate"] == config.kwh_rate
+    assert d["simulate"] == config.simulate
+    assert d["version"] == version.__version__
 
 
 ########################################################################
 # temperature unit helpers
 ########################################################################
 
+
 def test_convert_to_c():
-    profile = {'data': [[0, 32], [100, 212]]}
+    profile = {"data": [[0, 32], [100, 212]]}
     out = controller.convert_to_c(profile)
-    assert out['data'] == [(0, 0.0), (100, 100.0)]
+    assert out["data"] == [(0, 0.0), (100, 100.0)]
 
 
 def test_convert_to_f():
-    profile = {'data': [[0, 0], [100, 100]]}
+    profile = {"data": [[0, 0], [100, 100]]}
     out = controller.convert_to_f(profile)
-    assert out['data'] == [(0, 32.0), (100, 212.0)]
+    assert out["data"] == [(0, 32.0), (100, 212.0)]
 
 
 def test_convert_to_c_empty_data():
-    assert controller.convert_to_c({'data': []})['data'] == []
+    assert controller.convert_to_c({"data": []})["data"] == []
 
 
 def test_convert_to_f_empty_data():
-    assert controller.convert_to_f({'data': []})['data'] == []
+    assert controller.convert_to_f({"data": []})["data"] == []
 
 
 def test_convert_round_trip():
-    profile = {'data': [[0, -40], [3600, 25], [7200, 100], [10800, 2000]]}
-    original = [tuple(p) for p in profile['data']]
+    profile = {"data": [[0, -40], [3600, 25], [7200, 100], [10800, 2000]]}
+    original = [tuple(p) for p in profile["data"]]
     out = controller.convert_to_f(controller.convert_to_c(profile))
-    assert len(out['data']) == len(original)
-    for (s1, t1), (s2, t2) in zip(out['data'], original):
+    assert len(out["data"]) == len(original)
+    for (s1, t1), (s2, t2) in zip(out["data"], original):
         assert s1 == pytest.approx(s2)
         assert t1 == pytest.approx(t2)
 
 
 def test_get_config_temp_scale(monkeypatch):
-    monkeypatch.setattr(config, 'temp_scale', 'c')
-    assert json.loads(controller.get_config())['temp_scale'] == 'c'
-    monkeypatch.setattr(config, 'temp_scale', 'f')
-    assert json.loads(controller.get_config())['temp_scale'] == 'f'
+    monkeypatch.setattr(config, "temp_scale", "c")
+    assert json.loads(controller.get_config())["temp_scale"] == "c"
+    monkeypatch.setattr(config, "temp_scale", "f")
+    assert json.loads(controller.get_config())["temp_scale"] == "f"
 
 
 def test_add_temp_units_converts_even_if_already_tagged(monkeypatch):
     # incoming profiles are always display scale, so the temp_units tag
     # is ignored and the data is force-converted to celsius for storage
-    monkeypatch.setattr(config, 'temp_scale', 'f')
-    profile = {'name': 'x', 'temp_units': 'c', 'data': [[0, 32]]}
+    monkeypatch.setattr(config, "temp_scale", "f")
+    profile = {"name": "x", "temp_units": "c", "data": [[0, 32]]}
     out = controller.add_temp_units(profile)
-    assert out['temp_units'] == 'c'
-    assert out['data'] == [(0, 0.0)]
+    assert out["temp_units"] == "c"
+    assert out["data"] == [(0, 0.0)]
 
 
 def test_add_temp_units_f_scale_converts(monkeypatch):
-    monkeypatch.setattr(config, 'temp_scale', 'f')
-    profile = {'name': 'x', 'data': [[0, 32], [100, 212]]}
+    monkeypatch.setattr(config, "temp_scale", "f")
+    profile = {"name": "x", "data": [[0, 32], [100, 212]]}
     out = controller.add_temp_units(profile)
-    assert out['temp_units'] == 'c'
-    assert out['data'] == [(0, 0.0), (100, 100.0)]
+    assert out["temp_units"] == "c"
+    assert out["data"] == [(0, 0.0), (100, 100.0)]
 
 
 def test_add_temp_units_c_scale_no_conversion(monkeypatch):
-    monkeypatch.setattr(config, 'temp_scale', 'c')
-    profile = {'name': 'x', 'data': [[0, 0], [100, 100]]}
+    monkeypatch.setattr(config, "temp_scale", "c")
+    profile = {"name": "x", "data": [[0, 0], [100, 100]]}
     out = controller.add_temp_units(profile)
-    assert out['temp_units'] == 'c'
-    assert out['data'] == [[0, 0], [100, 100]]
+    assert out["temp_units"] == "c"
+    assert out["data"] == [[0, 0], [100, 100]]
 
 
 def test_normalize_temp_units(monkeypatch):
-    monkeypatch.setattr(config, 'temp_scale', 'f')
+    monkeypatch.setattr(config, "temp_scale", "f")
     profiles = [
-        {'name': 'a', 'temp_units': 'c', 'data': [[0, 0], [100, 100]]},
-        {'name': 'b', 'data': [[0, 200]]},
+        {"name": "a", "temp_units": "c", "data": [[0, 0], [100, 100]]},
+        {"name": "b", "data": [[0, 200]]},
     ]
     out = controller.normalize_temp_units(profiles)
-    assert out[0]['temp_units'] == 'f'
-    assert out[0]['data'] == [(0, 32.0), (100, 212.0)]
-    assert 'temp_units' not in out[1]
+    assert out[0]["temp_units"] == "f"
+    assert out[0]["data"] == [(0, 32.0), (100, 212.0)]
+    assert "temp_units" not in out[1]
 
 
 def test_normalize_temp_units_c_scale_converts_f_stored(monkeypatch):
-    monkeypatch.setattr(config, 'temp_scale', 'c')
+    monkeypatch.setattr(config, "temp_scale", "c")
     profiles = [
-        {'name': 'a', 'temp_units': 'c', 'data': [[0, 0]]},
-        {'name': 'b', 'temp_units': 'f', 'data': [[0, 32]]},
+        {"name": "a", "temp_units": "c", "data": [[0, 0]]},
+        {"name": "b", "temp_units": "f", "data": [[0, 32]]},
     ]
     out = controller.normalize_temp_units(profiles)
-    assert out[0]['data'] == [[0, 0]]
-    assert out[0]['temp_units'] == 'c'
-    assert out[1]['data'] == [(0, 0.0)]
-    assert out[1]['temp_units'] == 'c'
+    assert out[0]["data"] == [[0, 0]]
+    assert out[0]["temp_units"] == "c"
+    assert out[1]["data"] == [(0, 0.0)]
+    assert out[1]["temp_units"] == "c"
 
 
 def test_normalize_temp_units_f_scale_untouched(monkeypatch):
-    monkeypatch.setattr(config, 'temp_scale', 'f')
-    profile = {'name': 'a', 'temp_units': 'f', 'data': [[0, 32], [100, 212]]}
+    monkeypatch.setattr(config, "temp_scale", "f")
+    profile = {"name": "a", "temp_units": "f", "data": [[0, 32], [100, 212]]}
     out = controller.normalize_temp_units([profile])
-    assert out[0]['temp_units'] == 'f'
-    assert out[0]['data'] == [[0, 32], [100, 212]]
+    assert out[0]["temp_units"] == "f"
+    assert out[0]["data"] == [[0, 32], [100, 212]]
 
 
 def test_normalize_temp_units_mixed_scales(monkeypatch):
-    monkeypatch.setattr(config, 'temp_scale', 'f')
+    monkeypatch.setattr(config, "temp_scale", "f")
     profiles = [
-        {'name': 'a', 'temp_units': 'c', 'data': [[0, 0], [100, 100]]},
-        {'name': 'b', 'temp_units': 'f', 'data': [[0, 32]]},
+        {"name": "a", "temp_units": "c", "data": [[0, 0], [100, 100]]},
+        {"name": "b", "temp_units": "f", "data": [[0, 32]]},
     ]
     out = controller.normalize_temp_units(profiles)
-    assert out[0]['temp_units'] == 'f'
-    assert out[0]['data'] == [(0, 32.0), (100, 212.0)]
-    assert out[1]['temp_units'] == 'f'
-    assert out[1]['data'] == [[0, 32]]
+    assert out[0]["temp_units"] == "f"
+    assert out[0]["data"] == [(0, 32.0), (100, 212.0)]
+    assert out[1]["temp_units"] == "f"
+    assert out[1]["data"] == [[0, 32]]
 
 
 ########################################################################
 # profile storage helpers
 ########################################################################
 
+
 def test_get_profiles(tmp_path, monkeypatch):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    (tmp_path / 'a.json').write_text(
-        json.dumps({'name': 'a', 'temp_units': 'c', 'data': [[0, 0], [100, 100]]}))
-    (tmp_path / 'b.json').write_text(
-        json.dumps({'name': 'b', 'data': [[0, 32]]}))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    (tmp_path / "a.json").write_text(
+        json.dumps({"name": "a", "temp_units": "c", "data": [[0, 0], [100, 100]]})
+    )
+    (tmp_path / "b.json").write_text(json.dumps({"name": "b", "data": [[0, 32]]}))
 
     profiles = json.loads(controller.get_profiles())
     assert len(profiles) == 2
-    by_name = {p['name']: p for p in profiles}
-    assert set(by_name) == {'a', 'b'}
+    by_name = {p["name"]: p for p in profiles}
+    assert set(by_name) == {"a", "b"}
     # config.temp_scale is f, so c-stored profiles come back in f
-    assert by_name['a']['temp_units'] == 'f'
-    assert by_name['a']['data'] == [[0, 32.0], [100, 212.0]]
-    assert 'temp_units' not in by_name['b']
+    assert by_name["a"]["temp_units"] == "f"
+    assert by_name["a"]["data"] == [[0, 32.0], [100, 212.0]]
+    assert "temp_units" not in by_name["b"]
 
 
 def test_get_profiles_missing_directory(monkeypatch):
-    monkeypatch.setattr(controller, 'profile_path', '/nonexistent/dir/xyz')
-    assert controller.get_profiles() == '[]'
+    monkeypatch.setattr(controller, "profile_path", "/nonexistent/dir/xyz")
+    assert controller.get_profiles() == "[]"
 
 
 def test_get_profiles_c_scale_untouched(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    monkeypatch.setattr(config, 'temp_scale', 'c')
-    (tmp_path / 'a.json').write_text(
-        json.dumps({'name': 'a', 'temp_units': 'c', 'data': [[0, 0], [100, 100]]}))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    monkeypatch.setattr(config, "temp_scale", "c")
+    (tmp_path / "a.json").write_text(
+        json.dumps({"name": "a", "temp_units": "c", "data": [[0, 0], [100, 100]]})
+    )
 
     profiles = json.loads(controller.get_profiles())
-    assert profiles[0]['temp_units'] == 'c'
-    assert profiles[0]['data'] == [[0, 0], [100, 100]]
+    assert profiles[0]["temp_units"] == "c"
+    assert profiles[0]["data"] == [[0, 0], [100, 100]]
 
 
 def test_get_profiles_sorted_by_name(tmp_path, monkeypatch):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    for name in ('zebra', 'alpha', 'mike'):
-        (tmp_path / (name + '.json')).write_text(
-            json.dumps({'name': name, 'data': [[0, 0]]}))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    for name in ("zebra", "alpha", "mike"):
+        (tmp_path / (name + ".json")).write_text(json.dumps({"name": name, "data": [[0, 0]]}))
 
     profiles = json.loads(controller.get_profiles())
-    assert [p['name'] for p in profiles] == ['alpha', 'mike', 'zebra']
+    assert [p["name"] for p in profiles] == ["alpha", "mike", "zebra"]
 
 
 def test_find_profile(tmp_path, monkeypatch):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    (tmp_path / 'test-fast.json').write_text(
-        json.dumps({'name': 'test-fast', 'data': [[0, 200]]}))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    (tmp_path / "test-fast.json").write_text(json.dumps({"name": "test-fast", "data": [[0, 200]]}))
 
-    profile = controller.find_profile('test-fast')
-    assert profile['name'] == 'test-fast'
-    assert controller.find_profile('missing') is None
+    profile = controller.find_profile("test-fast")
+    assert profile["name"] == "test-fast"
+    assert controller.find_profile("missing") is None
 
 
 def test_find_profile_returns_raw_celsius_storage(monkeypatch, tmp_path):
     # profiles are stored in celsius, find_profile must hand back the
     # raw stored values regardless of the display scale
-    monkeypatch.setattr(config, 'temp_scale', 'f')
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    (tmp_path / 'x.json').write_text(
-        json.dumps({'name': 'x', 'temp_units': 'c', 'data': [[0, 100]]}))
+    monkeypatch.setattr(config, "temp_scale", "f")
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    (tmp_path / "x.json").write_text(
+        json.dumps({"name": "x", "temp_units": "c", "data": [[0, 100]]})
+    )
 
-    profile = controller.find_profile('x')
-    assert profile['data'] == [[0, 100]]  # 100c, not 212f
+    profile = controller.find_profile("x")
+    assert profile["data"] == [[0, 100]]  # 100c, not 212f
 
 
 def test_save_profile(tmp_path, monkeypatch):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    profile = {'name': 'foo', 'data': [[0, 200], [3600, 2000]]}
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    profile = {"name": "foo", "data": [[0, 200], [3600, 2000]]}
 
     assert controller.save_profile(dict(profile)) is True
-    assert (tmp_path / 'foo.json').exists()
+    assert (tmp_path / "foo.json").exists()
     # force=False refuses to overwrite
     assert controller.save_profile(dict(profile)) is False
     # force=True overwrites
     assert controller.save_profile(dict(profile), force=True) is True
 
-    saved = json.loads((tmp_path / 'foo.json').read_text())
-    assert saved['name'] == 'foo'
-    assert saved['temp_units'] == 'c'
+    saved = json.loads((tmp_path / "foo.json").read_text())
+    assert saved["name"] == "foo"
+    assert saved["temp_units"] == "c"
 
 
 def test_save_profile_persists_description(tmp_path, monkeypatch):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    profile = {'name': 'foo', 'data': [[0, 200], [3600, 2000]],
-               'description': 'Bisque to cone 05'}
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    profile = {"name": "foo", "data": [[0, 200], [3600, 2000]], "description": "Bisque to cone 05"}
 
     assert controller.save_profile(dict(profile)) is True
-    saved = json.loads((tmp_path / 'foo.json').read_text())
-    assert saved['description'] == 'Bisque to cone 05'
+    saved = json.loads((tmp_path / "foo.json").read_text())
+    assert saved["description"] == "Bisque to cone 05"
 
 
 def test_get_profiles_returns_description(tmp_path, monkeypatch):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    (tmp_path / 'a.json').write_text(
-        json.dumps({'name': 'a', 'data': [[0, 0]],
-                    'description': 'my bisque schedule'}))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    (tmp_path / "a.json").write_text(
+        json.dumps({"name": "a", "data": [[0, 0]], "description": "my bisque schedule"})
+    )
 
     profiles = json.loads(controller.get_profiles())
-    assert profiles[0]['description'] == 'my bisque schedule'
+    assert profiles[0]["description"] == "my bisque schedule"
 
 
 def test_find_profile_skips_corrupt_files(tmp_path, monkeypatch):
-    '''one corrupt profile file must not break running a good profile'''
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    (tmp_path / 'good.json').write_text(
-        json.dumps({'name': 'good', 'data': [[0, 100]]}))
-    (tmp_path / 'corrupt.json').write_text('{"name": "half-wri')  # truncated
-    (tmp_path / 'notanobject.json').write_text('[1, 2, 3]')       # json, not an object
+    """one corrupt profile file must not break running a good profile"""
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    (tmp_path / "good.json").write_text(json.dumps({"name": "good", "data": [[0, 100]]}))
+    (tmp_path / "corrupt.json").write_text('{"name": "half-wri')  # truncated
+    (tmp_path / "notanobject.json").write_text("[1, 2, 3]")  # json, not an object
 
-    assert controller.find_profile('good')['name'] == 'good'
-    assert controller.find_profile('missing') is None
+    assert controller.find_profile("good")["name"] == "good"
+    assert controller.find_profile("missing") is None
 
 
 def test_get_profiles_skips_corrupt_files(tmp_path, monkeypatch):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    (tmp_path / 'a.json').write_text(json.dumps({'name': 'a', 'data': [[0, 0]]}))
-    (tmp_path / 'b.json').write_text('{oops')
-    (tmp_path / 'c.json').write_text('"just a string"')
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    (tmp_path / "a.json").write_text(json.dumps({"name": "a", "data": [[0, 0]]}))
+    (tmp_path / "b.json").write_text("{oops")
+    (tmp_path / "c.json").write_text('"just a string"')
     # a profile without a name must not break sorting either
-    (tmp_path / 'd.json').write_text(json.dumps({'data': [[0, 0]]}))
+    (tmp_path / "d.json").write_text(json.dumps({"data": [[0, 0]]}))
 
     profiles = json.loads(controller.get_profiles())
     # missing name sorts as ''
-    assert [p.get('name') for p in profiles] == [None, 'a']
+    assert [p.get("name") for p in profiles] == [None, "a"]
 
 
 def test_delete_profile(tmp_path, monkeypatch):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    (tmp_path / 'bar.json').write_text(
-        json.dumps({'name': 'bar', 'data': []}))
-    assert controller.delete_profile({'name': 'bar'}) is True
-    assert not (tmp_path / 'bar.json').exists()
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    (tmp_path / "bar.json").write_text(json.dumps({"name": "bar", "data": []}))
+    assert controller.delete_profile({"name": "bar"}) is True
+    assert not (tmp_path / "bar.json").exists()
 
 
 def test_delete_profile_missing_raises(tmp_path, monkeypatch):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     with pytest.raises(FileNotFoundError):
-        controller.delete_profile({'name': 'nope'})
+        controller.delete_profile({"name": "nope"})
 
 
-@pytest.mark.parametrize('bad', ['../evil', 'foo/bar', '', ' ', 'a b', None, 5, {'x': 1}])
+@pytest.mark.parametrize("bad", ["../evil", "foo/bar", "", " ", "a b", None, 5, {"x": 1}])
 def test_save_profile_rejects_unsafe_names(tmp_path, monkeypatch, bad):
-    '''profile names become filenames; a crafted name must not be able to
-    write outside the profiles directory'''
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    assert controller.save_profile({'name': bad, 'data': [[0, 200]]}) is False
+    """profile names become filenames; a crafted name must not be able to
+    write outside the profiles directory"""
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    assert controller.save_profile({"name": bad, "data": [[0, 200]]}) is False
     assert list(tmp_path.iterdir()) == []
 
 
 def test_save_profile_rejects_non_dict(tmp_path, monkeypatch):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     assert controller.save_profile(None) is False
     assert controller.save_profile("{'name': '../evil'}") is False
     assert list(tmp_path.iterdir()) == []
 
 
-@pytest.mark.parametrize('bad', ['../evil', 'foo/bar', '', None, 5])
+@pytest.mark.parametrize("bad", ["../evil", "foo/bar", "", None, 5])
 def test_delete_profile_rejects_unsafe_names(tmp_path, monkeypatch, bad):
-    '''a crafted name must not delete files outside the profiles directory'''
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    keep = tmp_path / 'keep.json'
-    keep.write_text('{}')
+    """a crafted name must not delete files outside the profiles directory"""
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    keep = tmp_path / "keep.json"
+    keep.write_text("{}")
 
-    assert controller.delete_profile({'name': bad, 'data': []}) is False
+    assert controller.delete_profile({"name": bad, "data": []}) is False
     assert keep.exists()
 
 
 def test_delete_profile_rejects_non_dict(tmp_path, monkeypatch):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     assert controller.delete_profile(None) is False
 
 
@@ -879,11 +905,13 @@ def test_delete_profile_rejects_non_dict(tmp_path, monkeypatch):
 # scheduled runs
 ########################################################################
 
+
 @pytest.fixture
 def scheduler(monkeypatch, tmp_path):
     from lib.scheduler import Scheduler
-    sched = Scheduler(state_file=str(tmp_path / 'schedules.json'))
-    monkeypatch.setattr(controller, 'scheduler', sched)
+
+    sched = Scheduler(state_file=str(tmp_path / "schedules.json"))
+    monkeypatch.setattr(controller, "scheduler", sched)
     return sched
 
 
@@ -893,18 +921,18 @@ def test_parse_start_time_epoch():
 
 
 def test_parse_start_time_iso():
-    epoch = controller.parse_start_time('2030-01-02T03:04')
+    epoch = controller.parse_start_time("2030-01-02T03:04")
     assert epoch == datetime.datetime(2030, 1, 2, 3, 4).timestamp()
 
 
 def test_parse_start_time_iso_with_seconds():
-    epoch = controller.parse_start_time('2030-01-02T03:04:05')
+    epoch = controller.parse_start_time("2030-01-02T03:04:05")
     assert epoch == datetime.datetime(2030, 1, 2, 3, 4, 5).timestamp()
 
 
 def test_parse_start_time_rejects_garbage():
     with pytest.raises(ValueError):
-        controller.parse_start_time('not a time')
+        controller.parse_start_time("not a time")
 
 
 def test_parse_start_time_rejects_past():
@@ -918,138 +946,157 @@ def test_parse_start_time_rejects_none():
 
 
 def test_api_schedule(scheduler, monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name})
     future = time.time() + 3600
-    resp = controller.api_schedule({'profile': 'cone-05-long-bisque', 'start_time': future})
-    assert resp['success'] is True
-    assert resp['profile'] == 'cone-05-long-bisque'
+    resp = controller.api_schedule({"profile": "cone-05-long-bisque", "start_time": future})
+    assert resp["success"] is True
+    assert resp["profile"] == "cone-05-long-bisque"
     runs = scheduler.list()
     assert len(runs) == 1
-    assert runs[0]['id'] == resp['id']
-    assert runs[0]['start_time'] == future
+    assert runs[0]["id"] == resp["id"]
+    assert runs[0]["start_time"] == future
 
 
 def test_api_schedule_iso_string(scheduler, monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
-    resp = controller.api_schedule({'profile': 'cone-05-long-bisque', 'start_time': '2030-01-02T03:04'})
-    assert resp['success'] is True
-    assert resp['start_time'] == controller.parse_start_time('2030-01-02T03:04')
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name})
+    resp = controller.api_schedule(
+        {"profile": "cone-05-long-bisque", "start_time": "2030-01-02T03:04"}
+    )
+    assert resp["success"] is True
+    assert resp["start_time"] == controller.parse_start_time("2030-01-02T03:04")
 
 
 def test_api_schedule_missing_profile(scheduler, monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: None)
-    resp = controller.api_schedule({'profile': 'nope', 'start_time': time.time() + 3600})
-    assert resp['success'] is False
-    assert 'not found' in resp['error']
+    monkeypatch.setattr(controller, "find_profile", lambda name: None)
+    resp = controller.api_schedule({"profile": "nope", "start_time": time.time() + 3600})
+    assert resp["success"] is False
+    assert "not found" in resp["error"]
 
 
 def test_api_schedule_rejects_past_time(scheduler, monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
-    resp = controller.api_schedule({'profile': 'cone-05-long-bisque', 'start_time': time.time() - 60})
-    assert resp['success'] is False
-    assert 'future' in resp['error']
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name})
+    resp = controller.api_schedule(
+        {"profile": "cone-05-long-bisque", "start_time": time.time() - 60}
+    )
+    assert resp["success"] is False
+    assert "future" in resp["error"]
     assert scheduler.list() == []
 
 
 def test_api_cancel_schedule(scheduler, monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
-    resp = controller.api_schedule({'profile': 'cone-05-long-bisque', 'start_time': time.time() + 3600})
-    cancelled = controller.api_cancel_schedule({'id': resp['id']})
-    assert cancelled['success'] is True
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name})
+    resp = controller.api_schedule(
+        {"profile": "cone-05-long-bisque", "start_time": time.time() + 3600}
+    )
+    cancelled = controller.api_cancel_schedule({"id": resp["id"]})
+    assert cancelled["success"] is True
     assert scheduler.list() == []
 
 
 def test_api_cancel_schedule_missing(scheduler):
-    resp = controller.api_cancel_schedule({'id': 'nope'})
-    assert resp['success'] is False
+    resp = controller.api_cancel_schedule({"id": "nope"})
+    assert resp["success"] is False
 
 
 def test_api_list_schedules(scheduler, monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
-    controller.api_schedule({'profile': 'cone-05-long-bisque', 'start_time': time.time() + 3600})
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name})
+    controller.api_schedule({"profile": "cone-05-long-bisque", "start_time": time.time() + 3600})
     resp = controller.api_list_schedules()
-    assert resp['success'] is True
-    assert len(resp['schedules']) == 1
+    assert resp["success"] is True
+    assert len(resp["schedules"]) == 1
 
 
 def test_fire_scheduled_run_idle(monkeypatch):
     calls = []
+
     def fake_run_profile(profile, startat=0, allow_seek=True):
         calls.append((profile.name, startat, allow_seek))
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name, 'data': [[0, 200]]})
-    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
-    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
-    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
-    entry = {'id': 'abc', 'profile': 'cone-05-long-bisque', 'startat': 0}
+
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name, "data": [[0, 200]]})
+    monkeypatch.setattr(controller.oven, "state", "IDLE")
+    monkeypatch.setattr(controller.oven, "run_profile", fake_run_profile)
+    monkeypatch.setattr(controller.ovenWatcher, "record", lambda profile: None)
+    entry = {"id": "abc", "profile": "cone-05-long-bisque", "startat": 0}
     assert controller.fire_scheduled_run(entry) is True
     # scheduled runs never seek, even when the kiln is hot from a
     # previous run. they always start from the beginning.
-    assert calls == [('cone-05-long-bisque', 0, False)]
+    assert calls == [("cone-05-long-bisque", 0, False)]
 
 
 def test_fire_scheduled_run_busy_oven(monkeypatch):
-    monkeypatch.setattr(controller.oven, 'state', 'RUNNING')
-    entry = {'id': 'abc', 'profile': 'cone-05-long-bisque', 'startat': 0}
+    monkeypatch.setattr(controller.oven, "state", "RUNNING")
+    entry = {"id": "abc", "profile": "cone-05-long-bisque", "startat": 0}
     assert controller.fire_scheduled_run(entry) is False
 
 
 def test_fire_scheduled_run_missing_profile(monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: None)
-    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
-    entry = {'id': 'abc', 'profile': 'nope', 'startat': 0}
+    monkeypatch.setattr(controller, "find_profile", lambda name: None)
+    monkeypatch.setattr(controller.oven, "state", "IDLE")
+    entry = {"id": "abc", "profile": "nope", "startat": 0}
     assert controller.fire_scheduled_run(entry) is False
 
 
 def test_fire_scheduled_run_with_startat(monkeypatch):
     calls = []
+
     def fake_run_profile(profile, startat=0, allow_seek=True):
         calls.append((profile.name, startat, allow_seek))
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name, 'data': [[0, 200]]})
-    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
-    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
-    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
-    entry = {'id': 'abc', 'profile': 'cone-05-long-bisque', 'startat': 60}
+
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name, "data": [[0, 200]]})
+    monkeypatch.setattr(controller.oven, "state", "IDLE")
+    monkeypatch.setattr(controller.oven, "run_profile", fake_run_profile)
+    monkeypatch.setattr(controller.ovenWatcher, "record", lambda profile: None)
+    entry = {"id": "abc", "profile": "cone-05-long-bisque", "startat": 60}
     assert controller.fire_scheduled_run(entry) is True
-    assert calls == [('cone-05-long-bisque', 60, False)]
+    assert calls == [("cone-05-long-bisque", 60, False)]
 
 
 def test_api_schedule_chain_after_run(scheduler, monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
-    resp = controller.api_schedule({'profile': 'cone-05-long-bisque',
-                                    'start_time': time.time() + 3600,
-                                    'chain_after': 'run:3'})
-    assert resp['success'] is True
-    assert scheduler.list()[0]['chain_after'] == 'run:3'
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name})
+    resp = controller.api_schedule(
+        {"profile": "cone-05-long-bisque", "start_time": time.time() + 3600, "chain_after": "run:3"}
+    )
+    assert resp["success"] is True
+    assert scheduler.list()[0]["chain_after"] == "run:3"
 
 
 def test_api_schedule_chain_after_schedule(scheduler, monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
-    anchor = controller.api_schedule({'profile': 'cone-05-long-bisque',
-                                      'start_time': time.time() + 3600})
-    resp = controller.api_schedule({'profile': 'cone-05-long-bisque',
-                                    'start_time': time.time() + 7200,
-                                    'chain_after': 'sched:' + anchor['id']})
-    assert resp['success'] is True
-    assert scheduler.list()[1]['chain_after'] == 'sched:' + anchor['id']
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name})
+    anchor = controller.api_schedule(
+        {"profile": "cone-05-long-bisque", "start_time": time.time() + 3600}
+    )
+    resp = controller.api_schedule(
+        {
+            "profile": "cone-05-long-bisque",
+            "start_time": time.time() + 7200,
+            "chain_after": "sched:" + anchor["id"],
+        }
+    )
+    assert resp["success"] is True
+    assert scheduler.list()[1]["chain_after"] == "sched:" + anchor["id"]
 
 
 def test_api_schedule_chain_after_missing_schedule_rejected(scheduler, monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
-    resp = controller.api_schedule({'profile': 'cone-05-long-bisque',
-                                    'start_time': time.time() + 3600,
-                                    'chain_after': 'sched:nope'})
-    assert resp['success'] is False
-    assert 'not found' in resp['error']
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name})
+    resp = controller.api_schedule(
+        {
+            "profile": "cone-05-long-bisque",
+            "start_time": time.time() + 3600,
+            "chain_after": "sched:nope",
+        }
+    )
+    assert resp["success"] is False
+    assert "not found" in resp["error"]
     assert scheduler.list() == []
 
 
 def test_api_schedule_chain_after_garbage_rejected(scheduler, monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
-    for bad in ('run:xyz', 'banana'):
-        resp = controller.api_schedule({'profile': 'cone-05-long-bisque',
-                                        'start_time': time.time() + 3600,
-                                        'chain_after': bad})
-        assert resp['success'] is False
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name})
+    for bad in ("run:xyz", "banana"):
+        resp = controller.api_schedule(
+            {"profile": "cone-05-long-bisque", "start_time": time.time() + 3600, "chain_after": bad}
+        )
+        assert resp["success"] is False
         assert scheduler.list() == []
 
 
@@ -1057,56 +1104,63 @@ def test_fire_scheduled_run_chained_waits_for_actual_end(monkeypatch):
     # a chained firing must wait for the firing it follows to really end
     # (catch-up can stretch a run past its nominal duration), so it stays
     # quiet while the oven is busy even after its estimated start_time.
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name, 'data': [[0, 200]]})
-    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
-    monkeypatch.setattr(controller.oven, 'ended_run_sequence', 2)
-    monkeypatch.setattr(controller.oven, 'idle_since', time.time() - 5)
-    entry = {'id': 'abc', 'profile': 'cone-05-long-bisque', 'startat': 0,
-             'chain_after': 'run:5'}
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name, "data": [[0, 200]]})
+    monkeypatch.setattr(controller.ovenWatcher, "record", lambda profile: None)
+    monkeypatch.setattr(controller.oven, "ended_run_sequence", 2)
+    monkeypatch.setattr(controller.oven, "idle_since", time.time() - 5)
+    entry = {"id": "abc", "profile": "cone-05-long-bisque", "startat": 0, "chain_after": "run:5"}
 
     # anchor run (sequence 5) has not ended yet
     assert controller.fire_scheduled_run(entry) is False
 
     # anchor ended, but the oven is still running something else
-    monkeypatch.setattr(controller.oven, 'ended_run_sequence', 5)
-    monkeypatch.setattr(controller.oven, 'state', 'RUNNING')
+    monkeypatch.setattr(controller.oven, "ended_run_sequence", 5)
+    monkeypatch.setattr(controller.oven, "state", "RUNNING")
     assert controller.fire_scheduled_run(entry) is False
 
     # oven idle but still inside the chain buffer
-    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
-    monkeypatch.setattr(controller.oven, 'idle_since', time.time())
+    monkeypatch.setattr(controller.oven, "state", "IDLE")
+    monkeypatch.setattr(controller.oven, "idle_since", time.time())
     assert controller.fire_scheduled_run(entry) is False
 
     # anchor ended, oven idle, buffer elapsed -> fires
-    monkeypatch.setattr(controller.oven, 'idle_since', time.time() - 120)
+    monkeypatch.setattr(controller.oven, "idle_since", time.time() - 120)
     calls = []
+
     def fake_run_profile(profile, startat=0, allow_seek=True):
         calls.append((profile.name, startat, allow_seek))
-    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
+
+    monkeypatch.setattr(controller.oven, "run_profile", fake_run_profile)
     assert controller.fire_scheduled_run(entry) is True
-    assert calls == [('cone-05-long-bisque', 0, False)]
+    assert calls == [("cone-05-long-bisque", 0, False)]
 
 
 def test_fire_scheduled_run_chained_after_schedule(monkeypatch, scheduler):
     # chained after a scheduled run: waits until that schedule has fired.
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name, 'data': [[0, 200]]})
-    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
-    monkeypatch.setattr(controller.oven, 'idle_since', time.time() - 120)
-    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
-    anchor = scheduler.add('cone-05-long-bisque', time.time() + 3600)
-    entry = {'id': 'abc', 'profile': 'cone-05-long-bisque', 'startat': 0,
-             'chain_after': 'sched:' + anchor['id']}
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name, "data": [[0, 200]]})
+    monkeypatch.setattr(controller.oven, "state", "IDLE")
+    monkeypatch.setattr(controller.oven, "idle_since", time.time() - 120)
+    monkeypatch.setattr(controller.ovenWatcher, "record", lambda profile: None)
+    anchor = scheduler.add("cone-05-long-bisque", time.time() + 3600)
+    entry = {
+        "id": "abc",
+        "profile": "cone-05-long-bisque",
+        "startat": 0,
+        "chain_after": "sched:" + anchor["id"],
+    }
 
     # anchor has not fired yet
     assert controller.fire_scheduled_run(entry) is False
 
     scheduler.mark_fired(anchor)
     calls = []
+
     def fake_run_profile(profile, startat=0, allow_seek=True):
         calls.append((profile.name, startat, allow_seek))
-    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
+
+    monkeypatch.setattr(controller.oven, "run_profile", fake_run_profile)
     assert controller.fire_scheduled_run(entry) is True
-    assert calls == [('cone-05-long-bisque', 0, False)]
+    assert calls == [("cone-05-long-bisque", 0, False)]
 
 
 def test_chained_firing_waits_for_real_end_end_to_end(monkeypatch, tmp_path):
@@ -1118,31 +1172,37 @@ def test_chained_firing_waits_for_real_end_end_to_end(monkeypatch, tmp_path):
     import lib.scheduler as schedmod
     from lib.oven import Oven, Profile
 
-    monkeypatch.setattr(config, 'automatic_restarts', False)
-    sched = schedmod.Scheduler(state_file=str(tmp_path / 'schedules.json'))
+    monkeypatch.setattr(config, "automatic_restarts", False)
+    sched = schedmod.Scheduler(state_file=str(tmp_path / "schedules.json"))
     sched.fire_callback = controller.fire_scheduled_run
-    monkeypatch.setattr(controller, 'scheduler', sched)
+    monkeypatch.setattr(controller, "scheduler", sched)
     real = Oven()
-    monkeypatch.setattr(controller, 'oven', real)
-    monkeypatch.setattr(controller, 'find_profile',
-                        lambda name: {'name': name, 'data': [[0, 200], [600, 200]], 'temp_units': 'c'})
-    monkeypatch.setattr(config, 'schedule_chain_buffer', 60)
+    monkeypatch.setattr(controller, "oven", real)
+    monkeypatch.setattr(
+        controller,
+        "find_profile",
+        lambda name: {"name": name, "data": [[0, 200], [600, 200]], "temp_units": "c"},
+    )
+    monkeypatch.setattr(config, "schedule_chain_buffer", 60)
 
     # a firing is in progress
-    real.run_profile(Profile(_json.dumps({'name': 'p', 'data': [[0, 200], [600, 200]]})),
-                     startat=0, allow_seek=False)
+    real.run_profile(
+        Profile(_json.dumps({"name": "p", "data": [[0, 200], [600, 200]]})),
+        startat=0,
+        allow_seek=False,
+    )
     assert real.run_sequence == 1
 
     # chain a firing after the current one; start_time is just an estimate
-    resp = controller.api_schedule({'profile': 'p',
-                                    'start_time': time.time() + 600,
-                                    'chain_after': 'run:1'})
-    assert resp['success'] is True
+    resp = controller.api_schedule(
+        {"profile": "p", "start_time": time.time() + 600, "chain_after": "run:1"}
+    )
+    assert resp["success"] is True
 
     # while the anchor runs, the chained firing waits and is never skipped
     sched.fire_due()
-    assert sched.list()[0]['fired'] is False
-    assert sched.list()[0]['status'] == 'waiting'
+    assert sched.list()[0]["fired"] is False
+    assert sched.list()[0]["status"] == "waiting"
 
     # the anchor actually ends (completion or catch-up stretch both land here)
     real.abort_run()
@@ -1150,14 +1210,14 @@ def test_chained_firing_waits_for_real_end_end_to_end(monkeypatch, tmp_path):
 
     # still inside the chain buffer: not fired yet
     sched.fire_due()
-    assert sched.list()[0]['fired'] is False
+    assert sched.list()[0]["fired"] is False
 
     # buffer elapsed: the chained firing fires
-    monkeypatch.setattr(real, 'idle_since', time.time() - 120)
+    monkeypatch.setattr(real, "idle_since", time.time() - 120)
     sched.fire_due()
     runs = sched.list()
-    assert runs[0]['fired'] is True
-    assert runs[0]['status'] == 'fired'
+    assert runs[0]["fired"] is True
+    assert runs[0]["status"] == "fired"
 
 
 def test_start_run_converts_legacy_fahrenheit_profile(monkeypatch):
@@ -1165,32 +1225,44 @@ def test_start_run_converts_legacy_fahrenheit_profile(monkeypatch):
     # start_run must convert them to celsius before running, otherwise a
     # scheduled run targets 212f for a profile that says 100f.
     started = []
+
     def fake_run_profile(profile, startat=0, allow_seek=True):
         started.append(profile.get_target_temperature(0))
-    monkeypatch.setattr(controller, 'find_profile',
-                        lambda name: {'name': 'test-200-250',
-                                      'data': [[0, 100], [480, 200],
-                                               [2000, 200], [2300, 250],
-                                               [3600, 250]]})
-    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
-    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
 
-    assert controller.start_run('test-200-250') is True
+    monkeypatch.setattr(
+        controller,
+        "find_profile",
+        lambda name: {
+            "name": "test-200-250",
+            "data": [[0, 100], [480, 200], [2000, 200], [2300, 250], [3600, 250]],
+        },
+    )
+    monkeypatch.setattr(controller.oven, "run_profile", fake_run_profile)
+    monkeypatch.setattr(controller.ovenWatcher, "record", lambda profile: None)
+
+    assert controller.start_run("test-200-250") is True
     assert started[0] == pytest.approx((100 - 32) * 5 / 9)  # 100f, not 100c
 
 
 def test_start_run_keeps_celsius_profile_untouched(monkeypatch):
     started = []
+
     def fake_run_profile(profile, startat=0, allow_seek=True):
         started.append(profile.get_target_temperature(0))
-    monkeypatch.setattr(controller, 'find_profile',
-                        lambda name: {'name': 'cone-05-long-bisque',
-                                      'temp_units': 'c',
-                                      'data': [[0, 100], [3600, 100]]})
-    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
-    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
 
-    assert controller.start_run('cone-05-long-bisque') is True
+    monkeypatch.setattr(
+        controller,
+        "find_profile",
+        lambda name: {
+            "name": "cone-05-long-bisque",
+            "temp_units": "c",
+            "data": [[0, 100], [3600, 100]],
+        },
+    )
+    monkeypatch.setattr(controller.oven, "run_profile", fake_run_profile)
+    monkeypatch.setattr(controller.ovenWatcher, "record", lambda profile: None)
+
+    assert controller.start_run("cone-05-long-bisque") is True
     assert started[0] == 100
 
 
@@ -1198,8 +1270,9 @@ def test_start_run_keeps_celsius_profile_untouched(monkeypatch):
 # community profiles (kiln-profiles repo)
 ########################################################################
 
+
 class FakeResp:
-    '''minimal requests.Response stand-in for monkeypatched requests.'''
+    """minimal requests.Response stand-in for monkeypatched requests."""
 
     def __init__(self, payload, status_code=200):
         self._payload = payload
@@ -1210,91 +1283,104 @@ class FakeResp:
 
     def raise_for_status(self):
         if self.status_code >= 400:
-            raise RuntimeError('http %s' % self.status_code)
+            raise RuntimeError("http %s" % self.status_code)
 
 
 def _reset_remote_cache(monkeypatch):
-    monkeypatch.setattr(controller, '_remote_cache', {'at': 0.0, 'data': None})
+    monkeypatch.setattr(controller, "_remote_cache", {"at": 0.0, "data": None})
 
 
 def _fake_index():
-    '''fake schedules.json index: a json array of profiles with
-    category/tags/description like the real community repo.'''
+    """fake schedules.json index: a json array of profiles with
+    category/tags/description like the real community repo."""
     return [
-        {'type': 'profile', 'name': 'slumped-plate', 'category': 'glass',
-         'tags': ['slumping', 'glass'], 'units': 'F',
-         'description': 'slump a plate', 'data': [[0, 65], [3600, 1200]]},
-        {'type': 'profile', 'name': 'cone-05-long-bisque', 'category': 'pottery',
-         'tags': ['bisque', 'cone05', 'pottery'], 'units': 'F',
-         'description': 'a long bisque firing', 'data': [[0, 65], [46800, 1708]]},
+        {
+            "type": "profile",
+            "name": "slumped-plate",
+            "category": "glass",
+            "tags": ["slumping", "glass"],
+            "units": "F",
+            "description": "slump a plate",
+            "data": [[0, 65], [3600, 1200]],
+        },
+        {
+            "type": "profile",
+            "name": "cone-05-long-bisque",
+            "category": "pottery",
+            "tags": ["bisque", "cone05", "pottery"],
+            "units": "F",
+            "description": "a long bisque firing",
+            "data": [[0, 65], [46800, 1708]],
+        },
     ]
 
 
 def _fake_index_get():
     def fake_get(url, params=None, headers=None, timeout=None):
-        assert url == 'https://jbruce12000.github.io/kiln-profiles/schedules.json', url
+        assert url == "https://jbruce12000.github.io/kiln-profiles/schedules.json", url
         return FakeResp(_fake_index())
+
     return fake_get
 
 
 def post_json(path, body_dict):
-    '''drive the bottle app directly with a WSGI environ, the way a real
-    browser POST would arrive.'''
+    """drive the bottle app directly with a WSGI environ, the way a real
+    browser POST would arrive."""
     body = json.dumps(body_dict).encode()
     env = {
-        'REQUEST_METHOD': 'POST',
-        'PATH_INFO': path,
-        'SERVER_NAME': 'localhost',
-        'SERVER_PORT': '80',
-        'wsgi.input': io.BytesIO(body),
-        'wsgi.errors': io.StringIO(),
-        'CONTENT_TYPE': 'application/json',
-        'CONTENT_LENGTH': str(len(body)),
-        'wsgi.version': (1, 0),
-        'wsgi.url_scheme': 'http',
+        "REQUEST_METHOD": "POST",
+        "PATH_INFO": path,
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.input": io.BytesIO(body),
+        "wsgi.errors": io.StringIO(),
+        "CONTENT_TYPE": "application/json",
+        "CONTENT_LENGTH": str(len(body)),
+        "wsgi.version": (1, 0),
+        "wsgi.url_scheme": "http",
     }
     out = {}
 
     def start_response(status, headers, exc_info=None):
-        out['status'] = status
-        out['headers'] = dict(headers)
+        out["status"] = status
+        out["headers"] = dict(headers)
 
-    resp = b''.join(controller.app(env, start_response))
+    resp = b"".join(controller.app(env, start_response))
     return out, resp
 
 
 def test_list_remote_profiles_parses_categories_and_files(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller.requests, 'get', _fake_index_get())
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller.requests, "get", _fake_index_get())
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     _reset_remote_cache(monkeypatch)
 
     data = controller.list_remote_profiles(force=True)
-    assert data['success'] is True
-    assert data['categories'] == ['glass', 'pottery']
-    assert data['tags'] == ['slumping', 'glass', 'bisque', 'cone05', 'pottery']
-    assert data['upload_enabled'] is True  # sharing needs no controller token anymore
-    assert sorted(p['name'] for p in data['profiles']) == ['cone-05-long-bisque', 'slumped-plate']
-    pottery = next(p for p in data['profiles'] if p['name'] == 'cone-05-long-bisque')
-    assert pottery['category'] == 'pottery'
-    assert pottery['path'] == 'pottery/cone-05-long-bisque.json'
-    assert pottery['tags'] == ['bisque', 'cone05', 'pottery']
-    assert pottery['description'] == 'a long bisque firing'
-    assert pottery['units'] == 'F'
-    assert pottery['installed'] is False
+    assert data["success"] is True
+    assert data["categories"] == ["glass", "pottery"]
+    assert data["tags"] == ["slumping", "glass", "bisque", "cone05", "pottery"]
+    assert data["upload_enabled"] is True  # sharing needs no controller token anymore
+    assert sorted(p["name"] for p in data["profiles"]) == ["cone-05-long-bisque", "slumped-plate"]
+    pottery = next(p for p in data["profiles"] if p["name"] == "cone-05-long-bisque")
+    assert pottery["category"] == "pottery"
+    assert pottery["path"] == "pottery/cone-05-long-bisque.json"
+    assert pottery["tags"] == ["bisque", "cone05", "pottery"]
+    assert pottery["description"] == "a long bisque firing"
+    assert pottery["units"] == "F"
+    assert pottery["installed"] is False
 
 
 def test_list_remote_profiles_reports_installed_and_upload_enabled(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller.requests, 'get', _fake_index_get())
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    (tmp_path / 'cone-05-long-bisque.json').write_text('{}')
+    monkeypatch.setattr(controller.requests, "get", _fake_index_get())
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    (tmp_path / "cone-05-long-bisque.json").write_text("{}")
     _reset_remote_cache(monkeypatch)
 
     data = controller.list_remote_profiles(force=True)
-    assert data['upload_enabled'] is True
-    pottery = next(p for p in data['profiles'] if p['name'] == 'cone-05-long-bisque')
-    assert pottery['installed'] is True
-    glass = next(p for p in data['profiles'] if p['name'] == 'slumped-plate')
-    assert glass['installed'] is False
+    assert data["upload_enabled"] is True
+    pottery = next(p for p in data["profiles"] if p["name"] == "cone-05-long-bisque")
+    assert pottery["installed"] is True
+    glass = next(p for p in data["profiles"] if p["name"] == "slumped-plate")
+    assert glass["installed"] is False
 
 
 def test_list_remote_profiles_served_from_cache(monkeypatch):
@@ -1303,7 +1389,8 @@ def test_list_remote_profiles_served_from_cache(monkeypatch):
     def fake_get(url, params=None, headers=None, timeout=None):
         calls.append(url)
         return FakeResp(_fake_index())
-    monkeypatch.setattr(controller.requests, 'get', fake_get)
+
+    monkeypatch.setattr(controller.requests, "get", fake_get)
     _reset_remote_cache(monkeypatch)
 
     controller.list_remote_profiles(force=True)
@@ -1312,125 +1399,134 @@ def test_list_remote_profiles_served_from_cache(monkeypatch):
 
 
 def test_list_remote_profiles_bad_index_url(monkeypatch):
-    monkeypatch.setattr(config, 'kiln_profiles_index_url', '')
+    monkeypatch.setattr(config, "kiln_profiles_index_url", "")
     _reset_remote_cache(monkeypatch)
     data = controller.list_remote_profiles(force=True)
-    assert data['success'] is False
-    assert 'kiln_profiles_index_url' in data['error']
+    assert data["success"] is False
+    assert "kiln_profiles_index_url" in data["error"]
 
 
 def test_delete_profile_invalidates_remote_installed_state(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller.requests, 'get', _fake_index_get())
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller.requests, "get", _fake_index_get())
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     _reset_remote_cache(monkeypatch)
-    (tmp_path / 'cone-05-long-bisque.json').write_text('{}')
+    (tmp_path / "cone-05-long-bisque.json").write_text("{}")
 
     data = controller.list_remote_profiles(force=True)
-    assert next(p for p in data['profiles']
-                if p['name'] == 'cone-05-long-bisque')['installed'] is True
-    assert controller._remote_cache['data'] is not None
+    assert (
+        next(p for p in data["profiles"] if p["name"] == "cone-05-long-bisque")["installed"] is True
+    )
+    assert controller._remote_cache["data"] is not None
 
     # deleting the local profile must drop the stale installed state
-    controller.delete_profile({'name': 'cone-05-long-bisque'})
-    assert controller._remote_cache['data'] is None
+    controller.delete_profile({"name": "cone-05-long-bisque"})
+    assert controller._remote_cache["data"] is None
 
     data = controller.list_remote_profiles(force=True)
-    assert next(p for p in data['profiles']
-                if p['name'] == 'cone-05-long-bisque')['installed'] is False
+    assert (
+        next(p for p in data["profiles"] if p["name"] == "cone-05-long-bisque")["installed"]
+        is False
+    )
 
 
 def test_save_profile_invalidates_remote_installed_state(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller.requests, 'get', _fake_index_get())
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller.requests, "get", _fake_index_get())
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     _reset_remote_cache(monkeypatch)
 
     data = controller.list_remote_profiles(force=True)
-    assert next(p for p in data['profiles']
-                if p['name'] == 'slumped-plate')['installed'] is False
+    assert next(p for p in data["profiles"] if p["name"] == "slumped-plate")["installed"] is False
 
-    controller.save_profile({'name': 'slumped-plate', 'data': [[0, 20]], 'temp_units': 'c'})
-    assert controller._remote_cache['data'] is None
+    controller.save_profile({"name": "slumped-plate", "data": [[0, 20]], "temp_units": "c"})
+    assert controller._remote_cache["data"] is None
 
     data = controller.list_remote_profiles(force=True)
-    assert next(p for p in data['profiles']
-                if p['name'] == 'slumped-plate')['installed'] is True
+    assert next(p for p in data["profiles"] if p["name"] == "slumped-plate")["installed"] is True
 
 
 def test_import_profile_converts_legacy_fahrenheit(monkeypatch, tmp_path):
     # repo profiles are stored untagged in fahrenheit (legacy format);
     # importing must convert them to celsius like the run path does
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    profile = {'name': 'cone-05-long-bisque', 'type': 'profile',
-               'data': [[0, 65], [46800, 1708]], 'tags': ['bisque'],
-               'description': 'a cone 05 bisque firing'}
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    profile = {
+        "name": "cone-05-long-bisque",
+        "type": "profile",
+        "data": [[0, 65], [46800, 1708]],
+        "tags": ["bisque"],
+        "description": "a cone 05 bisque firing",
+    }
     filepath = controller.import_profile(profile)
     saved = json.loads(open(filepath).read())
-    assert saved['temp_units'] == 'c'
-    assert saved['data'][0][1] == pytest.approx((65 - 32) * 5 / 9)
-    assert saved['data'][1][1] == pytest.approx((1708 - 32) * 5 / 9)
-    assert saved['description'] == 'a cone 05 bisque firing'
-    assert saved['tags'] == ['bisque']
+    assert saved["temp_units"] == "c"
+    assert saved["data"][0][1] == pytest.approx((65 - 32) * 5 / 9)
+    assert saved["data"][1][1] == pytest.approx((1708 - 32) * 5 / 9)
+    assert saved["description"] == "a cone 05 bisque firing"
+    assert saved["tags"] == ["bisque"]
 
 
 def test_import_profile_keeps_tagged_celsius(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    profile = {'name': 'glass-fuse', 'temp_units': 'c', 'data': [[0, 20]]}
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    profile = {"name": "glass-fuse", "temp_units": "c", "data": [[0, 20]]}
     filepath = controller.import_profile(profile)
     saved = json.loads(open(filepath).read())
-    assert saved['temp_units'] == 'c'
-    assert saved['data'] == [[0, 20]]
+    assert saved["temp_units"] == "c"
+    assert saved["data"] == [[0, 20]]
 
 
 def test_import_profile_rejects_bad_name(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     with pytest.raises(ValueError):
-        controller.import_profile({'name': '../evil', 'data': [[0, 20]]})
+        controller.import_profile({"name": "../evil", "data": [[0, 20]]})
     assert list(tmp_path.iterdir()) == []
 
 
 def test_import_profile_rejects_missing_data(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     with pytest.raises(ValueError):
-        controller.import_profile({'name': 'cone-05-long-bisque'})
+        controller.import_profile({"name": "cone-05-long-bisque"})
 
 
 def test_api_profiles_remote_import(monkeypatch, tmp_path):
-    profile = {'name': 'cone-05-long-bisque', 'type': 'profile',
-               'data': [[0, 65], [46800, 1708]], 'description': 'bisque firing'}
-    monkeypatch.setattr(controller.requests, 'get',
-                        lambda *a, **k: FakeResp(profile))
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    profile = {
+        "name": "cone-05-long-bisque",
+        "type": "profile",
+        "data": [[0, 65], [46800, 1708]],
+        "description": "bisque firing",
+    }
+    monkeypatch.setattr(controller.requests, "get", lambda *a, **k: FakeResp(profile))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     _reset_remote_cache(monkeypatch)
 
-    out, resp = post_json('/api/profiles/remote/import',
-                          {'path': 'pottery/cone-05-long-bisque.json'})
-    assert out['status'] == '200 OK', (out['status'], resp)
-    assert json.loads(resp) == {'success': True, 'name': 'cone-05-long-bisque'}
-    saved = json.loads((tmp_path / 'cone-05-long-bisque.json').read_text())
-    assert saved['temp_units'] == 'c'
-    assert saved['data'][0][1] == pytest.approx((65 - 32) * 5 / 9)
+    out, resp = post_json(
+        "/api/profiles/remote/import", {"path": "pottery/cone-05-long-bisque.json"}
+    )
+    assert out["status"] == "200 OK", (out["status"], resp)
+    assert json.loads(resp) == {"success": True, "name": "cone-05-long-bisque"}
+    saved = json.loads((tmp_path / "cone-05-long-bisque.json").read_text())
+    assert saved["temp_units"] == "c"
+    assert saved["data"][0][1] == pytest.approx((65 - 32) * 5 / 9)
 
 
 def test_api_profiles_remote_import_rejects_bad_path(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     _reset_remote_cache(monkeypatch)
-    out, resp = post_json('/api/profiles/remote/import',
-                          {'path': '../../etc/passwd.json'})
-    assert out['status'] == '400 Bad Request'
-    assert json.loads(resp)['success'] is False
+    out, resp = post_json("/api/profiles/remote/import", {"path": "../../etc/passwd.json"})
+    assert out["status"] == "400 Bad Request"
+    assert json.loads(resp)["success"] is False
 
 
 def test_api_profiles_remote_upload_disabled_without_token(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    out, resp = post_json('/api/profiles/remote/upload',
-                          {'category': 'pottery',
-                           'profile': {'name': 'x', 'data': [[0, 20]]}})
-    assert out['status'] == '400 Bad Request'
-    assert 'disabled' in json.loads(resp)['error']
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    out, resp = post_json(
+        "/api/profiles/remote/upload",
+        {"category": "pottery", "profile": {"name": "x", "data": [[0, 20]]}},
+    )
+    assert out["status"] == "400 Bad Request"
+    assert "disabled" in json.loads(resp)["error"]
 
 
 def _fake_share_flow(fork_missing=True):
-    '''fake the fork-and-PR endpoints used by the share endpoint.'''
+    """fake the fork-and-PR endpoints used by the share endpoint."""
     calls = []
     prs = []
     contents = []
@@ -1438,116 +1534,130 @@ def _fake_share_flow(fork_missing=True):
 
     def fake_get(url, params=None, headers=None, timeout=None):
         calls.append(url)
-        if url == 'https://api.github.com/user':
-            return FakeResp({'login': 'sharer'})
-        if url == 'https://api.github.com/repos/sharer/kiln-profiles':
+        if url == "https://api.github.com/user":
+            return FakeResp({"login": "sharer"})
+        if url == "https://api.github.com/repos/sharer/kiln-profiles":
             fork_checked[0] += 1
             if fork_missing and fork_checked[0] == 1:
-                return FakeResp({'message': 'not found'}, status_code=404)
-            return FakeResp({'full_name': 'sharer/kiln-profiles'})
-        if url.endswith('/repos/sharer/kiln-profiles/git/ref/heads/main'):
-            return FakeResp({'object': {'sha': 'base-sha-123'}})
-        raise AssertionError('unexpected get url: %s' % url)
+                return FakeResp({"message": "not found"}, status_code=404)
+            return FakeResp({"full_name": "sharer/kiln-profiles"})
+        if url.endswith("/repos/sharer/kiln-profiles/git/ref/heads/main"):
+            return FakeResp({"object": {"sha": "base-sha-123"}})
+        raise AssertionError("unexpected get url: %s" % url)
 
     def fake_post(url, json=None, headers=None, timeout=None):
         calls.append(url)
-        if url == 'https://api.github.com/repos/jbruce12000/kiln-profiles/forks':
-            return FakeResp({'full_name': 'sharer/kiln-profiles'}, status_code=202)
-        if url == 'https://api.github.com/repos/sharer/kiln-profiles/merge-upstream':
+        if url == "https://api.github.com/repos/jbruce12000/kiln-profiles/forks":
+            return FakeResp({"full_name": "sharer/kiln-profiles"}, status_code=202)
+        if url == "https://api.github.com/repos/sharer/kiln-profiles/merge-upstream":
             return FakeResp({})
-        if url == 'https://api.github.com/repos/sharer/kiln-profiles/git/refs':
-            assert json['ref'] == 'refs/heads/kiln-share-my-bisque'
-            assert json['sha'] == 'base-sha-123'
-            return FakeResp({'ref': json['ref']}, status_code=201)
-        if url == 'https://api.github.com/repos/jbruce12000/kiln-profiles/pulls':
+        if url == "https://api.github.com/repos/sharer/kiln-profiles/git/refs":
+            assert json["ref"] == "refs/heads/kiln-share-my-bisque"
+            assert json["sha"] == "base-sha-123"
+            return FakeResp({"ref": json["ref"]}, status_code=201)
+        if url == "https://api.github.com/repos/jbruce12000/kiln-profiles/pulls":
             prs.append(json)
-            return FakeResp({'html_url': 'https://github.com/jbruce12000/kiln-profiles/pull/12',
-                             'number': 12})
-        raise AssertionError('unexpected post url: %s' % url)
+            return FakeResp(
+                {"html_url": "https://github.com/jbruce12000/kiln-profiles/pull/12", "number": 12}
+            )
+        raise AssertionError("unexpected post url: %s" % url)
 
     def fake_put(url, json=None, headers=None, timeout=None):
         calls.append(url)
-        if url == 'https://api.github.com/repos/sharer/kiln-profiles/contents/pottery/my-bisque.json':
+        if (
+            url
+            == "https://api.github.com/repos/sharer/kiln-profiles/contents/pottery/my-bisque.json"
+        ):
             contents.append(json)
-            return FakeResp({'content': {}}, status_code=201)
-        raise AssertionError('unexpected put url: %s' % url)
+            return FakeResp({"content": {}}, status_code=201)
+        raise AssertionError("unexpected put url: %s" % url)
 
     return fake_get, fake_post, fake_put, calls, prs, contents
 
 
 def test_api_profiles_remote_upload_opens_pull_request(monkeypatch, tmp_path):
     fake_get, fake_post, fake_put, calls, prs, contents = _fake_share_flow()
-    monkeypatch.setattr(controller.requests, 'get', fake_get)
-    monkeypatch.setattr(controller.requests, 'post', fake_post)
-    monkeypatch.setattr(controller.requests, 'put', fake_put)
-    monkeypatch.setattr(controller.time, 'sleep', lambda s: None)
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller.requests, "get", fake_get)
+    monkeypatch.setattr(controller.requests, "post", fake_post)
+    monkeypatch.setattr(controller.requests, "put", fake_put)
+    monkeypatch.setattr(controller.time, "sleep", lambda s: None)
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     _reset_remote_cache(monkeypatch)
 
-    out, resp = post_json('/api/profiles/remote/upload', {
-        'category': 'pottery',
-        'github_token': 'user-token',
-        'profile': {'name': 'my-bisque', 'data': [[0, 65], [3600, 1708]],
-                    'description': 'shared schedule'},
-    })
-    assert out['status'] == '200 OK', (out['status'], resp)
+    out, resp = post_json(
+        "/api/profiles/remote/upload",
+        {
+            "category": "pottery",
+            "github_token": "user-token",
+            "profile": {
+                "name": "my-bisque",
+                "data": [[0, 65], [3600, 1708]],
+                "description": "shared schedule",
+            },
+        },
+    )
+    assert out["status"] == "200 OK", (out["status"], resp)
     body = json.loads(resp)
-    assert body['success'] is True
-    assert body['pr_url'] == 'https://github.com/jbruce12000/kiln-profiles/pull/12'
-    assert body['pr_number'] == 12
+    assert body["success"] is True
+    assert body["pr_url"] == "https://github.com/jbruce12000/kiln-profiles/pull/12"
+    assert body["pr_number"] == 12
 
     # the file is committed to the sharer's fork on a feature branch
     assert len(contents) == 1
-    assert contents[0]['branch'] == 'kiln-share-my-bisque'
-    uploaded = json.loads(base64.b64decode(contents[0]['content']).decode('utf-8'))
-    assert uploaded['name'] == 'my-bisque'
-    assert uploaded['temp_units'] == 'c'
-    assert uploaded['description'] == 'shared schedule'
-    assert uploaded['data'][0][1] == pytest.approx((65 - 32) * 5 / 9)
+    assert contents[0]["branch"] == "kiln-share-my-bisque"
+    uploaded = json.loads(base64.b64decode(contents[0]["content"]).decode("utf-8"))
+    assert uploaded["name"] == "my-bisque"
+    assert uploaded["temp_units"] == "c"
+    assert uploaded["description"] == "shared schedule"
+    assert uploaded["data"][0][1] == pytest.approx((65 - 32) * 5 / 9)
 
     # the pull request targets the shared repo with head = sharer's fork
     assert len(prs) == 1
-    assert prs[0]['base'] == 'main'
-    assert prs[0]['head'] == 'sharer:kiln-share-my-bisque'
-    assert prs[0]['title'] == 'Add schedule my-bisque (pottery)'
+    assert prs[0]["base"] == "main"
+    assert prs[0]["head"] == "sharer:kiln-share-my-bisque"
+    assert prs[0]["title"] == "Add schedule my-bisque (pottery)"
 
     # the profile was also saved locally in celsius
-    saved = json.loads((tmp_path / 'my-bisque.json').read_text())
-    assert saved['temp_units'] == 'c'
+    saved = json.loads((tmp_path / "my-bisque.json").read_text())
+    assert saved["temp_units"] == "c"
 
 
 def test_api_profiles_remote_upload_reuses_existing_fork(monkeypatch, tmp_path):
     fake_get, fake_post, fake_put, calls, prs, contents = _fake_share_flow(fork_missing=False)
-    monkeypatch.setattr(controller.requests, 'get', fake_get)
-    monkeypatch.setattr(controller.requests, 'post', fake_post)
-    monkeypatch.setattr(controller.requests, 'put', fake_put)
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller.requests, "get", fake_get)
+    monkeypatch.setattr(controller.requests, "post", fake_post)
+    monkeypatch.setattr(controller.requests, "put", fake_put)
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     _reset_remote_cache(monkeypatch)
 
-    out, resp = post_json('/api/profiles/remote/upload', {
-        'category': 'pottery',
-        'github_token': 'user-token',
-        'profile': {'name': 'my-bisque', 'data': [[0, 65], [3600, 1708]]},
-    })
-    assert out['status'] == '200 OK', (out['status'], resp)
-    assert json.loads(resp)['pr_number'] == 12
+    out, resp = post_json(
+        "/api/profiles/remote/upload",
+        {
+            "category": "pottery",
+            "github_token": "user-token",
+            "profile": {"name": "my-bisque", "data": [[0, 65], [3600, 1708]]},
+        },
+    )
+    assert out["status"] == "200 OK", (out["status"], resp)
+    assert json.loads(resp)["pr_number"] == 12
     # the fork already existed, so no "create fork" call was made
-    assert not any(url.endswith('/forks') for url in calls)
-    assert any(url.endswith('/merge-upstream') for url in calls)
+    assert not any(url.endswith("/forks") for url in calls)
+    assert any(url.endswith("/merge-upstream") for url in calls)
 
 
 ########################################################################
 # /api routes (handle_api / handle_stats)
 ########################################################################
 
+
 def api_call(payload, monkeypatch):
-    monkeypatch.setattr(bottle, 'request', types.SimpleNamespace(json=payload))
+    monkeypatch.setattr(bottle, "request", types.SimpleNamespace(json=payload))
     return controller.handle_api()
 
 
 def test_handle_stats(monkeypatch):
     resp = controller.handle_stats()
-    assert json.loads(resp)['ispoint'] == 0
+    assert json.loads(resp)["ispoint"] == 0
 
 
 def test_handle_api_run_success(monkeypatch):
@@ -1556,122 +1666,123 @@ def test_handle_api_run_success(monkeypatch):
     def fake_run_profile(profile, startat=0, allow_seek=True):
         calls.append(profile.name)
 
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name, 'data': [[0, 200]]})
-    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
-    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name, "data": [[0, 200]]})
+    monkeypatch.setattr(controller.oven, "run_profile", fake_run_profile)
+    monkeypatch.setattr(controller.ovenWatcher, "record", lambda profile: None)
 
-    resp = api_call({'cmd': 'run', 'profile': 'cone-05'}, monkeypatch)
-    assert resp == {'success': True}
-    assert calls == ['cone-05']
+    resp = api_call({"cmd": "run", "profile": "cone-05"}, monkeypatch)
+    assert resp == {"success": True}
+    assert calls == ["cone-05"]
 
 
 def test_handle_api_run_missing_profile(monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: None)
-    resp = api_call({'cmd': 'run', 'profile': 'nope'}, monkeypatch)
-    assert resp == {'success': False, 'error': 'profile nope not found'}
+    monkeypatch.setattr(controller, "find_profile", lambda name: None)
+    resp = api_call({"cmd": "run", "profile": "nope"}, monkeypatch)
+    assert resp == {"success": False, "error": "profile nope not found"}
 
 
 def test_handle_api_schedule_route(scheduler, monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
-    resp = api_call({'cmd': 'schedule', 'profile': 'cone-05', 'start_time': time.time() + 3600}, monkeypatch)
-    assert resp['success'] is True
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name})
+    resp = api_call(
+        {"cmd": "schedule", "profile": "cone-05", "start_time": time.time() + 3600}, monkeypatch
+    )
+    assert resp["success"] is True
     assert len(scheduler.list()) == 1
 
 
 def test_handle_api_cancel_schedule_route(scheduler, monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
-    sched = controller.api_schedule({'profile': 'cone-05', 'start_time': time.time() + 3600})
-    resp = api_call({'cmd': 'cancel_schedule', 'id': sched['id']}, monkeypatch)
-    assert resp['success'] is True
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name})
+    sched = controller.api_schedule({"profile": "cone-05", "start_time": time.time() + 3600})
+    resp = api_call({"cmd": "cancel_schedule", "id": sched["id"]}, monkeypatch)
+    assert resp["success"] is True
     assert scheduler.list() == []
 
 
 def test_handle_api_list_schedules(scheduler, monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
-    controller.api_schedule({'profile': 'cone-05', 'start_time': time.time() + 3600})
-    resp = api_call({'cmd': 'list_schedules'}, monkeypatch)
-    assert resp['success'] is True
-    assert len(resp['schedules']) == 1
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name})
+    controller.api_schedule({"profile": "cone-05", "start_time": time.time() + 3600})
+    resp = api_call({"cmd": "list_schedules"}, monkeypatch)
+    assert resp["success"] is True
+    assert len(resp["schedules"]) == 1
 
 
 def test_handle_api_pause(monkeypatch):
-    monkeypatch.setattr(controller.oven, 'state', 'RUNNING')
-    resp = api_call({'cmd': 'pause'}, monkeypatch)
-    assert resp == {'success': True}
-    assert controller.oven.state == 'PAUSED'
+    monkeypatch.setattr(controller.oven, "state", "RUNNING")
+    resp = api_call({"cmd": "pause"}, monkeypatch)
+    assert resp == {"success": True}
+    assert controller.oven.state == "PAUSED"
 
 
 def test_handle_api_resume(monkeypatch):
-    monkeypatch.setattr(controller.oven, 'state', 'PAUSED')
-    resp = api_call({'cmd': 'resume'}, monkeypatch)
-    assert resp == {'success': True}
-    assert controller.oven.state == 'RUNNING'
+    monkeypatch.setattr(controller.oven, "state", "PAUSED")
+    resp = api_call({"cmd": "resume"}, monkeypatch)
+    assert resp == {"success": True}
+    assert controller.oven.state == "RUNNING"
 
 
 def test_handle_api_pause_rejected_when_not_running(monkeypatch):
     # pausing while idle used to crash the oven control thread
-    for state in ('IDLE', 'TUNING'):
-        monkeypatch.setattr(controller.oven, 'state', state)
-        resp = api_call({'cmd': 'pause'}, monkeypatch)
-        assert resp['success'] is False
+    for state in ("IDLE", "TUNING"):
+        monkeypatch.setattr(controller.oven, "state", state)
+        resp = api_call({"cmd": "pause"}, monkeypatch)
+        assert resp["success"] is False
         assert controller.oven.state == state
 
 
 def test_handle_api_resume_rejected_when_not_paused(monkeypatch):
-    for state in ('IDLE', 'RUNNING'):
-        monkeypatch.setattr(controller.oven, 'state', state)
-        resp = api_call({'cmd': 'resume'}, monkeypatch)
-        assert resp['success'] is False
+    for state in ("IDLE", "RUNNING"):
+        monkeypatch.setattr(controller.oven, "state", state)
+        resp = api_call({"cmd": "resume"}, monkeypatch)
+        assert resp["success"] is False
         assert controller.oven.state == state
 
 
 def tune_call(payload, monkeypatch):
-    monkeypatch.setattr(bottle, 'request', types.SimpleNamespace(json=payload))
+    monkeypatch.setattr(bottle, "request", types.SimpleNamespace(json=payload))
     return controller.handle_tune()
 
 
-@pytest.mark.parametrize('handler', ['handle_control', 'handle_storage',
-                                     'handle_config', 'handle_status',
-                                     '_ensure_fork'])
+@pytest.mark.parametrize(
+    "handler",
+    ["handle_control", "handle_storage", "handle_config", "handle_status", "_ensure_fork"],
+)
 def test_greenlet_handlers_yield_not_block(handler):
-    '''gevent is not monkey-patched here, so time.sleep() inside a request
+    """gevent is not monkey-patched here, so time.sleep() inside a request
     or websocket greenlet freezes the whole server; these must yield via
-    gevent.sleep instead'''
+    gevent.sleep instead"""
     source = inspect.getsource(getattr(controller, handler))
-    assert 'time.sleep(' not in source
-    assert 'gevent.sleep(' in source
+    assert "time.sleep(" not in source
+    assert "gevent.sleep(" in source
 
 
 def test_handle_tune_start_rejected_while_tuning(monkeypatch):
-    monkeypatch.setattr(controller, 'tuner',
-                        types.SimpleNamespace(state='HEATING'))
-    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
-    resp = tune_call({'cmd': 'start', 'target_temp': 200}, monkeypatch)
-    assert resp['success'] is False
-    assert resp['error'] == 'tuner is already running'
+    monkeypatch.setattr(controller, "tuner", types.SimpleNamespace(state="HEATING"))
+    monkeypatch.setattr(controller.oven, "state", "IDLE")
+    resp = tune_call({"cmd": "start", "target_temp": 200}, monkeypatch)
+    assert resp["success"] is False
+    assert resp["error"] == "tuner is already running"
 
 
 def test_handle_tune_start_allowed_after_done(monkeypatch):
-    '''DONE is a terminal state; starting another run must be allowed
-    (the old gate required IDLE and locked the tuner up after one use)'''
+    """DONE is a terminal state; starting another run must be allowed
+    (the old gate required IDLE and locked the tuner up after one use)"""
     started = []
     done = threading.Event()
 
     class StubTuner:
-        state = 'DONE'
+        state = "DONE"
 
         def start(self, *args, **kwargs):
             started.append(args)
             done.set()
 
-    monkeypatch.setattr(controller, 'tuner', StubTuner())
-    monkeypatch.setattr(controller.oven, 'state', 'IDLE')
-    resp = tune_call({'cmd': 'start', 'target_temp': 200}, monkeypatch)
-    assert resp['success'] is True
+    monkeypatch.setattr(controller, "tuner", StubTuner())
+    monkeypatch.setattr(controller.oven, "state", "IDLE")
+    resp = tune_call({"cmd": "start", "target_temp": 200}, monkeypatch)
+    assert resp["success"] is True
     assert done.wait(2)
     # 200 display degF converted to internal celsius
-    assert started == [(pytest.approx((5 / 9) * (200 - 32)),
-                        'critically_damped', 8)]
+    assert started == [(pytest.approx((5 / 9) * (200 - 32)), "critically_damped", 8)]
 
 
 def test_handle_api_stop(monkeypatch):
@@ -1680,46 +1791,48 @@ def test_handle_api_stop(monkeypatch):
     def fake_abort():
         abort_called.append(True)
 
-    monkeypatch.setattr(controller.oven, 'abort_run', fake_abort)
-    resp = api_call({'cmd': 'stop'}, monkeypatch)
-    assert resp == {'success': True}
+    monkeypatch.setattr(controller.oven, "abort_run", fake_abort)
+    resp = api_call({"cmd": "stop"}, monkeypatch)
+    assert resp == {"success": True}
     assert abort_called == [True]
 
 
 def test_handle_api_memo(monkeypatch):
-    resp = api_call({'cmd': 'memo', 'memo': 'hello there'}, monkeypatch)
-    assert resp == {'success': True}
+    resp = api_call({"cmd": "memo", "memo": "hello there"}, monkeypatch)
+    assert resp == {"success": True}
 
 
 def test_handle_api_stats(monkeypatch):
-    resp = api_call({'cmd': 'stats'}, monkeypatch)
-    assert json.loads(resp)['ispoint'] == 0
+    resp = api_call({"cmd": "stats"}, monkeypatch)
+    assert json.loads(resp)["ispoint"] == 0
 
 
 ########################################################################
 # helper coverage: error paths and thin routes
 ########################################################################
 
+
 def test_profile_files_missing_directory(monkeypatch):
-    monkeypatch.setattr(controller, 'profile_path', '/nonexistent/dir/xyz')
+    monkeypatch.setattr(controller, "profile_path", "/nonexistent/dir/xyz")
     assert controller.profile_files() == []
 
 
 def test_tar_add_path_missing_file(tmp_path):
-    with tarfile.open(fileobj=io.BytesIO(), mode='w') as tar:
-        controller._tar_add_path(tar, 'config.py', str(tmp_path / 'nope.py'))
+    with tarfile.open(fileobj=io.BytesIO(), mode="w") as tar:
+        controller._tar_add_path(tar, "config.py", str(tmp_path / "nope.py"))
 
 
 def test_gather_log_lines_error(monkeypatch):
     def boom(*a, **k):
-        raise OSError('no journal here')
-    monkeypatch.setattr(controller.subprocess, 'check_output', boom)
+        raise OSError("no journal here")
+
+    monkeypatch.setattr(controller.subprocess, "check_output", boom)
     assert controller.gather_log_lines() == []
 
 
 def test_find_profile_listdir_error(monkeypatch):
-    monkeypatch.setattr(controller.os, 'listdir', lambda *a, **k: (_ for _ in ()).throw(OSError()))
-    assert controller.find_profile('cone-05') is None
+    monkeypatch.setattr(controller.os, "listdir", lambda *a, **k: (_ for _ in ()).throw(OSError()))
+    assert controller.find_profile("cone-05") is None
 
 
 def test_start_run_with_startat_does_not_seek(monkeypatch):
@@ -1728,11 +1841,11 @@ def test_start_run_with_startat_does_not_seek(monkeypatch):
     def fake_run_profile(profile, startat=0, allow_seek=True):
         calls.append((startat, allow_seek))
 
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name, 'data': [[0, 200]]})
-    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
-    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name, "data": [[0, 200]]})
+    monkeypatch.setattr(controller.oven, "run_profile", fake_run_profile)
+    monkeypatch.setattr(controller.ovenWatcher, "record", lambda profile: None)
 
-    assert controller.start_run('cone-05', startat=60) is True
+    assert controller.start_run("cone-05", startat=60) is True
     assert calls == [(60, False)]
 
 
@@ -1742,58 +1855,59 @@ def test_handle_api_run_with_startat(monkeypatch):
     def fake_run_profile(profile, startat=0, allow_seek=True):
         calls.append((startat, allow_seek))
 
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name, 'data': [[0, 200]]})
-    monkeypatch.setattr(controller.oven, 'run_profile', fake_run_profile)
-    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name, "data": [[0, 200]]})
+    monkeypatch.setattr(controller.oven, "run_profile", fake_run_profile)
+    monkeypatch.setattr(controller.ovenWatcher, "record", lambda profile: None)
 
-    resp = api_call({'cmd': 'run', 'profile': 'cone-05', 'startat': 30}, monkeypatch)
-    assert resp == {'success': True}
+    resp = api_call({"cmd": "run", "profile": "cone-05", "startat": 30}, monkeypatch)
+    assert resp == {"success": True}
     assert calls == [(30, False)]
 
 
 def test_api_schedule_missing_profile_name(scheduler, monkeypatch):
-    monkeypatch.setattr(controller, 'find_profile', lambda name: {'name': name})
-    resp = controller.api_schedule({'start_time': time.time() + 3600})
-    assert resp == {'success': False, 'error': 'profile is required'}
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name})
+    resp = controller.api_schedule({"start_time": time.time() + 3600})
+    assert resp == {"success": False, "error": "profile is required"}
 
 
 def test_api_cancel_schedule_missing_id(monkeypatch):
     resp = controller.api_cancel_schedule({})
-    assert resp == {'success': False, 'error': 'id is required'}
+    assert resp == {"success": False, "error": "id is required"}
 
 
 def test_reload_config_module_removes_cached(monkeypatch):
-    config.__cached__ = '/nonexistent/config.cpython-312.pyc'
+    config.__cached__ = "/nonexistent/config.cpython-312.pyc"
 
     def fake_reload(mod):
         pass
 
     def boom(path):
-        raise OSError('no such file')
+        raise OSError("no such file")
 
-    monkeypatch.setattr(controller.os, 'remove', boom)
-    monkeypatch.setattr(controller.importlib, 'reload', fake_reload)
+    monkeypatch.setattr(controller.os, "remove", boom)
+    monkeypatch.setattr(controller.importlib, "reload", fake_reload)
     controller.reload_config_module()
 
 
 def test_repo_owner_repo_without_github_url(monkeypatch):
-    monkeypatch.setattr(controller.config, 'kiln_profiles_repo', '')
+    monkeypatch.setattr(controller.config, "kiln_profiles_repo", "")
     assert controller._repo_owner_repo() is None
 
 
 def test_send_static():
-    resp = controller.send_static('index.html')
-    assert resp.headers['Content-Type'].startswith('text/html')
+    resp = controller.send_static("index.html")
+    assert resp.headers["Content-Type"].startswith("text/html")
 
 
 def test_get_websocket_from_request_present(monkeypatch):
-    monkeypatch.setattr(bottle, 'request',
-                        types.SimpleNamespace(environ={'wsgi.websocket': 'sock'}))
-    assert controller.get_websocket_from_request() == 'sock'
+    monkeypatch.setattr(
+        bottle, "request", types.SimpleNamespace(environ={"wsgi.websocket": "sock"})
+    )
+    assert controller.get_websocket_from_request() == "sock"
 
 
 def test_get_websocket_from_request_missing(monkeypatch):
-    monkeypatch.setattr(bottle, 'request', types.SimpleNamespace(environ={}))
+    monkeypatch.setattr(bottle, "request", types.SimpleNamespace(environ={}))
     with pytest.raises(bottle.HTTPResponse):
         controller.get_websocket_from_request()
 
@@ -1801,6 +1915,7 @@ def test_get_websocket_from_request_missing(monkeypatch):
 ########################################################################
 # websocket handlers
 ########################################################################
+
 
 class FakeWebSocket:
     def __init__(self, messages):
@@ -1810,44 +1925,48 @@ class FakeWebSocket:
     def receive(self):
         if self.messages:
             return self.messages.pop(0)
-        raise controller.WebSocketError('closed')
+        raise controller.WebSocketError("closed")
 
     def send(self, msg):
         self.sent.append(msg)
 
 
 def test_handle_control_run_and_stop(monkeypatch):
-    ws = FakeWebSocket([
-        json.dumps({'cmd': 'RUN', 'profile': {'name': 'cone-05', 'data': [[0, 200]]}}),
-        json.dumps({'cmd': 'STOP'}),
-    ])
+    ws = FakeWebSocket(
+        [
+            json.dumps({"cmd": "RUN", "profile": {"name": "cone-05", "data": [[0, 200]]}}),
+            json.dumps({"cmd": "STOP"}),
+        ]
+    )
     runs = []
     stops = []
-    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
-    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
-    monkeypatch.setattr(controller.oven, 'run_profile', lambda profile: runs.append(profile.name))
-    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
-    monkeypatch.setattr(controller.oven, 'abort_run', lambda: stops.append(True))
+    monkeypatch.setattr(controller, "get_websocket_from_request", lambda: ws)
+    monkeypatch.setattr(controller.time, "sleep", lambda secs: None)
+    monkeypatch.setattr(controller.oven, "run_profile", lambda profile: runs.append(profile.name))
+    monkeypatch.setattr(controller.ovenWatcher, "record", lambda profile: None)
+    monkeypatch.setattr(controller.oven, "abort_run", lambda: stops.append(True))
 
     controller.handle_control()
 
-    assert runs == ['cone-05']
+    assert runs == ["cone-05"]
     assert stops == [True]
 
 
 def test_handle_control_run_without_profile_is_ignored(monkeypatch):
-    '''a RUN with no profile used to raise NameError on an undefined
-    variable and kill the websocket silently'''
-    ws = FakeWebSocket([
-        json.dumps({'cmd': 'RUN'}),
-        json.dumps({'cmd': 'STOP'}),
-    ])
+    """a RUN with no profile used to raise NameError on an undefined
+    variable and kill the websocket silently"""
+    ws = FakeWebSocket(
+        [
+            json.dumps({"cmd": "RUN"}),
+            json.dumps({"cmd": "STOP"}),
+        ]
+    )
     runs = []
     stops = []
-    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
-    monkeypatch.setattr(controller.oven, 'run_profile', lambda profile: runs.append(profile.name))
-    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
-    monkeypatch.setattr(controller.oven, 'abort_run', lambda: stops.append(True))
+    monkeypatch.setattr(controller, "get_websocket_from_request", lambda: ws)
+    monkeypatch.setattr(controller.oven, "run_profile", lambda profile: runs.append(profile.name))
+    monkeypatch.setattr(controller.ovenWatcher, "record", lambda profile: None)
+    monkeypatch.setattr(controller.oven, "abort_run", lambda: stops.append(True))
 
     controller.handle_control()  # must not raise
 
@@ -1856,19 +1975,21 @@ def test_handle_control_run_without_profile_is_ignored(monkeypatch):
 
 
 def test_handle_control_survives_bad_messages(monkeypatch):
-    '''malformed json and malformed profiles must be logged and skipped,
-    not tear down the connection'''
-    ws = FakeWebSocket([
-        'not json at all',
-        json.dumps({'cmd': 'RUN', 'profile': {'name': 'broken'}}),  # no data
-        json.dumps({'cmd': 'STOP'}),
-    ])
+    """malformed json and malformed profiles must be logged and skipped,
+    not tear down the connection"""
+    ws = FakeWebSocket(
+        [
+            "not json at all",
+            json.dumps({"cmd": "RUN", "profile": {"name": "broken"}}),  # no data
+            json.dumps({"cmd": "STOP"}),
+        ]
+    )
     runs = []
     stops = []
-    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
-    monkeypatch.setattr(controller.oven, 'run_profile', lambda profile: runs.append(profile.name))
-    monkeypatch.setattr(controller.ovenWatcher, 'record', lambda profile: None)
-    monkeypatch.setattr(controller.oven, 'abort_run', lambda: stops.append(True))
+    monkeypatch.setattr(controller, "get_websocket_from_request", lambda: ws)
+    monkeypatch.setattr(controller.oven, "run_profile", lambda profile: runs.append(profile.name))
+    monkeypatch.setattr(controller.ovenWatcher, "record", lambda profile: None)
+    monkeypatch.setattr(controller.oven, "abort_run", lambda: stops.append(True))
 
     controller.handle_control()  # must not raise
 
@@ -1877,56 +1998,56 @@ def test_handle_control_survives_bad_messages(monkeypatch):
 
 
 def test_handle_storage_get_and_put(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    (tmp_path / 'cone-05.json').write_text(
-        json.dumps({'name': 'cone-05', 'data': [[0, 32]]}))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    (tmp_path / "cone-05.json").write_text(json.dumps({"name": "cone-05", "data": [[0, 32]]}))
 
-    ws = FakeWebSocket([
-        'GET',
-        json.dumps({'cmd': 'PUT', 'profile': {'name': 'cone-06', 'data': [[0, 32]]}}),
-    ])
-    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
-    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    ws = FakeWebSocket(
+        [
+            "GET",
+            json.dumps({"cmd": "PUT", "profile": {"name": "cone-06", "data": [[0, 32]]}}),
+        ]
+    )
+    monkeypatch.setattr(controller, "get_websocket_from_request", lambda: ws)
+    monkeypatch.setattr(controller.time, "sleep", lambda secs: None)
 
     profiles_before = controller.get_profiles()
     controller.handle_storage()
 
     assert ws.sent[0] == profiles_before
     put_reply = json.loads(ws.sent[1])
-    assert put_reply['resp'] == 'OK'
-    assert 'cone-06' in [p['name'] for p in json.loads(ws.sent[2])]
+    assert put_reply["resp"] == "OK"
+    assert "cone-06" in [p["name"] for p in json.loads(ws.sent[2])]
 
 
 def test_handle_storage_delete(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    (tmp_path / 'cone-05.json').write_text(
-        json.dumps({'name': 'cone-05', 'data': [[0, 32]]}))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    (tmp_path / "cone-05.json").write_text(json.dumps({"name": "cone-05", "data": [[0, 32]]}))
 
-    ws = FakeWebSocket([json.dumps({'cmd': 'DELETE', 'profile': {'name': 'cone-05'}})])
-    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
-    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    ws = FakeWebSocket([json.dumps({"cmd": "DELETE", "profile": {"name": "cone-05"}})])
+    monkeypatch.setattr(controller, "get_websocket_from_request", lambda: ws)
+    monkeypatch.setattr(controller.time, "sleep", lambda secs: None)
 
     controller.handle_storage()
 
-    assert not (tmp_path / 'cone-05.json').exists()
+    assert not (tmp_path / "cone-05.json").exists()
     reply = json.loads(ws.sent[0])
-    assert reply['resp'] == 'OK'
+    assert reply["resp"] == "OK"
 
 
 def test_handle_config_websocket(monkeypatch):
-    ws = FakeWebSocket(['ping'])
-    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
-    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    ws = FakeWebSocket(["ping"])
+    monkeypatch.setattr(controller, "get_websocket_from_request", lambda: ws)
+    monkeypatch.setattr(controller.time, "sleep", lambda secs: None)
 
     controller.handle_config()
 
-    assert json.loads(ws.sent[0])['simulate'] == config.simulate
+    assert json.loads(ws.sent[0])["simulate"] == config.simulate
 
 
 def test_handle_status_websocket(monkeypatch):
-    ws = FakeWebSocket(['hello'])
-    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
-    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    ws = FakeWebSocket(["hello"])
+    monkeypatch.setattr(controller, "get_websocket_from_request", lambda: ws)
+    monkeypatch.setattr(controller.time, "sleep", lambda secs: None)
 
     controller.handle_status()
 
@@ -1938,57 +2059,57 @@ def test_main_starts_server(monkeypatch):
 
     class FakeServer:
         def __init__(self, ip_port, app, handler_class=None):
-            captured['addr'] = ip_port
-            captured['handler'] = handler_class
+            captured["addr"] = ip_port
+            captured["handler"] = handler_class
 
         def serve_forever(self):
-            captured['served'] = True
+            captured["served"] = True
 
-    monkeypatch.setattr(controller, 'WSGIServer', FakeServer)
-    monkeypatch.setattr(controller, 'scheduler', types.SimpleNamespace(fire_due=lambda: None))
+    monkeypatch.setattr(controller, "WSGIServer", FakeServer)
+    monkeypatch.setattr(controller, "scheduler", types.SimpleNamespace(fire_due=lambda: None))
 
     ran = []
 
     def fake_spawn_later(secs, func, *a, **k):
-        captured.setdefault('spawned', []).append((secs, func))
+        captured.setdefault("spawned", []).append((secs, func))
         if not ran:
             ran.append(True)
             func()
 
-    monkeypatch.setattr(controller, 'gevent', types.SimpleNamespace(spawn_later=fake_spawn_later))
+    monkeypatch.setattr(controller, "gevent", types.SimpleNamespace(spawn_later=fake_spawn_later))
 
     controller.main()
 
-    assert captured['addr'][1] == config.listening_port
-    assert captured['handler'] == controller.WebSocketHandler
-    assert captured['served'] is True
+    assert captured["addr"][1] == config.listening_port
+    assert captured["handler"] == controller.WebSocketHandler
+    assert captured["served"] is True
     assert ran == [True]
 
 
 def test_controller_uses_real_oven_when_not_simulated(monkeypatch):
-    monkeypatch.setattr(config, 'simulate', False)
+    monkeypatch.setattr(config, "simulate", False)
     mod = load_controller()
     assert isinstance(mod.oven, StubOven)
-    assert mod.oven.state == 'IDLE'
+    assert mod.oven.state == "IDLE"
 
 
 def test_chain_anchor_ready_invalid_run_sequence(monkeypatch):
-    monkeypatch.setattr(controller.oven, 'ended_run_sequence', 5)
-    assert controller.chain_anchor_ready('run:abc') is False
+    monkeypatch.setattr(controller.oven, "ended_run_sequence", 5)
+    assert controller.chain_anchor_ready("run:abc") is False
 
 
 def test_chain_anchor_ready_missing_schedule(scheduler, monkeypatch):
-    assert controller.chain_anchor_ready('sched:missing-id') is False
+    assert controller.chain_anchor_ready("sched:missing-id") is False
 
 
 def test_chain_anchor_ready_unrecognized(monkeypatch):
-    assert controller.chain_anchor_ready('bogus:1') is False
+    assert controller.chain_anchor_ready("bogus:1") is False
 
 
 def test_handle_control_simulate(monkeypatch):
-    ws = FakeWebSocket([json.dumps({'cmd': 'SIMULATE'})])
-    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
-    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    ws = FakeWebSocket([json.dumps({"cmd": "SIMULATE"})])
+    monkeypatch.setattr(controller, "get_websocket_from_request", lambda: ws)
+    monkeypatch.setattr(controller.time, "sleep", lambda secs: None)
     controller.handle_control()
 
 
@@ -1998,202 +2119,217 @@ def test_handle_storage_break_on_empty_message(monkeypatch):
             self.sent = []
 
         def receive(self):
-            return ''
+            return ""
 
         def send(self, msg):
             self.sent.append(msg)
 
-    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: EmptyWS())
-    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    monkeypatch.setattr(controller, "get_websocket_from_request", lambda: EmptyWS())
+    monkeypatch.setattr(controller.time, "sleep", lambda secs: None)
     controller.handle_storage()
 
 
 def test_handle_storage_put_failure(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    ws = FakeWebSocket([json.dumps({'cmd': 'PUT', 'profile': {'name': 'x', 'data': [[0, 32]]}})])
-    monkeypatch.setattr(controller, 'save_profile', lambda profile, force: False)
-    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
-    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    ws = FakeWebSocket([json.dumps({"cmd": "PUT", "profile": {"name": "x", "data": [[0, 32]]}})])
+    monkeypatch.setattr(controller, "save_profile", lambda profile, force: False)
+    monkeypatch.setattr(controller, "get_websocket_from_request", lambda: ws)
+    monkeypatch.setattr(controller.time, "sleep", lambda secs: None)
     controller.handle_storage()
     reply = json.loads(ws.sent[0])
-    assert reply['resp'] == 'FAIL'
+    assert reply["resp"] == "FAIL"
 
 
 def test_handle_storage_put_invalid_name_reports_error(monkeypatch, tmp_path):
     # names become filenames, so ones with spaces are rejected with an
     # error the ui shows instead of the overwrite confirm
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    ws = FakeWebSocket([json.dumps({'cmd': 'PUT', 'profile': {'name': 'has spaces', 'data': [[0, 32]]}})])
-    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
-    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    ws = FakeWebSocket(
+        [json.dumps({"cmd": "PUT", "profile": {"name": "has spaces", "data": [[0, 32]]}})]
+    )
+    monkeypatch.setattr(controller, "get_websocket_from_request", lambda: ws)
+    monkeypatch.setattr(controller.time, "sleep", lambda secs: None)
     controller.handle_storage()
     reply = json.loads(ws.sent[0])
-    assert reply['resp'] == 'FAIL'
-    assert 'invalid schedule name' in reply['error']
+    assert reply["resp"] == "FAIL"
+    assert "invalid schedule name" in reply["error"]
     assert os.listdir(str(tmp_path)) == []
 
 
 def test_handle_storage_put_valid_name_ok(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    ws = FakeWebSocket([json.dumps({'cmd': 'PUT', 'profile': {'name': 'fine-name', 'data': [[0, 32]]}})])
-    monkeypatch.setattr(controller, 'get_websocket_from_request', lambda: ws)
-    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    ws = FakeWebSocket(
+        [json.dumps({"cmd": "PUT", "profile": {"name": "fine-name", "data": [[0, 32]]}})]
+    )
+    monkeypatch.setattr(controller, "get_websocket_from_request", lambda: ws)
+    monkeypatch.setattr(controller.time, "sleep", lambda secs: None)
     controller.handle_storage()
     reply = json.loads(ws.sent[0])
-    assert reply['resp'] == 'OK'
-    assert 'error' not in reply
+    assert reply["resp"] == "OK"
+    assert "error" not in reply
 
 
 def test_raw_url_without_repo(monkeypatch):
-    monkeypatch.setattr(controller, '_repo_owner_repo', lambda: None)
-    assert controller._raw_url('pottery/x.json') is None
+    monkeypatch.setattr(controller, "_repo_owner_repo", lambda: None)
+    assert controller._raw_url("pottery/x.json") is None
 
 
 def test_list_remote_profiles_network_error(monkeypatch):
     def boom(url, params=None, headers=None, timeout=None):
-        raise RuntimeError('offline')
-    monkeypatch.setattr(controller.requests, 'get', boom)
+        raise RuntimeError("offline")
+
+    monkeypatch.setattr(controller.requests, "get", boom)
     _reset_remote_cache(monkeypatch)
     data = controller.list_remote_profiles(force=True)
-    assert data['success'] is False
-    assert 'could not reach' in data['error']
+    assert data["success"] is False
+    assert "could not reach" in data["error"]
 
 
 def test_list_remote_profiles_index_not_list(monkeypatch):
-    monkeypatch.setattr(controller.requests, 'get',
-                        lambda *a, **k: FakeResp({'not': 'a list'}))
+    monkeypatch.setattr(controller.requests, "get", lambda *a, **k: FakeResp({"not": "a list"}))
     _reset_remote_cache(monkeypatch)
     data = controller.list_remote_profiles(force=True)
-    assert data['success'] is False
-    assert 'unexpected response' in data['error']
+    assert data["success"] is False
+    assert "unexpected response" in data["error"]
 
 
 def test_list_remote_profiles_skips_bad_entries(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller.requests, 'get',
-                        lambda *a, **k: FakeResp([
-                            {'name': 'good-profile', 'path': 'pottery/good.json'},
-                            'garbage',
-                            {'no-name': True},
-                        ]))
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(
+        controller.requests,
+        "get",
+        lambda *a, **k: FakeResp(
+            [
+                {"name": "good-profile", "path": "pottery/good.json"},
+                "garbage",
+                {"no-name": True},
+            ]
+        ),
+    )
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     _reset_remote_cache(monkeypatch)
 
     data = controller.list_remote_profiles(force=True)
-    assert data['success'] is True
-    assert [p['name'] for p in data['profiles']] == ['good-profile']
+    assert data["success"] is True
+    assert [p["name"] for p in data["profiles"]] == ["good-profile"]
 
 
 def test_api_profiles_remote_import_rejects_non_github_repo(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, '_repo_owner_repo', lambda: None)
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller, "_repo_owner_repo", lambda: None)
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     _reset_remote_cache(monkeypatch)
-    out, resp = post_json('/api/profiles/remote/import',
-                          {'path': 'pottery/cone-05.json'})
-    assert out['status'] == '400 Bad Request'
-    assert 'github.com URL' in json.loads(resp)['error']
+    out, resp = post_json("/api/profiles/remote/import", {"path": "pottery/cone-05.json"})
+    assert out["status"] == "400 Bad Request"
+    assert "github.com URL" in json.loads(resp)["error"]
 
 
 def test_api_profiles_remote_import_invalid_profile(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller.requests, 'get',
-                        lambda *a, **k: FakeResp({'name': ''}))
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller.requests, "get", lambda *a, **k: FakeResp({"name": ""}))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     _reset_remote_cache(monkeypatch)
-    out, resp = post_json('/api/profiles/remote/import',
-                          {'path': 'pottery/cone-05.json'})
-    assert out['status'] == '400 Bad Request'
-    assert 'invalid profile name' in json.loads(resp)['error']
+    out, resp = post_json("/api/profiles/remote/import", {"path": "pottery/cone-05.json"})
+    assert out["status"] == "400 Bad Request"
+    assert "invalid profile name" in json.loads(resp)["error"]
 
 
 def test_api_profiles_remote_import_download_error(monkeypatch, tmp_path):
     def boom(url, headers=None, timeout=None):
-        raise OSError('network down')
-    monkeypatch.setattr(controller.requests, 'get', boom)
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+        raise OSError("network down")
+
+    monkeypatch.setattr(controller.requests, "get", boom)
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     _reset_remote_cache(monkeypatch)
-    out, resp = post_json('/api/profiles/remote/import',
-                          {'path': 'pottery/cone-05.json'})
-    assert out['status'] == '400 Bad Request'
-    assert 'could not download profile' in json.loads(resp)['error']
+    out, resp = post_json("/api/profiles/remote/import", {"path": "pottery/cone-05.json"})
+    assert out["status"] == "400 Bad Request"
+    assert "could not download profile" in json.loads(resp)["error"]
 
 
 def test_import_profile_rejects_non_dict(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     with pytest.raises(ValueError):
-        controller.import_profile('not-a-dict')
+        controller.import_profile("not-a-dict")
 
 
 def test_api_profiles_remote_upload_no_profile(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    out, resp = post_json('/api/profiles/remote/upload',
-                          {'category': 'pottery', 'github_token': 'tok',
-                           'profile': {'name': ''}})
-    assert out['status'] == '400 Bad Request'
-    assert 'no profile in request' in json.loads(resp)['error']
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    out, resp = post_json(
+        "/api/profiles/remote/upload",
+        {"category": "pottery", "github_token": "tok", "profile": {"name": ""}},
+    )
+    assert out["status"] == "400 Bad Request"
+    assert "no profile in request" in json.loads(resp)["error"]
 
 
 def test_api_profiles_remote_upload_invalid_name(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    out, resp = post_json('/api/profiles/remote/upload',
-                          {'category': 'pottery', 'github_token': 'tok',
-                           'profile': {'name': 'bad name!'}})
-    assert out['status'] == '400 Bad Request'
-    assert 'invalid profile name' in json.loads(resp)['error']
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    out, resp = post_json(
+        "/api/profiles/remote/upload",
+        {"category": "pottery", "github_token": "tok", "profile": {"name": "bad name!"}},
+    )
+    assert out["status"] == "400 Bad Request"
+    assert "invalid profile name" in json.loads(resp)["error"]
 
 
 def test_api_profiles_remote_upload_invalid_category(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    out, resp = post_json('/api/profiles/remote/upload',
-                          {'category': 'bad category!', 'github_token': 'tok',
-                           'profile': {'name': 'good'}})
-    assert out['status'] == '400 Bad Request'
-    assert 'invalid category' in json.loads(resp)['error']
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    out, resp = post_json(
+        "/api/profiles/remote/upload",
+        {"category": "bad category!", "github_token": "tok", "profile": {"name": "good"}},
+    )
+    assert out["status"] == "400 Bad Request"
+    assert "invalid category" in json.loads(resp)["error"]
 
 
 def test_api_profiles_remote_upload_non_github_repo(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, '_repo_owner_repo', lambda: None)
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    out, resp = post_json('/api/profiles/remote/upload',
-                          {'category': 'pottery', 'github_token': 'tok',
-                           'profile': {'name': 'good'}})
-    assert out['status'] == '400 Bad Request'
-    assert 'github.com URL' in json.loads(resp)['error']
+    monkeypatch.setattr(controller, "_repo_owner_repo", lambda: None)
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    out, resp = post_json(
+        "/api/profiles/remote/upload",
+        {"category": "pottery", "github_token": "tok", "profile": {"name": "good"}},
+    )
+    assert out["status"] == "400 Bad Request"
+    assert "github.com URL" in json.loads(resp)["error"]
 
 
 def test_api_profiles_remote_upload_import_failure(monkeypatch, tmp_path):
     def bad_import(profile):
-        raise ValueError('profile has no data')
-    monkeypatch.setattr(controller, 'import_profile', bad_import)
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    out, resp = post_json('/api/profiles/remote/upload',
-                          {'category': 'pottery', 'github_token': 'tok',
-                           'profile': {'name': 'good'}})
-    assert out['status'] == '400 Bad Request'
-    assert 'profile has no data' in json.loads(resp)['error']
+        raise ValueError("profile has no data")
+
+    monkeypatch.setattr(controller, "import_profile", bad_import)
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    out, resp = post_json(
+        "/api/profiles/remote/upload",
+        {"category": "pottery", "github_token": "tok", "profile": {"name": "good"}},
+    )
+    assert out["status"] == "400 Bad Request"
+    assert "profile has no data" in json.loads(resp)["error"]
 
 
 def test_api_profiles_remote_upload_share_failure(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller, 'import_profile', lambda profile: None)
+    monkeypatch.setattr(controller, "import_profile", lambda profile: None)
+
     def bad_share(profile, category, token):
-        raise RuntimeError('github is down')
-    monkeypatch.setattr(controller, 'share_profile_as_pr', bad_share)
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
-    out, resp = post_json('/api/profiles/remote/upload',
-                          {'category': 'pottery', 'github_token': 'tok',
-                           'profile': {'name': 'good'}})
-    assert out['status'] == '400 Bad Request'
-    assert 'share failed' in json.loads(resp)['error']
+        raise RuntimeError("github is down")
+
+    monkeypatch.setattr(controller, "share_profile_as_pr", bad_share)
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    out, resp = post_json(
+        "/api/profiles/remote/upload",
+        {"category": "pottery", "github_token": "tok", "profile": {"name": "good"}},
+    )
+    assert out["status"] == "400 Bad Request"
+    assert "share failed" in json.loads(resp)["error"]
 
 
 def test_ensure_fork_times_out(monkeypatch):
     def fake_get(url, params=None, headers=None, timeout=None):
-        if url == 'https://api.github.com/user':
-            return FakeResp({'login': 'sharer'})
-        if url == 'https://api.github.com/repos/sharer/kiln-profiles':
-            return FakeResp({'message': 'not found'}, status_code=404)
-        raise AssertionError('unexpected get url: %s' % url)
+        if url == "https://api.github.com/user":
+            return FakeResp({"login": "sharer"})
+        if url == "https://api.github.com/repos/sharer/kiln-profiles":
+            return FakeResp({"message": "not found"}, status_code=404)
+        raise AssertionError("unexpected get url: %s" % url)
 
     def fake_post(url, json=None, headers=None, timeout=None):
-        assert url == 'https://api.github.com/repos/jbruce12000/kiln-profiles/forks', url
+        assert url == "https://api.github.com/repos/jbruce12000/kiln-profiles/forks", url
         return FakeResp({}, status_code=202)
 
     clock = [0.0]
@@ -2202,53 +2338,53 @@ def test_ensure_fork_times_out(monkeypatch):
         clock[0] += 10.0
         return clock[0]
 
-    monkeypatch.setattr(controller.requests, 'get', fake_get)
-    monkeypatch.setattr(controller.requests, 'post', fake_post)
-    monkeypatch.setattr(controller.time, 'sleep', lambda secs: None)
-    monkeypatch.setattr(controller.time, 'time', fake_time)
+    monkeypatch.setattr(controller.requests, "get", fake_get)
+    monkeypatch.setattr(controller.requests, "post", fake_post)
+    monkeypatch.setattr(controller.time, "sleep", lambda secs: None)
+    monkeypatch.setattr(controller.time, "time", fake_time)
 
     with pytest.raises(RuntimeError):
-        controller._ensure_fork('jbruce12000/kiln-profiles', 'token')
+        controller._ensure_fork("jbruce12000/kiln-profiles", "token")
 
 
 def test_ensure_fork_merge_error_ignored(monkeypatch):
     def fake_get(url, params=None, headers=None, timeout=None):
-        if url == 'https://api.github.com/user':
-            return FakeResp({'login': 'sharer'})
-        if url == 'https://api.github.com/repos/sharer/kiln-profiles':
-            return FakeResp({'full_name': 'sharer/kiln-profiles'}, status_code=200)
-        raise AssertionError('unexpected get url: %s' % url)
+        if url == "https://api.github.com/user":
+            return FakeResp({"login": "sharer"})
+        if url == "https://api.github.com/repos/sharer/kiln-profiles":
+            return FakeResp({"full_name": "sharer/kiln-profiles"}, status_code=200)
+        raise AssertionError("unexpected get url: %s" % url)
 
     def fake_post(url, json=None, headers=None, timeout=None):
-        assert url == 'https://api.github.com/repos/sharer/kiln-profiles/merge-upstream', url
-        raise RuntimeError('merge upstream failed')
+        assert url == "https://api.github.com/repos/sharer/kiln-profiles/merge-upstream", url
+        raise RuntimeError("merge upstream failed")
 
-    monkeypatch.setattr(controller.requests, 'get', fake_get)
-    monkeypatch.setattr(controller.requests, 'post', fake_post)
+    monkeypatch.setattr(controller.requests, "get", fake_get)
+    monkeypatch.setattr(controller.requests, "post", fake_post)
 
-    assert controller._ensure_fork('jbruce12000/kiln-profiles', 'token') == 'sharer/kiln-profiles'
+    assert controller._ensure_fork("jbruce12000/kiln-profiles", "token") == "sharer/kiln-profiles"
 
 
 def test_api_profiles_remote_route(monkeypatch, tmp_path):
-    monkeypatch.setattr(controller.requests, 'get', _fake_index_get())
-    monkeypatch.setattr(controller, 'profile_path', str(tmp_path))
+    monkeypatch.setattr(controller.requests, "get", _fake_index_get())
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
     _reset_remote_cache(monkeypatch)
 
     env = {
-        'REQUEST_METHOD': 'GET',
-        'PATH_INFO': '/api/profiles/remote',
-        'SERVER_NAME': 'localhost',
-        'SERVER_PORT': '80',
-        'wsgi.input': io.BytesIO(b''),
-        'wsgi.errors': io.StringIO(),
-        'wsgi.version': (1, 0),
-        'wsgi.url_scheme': 'http',
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": "/api/profiles/remote",
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.input": io.BytesIO(b""),
+        "wsgi.errors": io.StringIO(),
+        "wsgi.version": (1, 0),
+        "wsgi.url_scheme": "http",
     }
     out = {}
 
     def start_response(status, headers, exc_info=None):
-        out['status'] = status
+        out["status"] = status
 
-    resp = json.loads(b''.join(controller.app(env, start_response)))
-    assert out['status'] == '200 OK'
-    assert resp['success'] is True
+    resp = json.loads(b"".join(controller.app(env, start_response)))
+    assert out["status"] == "200 OK"
+    assert resp["success"] is True

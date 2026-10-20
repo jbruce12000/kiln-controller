@@ -1,8 +1,8 @@
-'''Tests for the front-end UI work in public/assets/js/kiln-controller.js:
+"""Tests for the front-end UI work in public/assets/js/kiln-controller.js:
 websocket auto-reconnect, the overview schedule label, and the config
 editor tab. Pure functions are extracted from the real file and executed
 with quickjs. Skipped if the quickjs module (a quick JS engine) is not
-installed.'''
+installed."""
 
 import os
 import re
@@ -10,100 +10,108 @@ import json
 
 import pytest
 
-quickjs = pytest.importorskip('quickjs')
+quickjs = pytest.importorskip("quickjs")
 
-JS_PATH = os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
-                                       'public', 'assets', 'js',
-                                       'kiln-controller.js'))
+JS_PATH = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "..", "public", "assets", "js", "kiln-controller.js")
+)
 
 
 def extract_function(src, name):
-    m = re.search(r'\n\s*function %s\([^)]*\)\s*\{' % re.escape(name), src)
+    m = re.search(r"\n\s*function %s\([^)]*\)\s*\{" % re.escape(name), src)
     if not m:
-        raise AssertionError(
-            'function %s not found in %s' % (name, JS_PATH))
+        raise AssertionError("function %s not found in %s" % (name, JS_PATH))
     start = m.end() - 1
     depth = 1
     i = start + 1
     while depth > 0:
-        if src[i] == '{':
+        if src[i] == "{":
             depth += 1
-        elif src[i] == '}':
+        elif src[i] == "}":
             depth -= 1
         i += 1
-    return src[m.start():i]
+    return src[m.start() : i]
 
 
 @pytest.fixture
 def js():
     src = open(JS_PATH).read()
     context = quickjs.Context()
-    context.eval(extract_function(src, 'make_socket'))
-    context.eval(extract_function(src, 'schedule_reconnect'))
-    context.eval(extract_function(src, 'updateSelectedProfileLabel'))
-    context.eval(extract_function(src, 'profileDescription'))
-    context.eval(extract_function(src, 'toggleSimBadge'))
-    context.eval(extract_function(src, 'renderAppVersion'))
-    context.eval(extract_function(src, 'updateOverviewStatus'))
-    context.eval(extract_function(src, 'clear_persisted_all'))
-    context.eval(extract_function(src, 'prune_persisted_all'))
-    context.eval(extract_function(src, 'apiGet'))
-    context.eval(extract_function(src, 'loadRemoteProfiles'))
-    context.eval(extract_function(src, 'populateShareCategories'))
-    context.eval(extract_function(src, 'importRemoteProfile'))
-    context.eval(extract_function(src, 'shareProfile'))
-    context.eval(extract_function(src, 'escHtml'))
-    context.eval(extract_function(src, 'slugifyProfileName'))
-    context.eval(extract_function(src, 'catching_up_seconds'))
-    context.eval(extract_function(src, 'remoteFilterMatches'))
-    context.eval(extract_function(src, 'renderRemoteProfiles'))
-    context.eval(extract_function(src, 'renderAlertsHtml'))
-    context.eval(extract_function(src, 'renderDeliveryHtml'))
-    context.eval('var ALERT_TIER_LABELS = { critical: "Critical", warning: "Warning", info: "Info" };')
-    context.eval(extract_function(src, 'isoLocal'))
-    context.eval(extract_function(src, 'pad2'))
-    context.eval(extract_function(src, 'formatDuration'))
-    context.eval(extract_function(src, 'profileDurationSeconds'))
-    context.eval(extract_function(src, 'scheduleAfter'))
-    context.eval(extract_function(src, 'clearScheduleChain'))
-    context.eval(extract_function(src, 'renderScheduleAfterList'))
-    context.eval('var SCHEDULE_CHAIN_BUFFER = 60;')
+    context.eval(extract_function(src, "make_socket"))
+    context.eval(extract_function(src, "schedule_reconnect"))
+    context.eval(extract_function(src, "updateSelectedProfileLabel"))
+    context.eval(extract_function(src, "profileDescription"))
+    context.eval(extract_function(src, "toggleSimBadge"))
+    context.eval(extract_function(src, "renderAppVersion"))
+    context.eval(extract_function(src, "updateOverviewStatus"))
+    context.eval(extract_function(src, "clear_persisted_all"))
+    context.eval(extract_function(src, "prune_persisted_all"))
+    context.eval(extract_function(src, "apiGet"))
+    context.eval(extract_function(src, "loadRemoteProfiles"))
+    context.eval(extract_function(src, "populateShareCategories"))
+    context.eval(extract_function(src, "importRemoteProfile"))
+    context.eval(extract_function(src, "shareProfile"))
+    context.eval(extract_function(src, "escHtml"))
+    context.eval(extract_function(src, "slugifyProfileName"))
+    context.eval(extract_function(src, "catching_up_seconds"))
+    context.eval(extract_function(src, "remoteFilterMatches"))
+    context.eval(extract_function(src, "renderRemoteProfiles"))
+    context.eval(extract_function(src, "renderAlertsHtml"))
+    context.eval(extract_function(src, "renderDeliveryHtml"))
+    context.eval(
+        'var ALERT_TIER_LABELS = { critical: "Critical", warning: "Warning", info: "Info" };'
+    )
+    context.eval(extract_function(src, "isoLocal"))
+    context.eval(extract_function(src, "pad2"))
+    context.eval(extract_function(src, "formatDuration"))
+    context.eval(extract_function(src, "profileDurationSeconds"))
+    context.eval(extract_function(src, "scheduleAfter"))
+    context.eval(extract_function(src, "clearScheduleChain"))
+    context.eval(extract_function(src, "renderScheduleAfterList"))
+    context.eval("var SCHEDULE_CHAIN_BUFFER = 60;")
     return context
+
+
 ########################################################################
 # websocket auto-reconnect
 ########################################################################
 
+
 def test_make_socket_connects_to_host_path(js):
     js.eval('var host = "ws://localhost:9099";')
-    js.eval('window = {};')
-    js.eval('function WebSocket(url) { this.url = url; }')
+    js.eval("window = {};")
+    js.eval("function WebSocket(url) { this.url = url; }")
     js.eval('var ws = make_socket("status");')
-    assert js.eval('ws.url') == 'ws://localhost:9099/status'
+    assert js.eval("ws.url") == "ws://localhost:9099/status"
     # the socket is registered as a global so init() can attach handlers
     assert js.eval('window["ws_status"] === ws')
 
 
 def test_reconnect_backoff_doubles_then_caps(js):
-    js.eval('var reconnect_attempts = {};')
-    js.eval('var reconnect_max_delay = 15000;')
-    js.eval('var reconnect_pending = {};')
-    js.eval('var timers = [];')
-    js.eval('setTimeout = function(fn, delay) { timers.push({ fn: fn, delay: delay }); };')
-    js.eval('window = {};')
-    js.eval('function make_socket(name) {'
-            '  window["ws_" + name] = { onopen: null, onmessage: null, onclose: null };'
-            '  return window["ws_" + name];'
-            '}')
-    js.eval('function showGrowl() {}')
+    js.eval("var reconnect_attempts = {};")
+    js.eval("var reconnect_max_delay = 15000;")
+    js.eval("var reconnect_pending = {};")
+    js.eval("var timers = [];")
+    js.eval("setTimeout = function(fn, delay) { timers.push({ fn: fn, delay: delay }); };")
+    js.eval("window = {};")
+    js.eval(
+        "function make_socket(name) {"
+        '  window["ws_" + name] = { onopen: null, onmessage: null, onclose: null };'
+        '  return window["ws_" + name];'
+        "}"
+    )
+    js.eval("function showGrowl() {}")
     # init() wires each socket's onclose to schedule a reconnect
     js.eval('function init_onclose() { schedule_reconnect("status"); }')
-    js.eval('window["ws_status"] = { onopen: function(){}, onmessage: function(){}, onclose: init_onclose };')
+    js.eval(
+        'window["ws_status"] = { onopen: function(){}, onmessage: function(){}, onclose: init_onclose };'
+    )
 
     js.eval('schedule_reconnect("status");')
-    assert js.eval('timers[0].delay') == 3000
+    assert js.eval("timers[0].delay") == 3000
 
     # simulate six disconnect/reconnect cycles
-    js.eval('''
+    js.eval("""
         for (var i = 0; i < 6; i++) {
             var t = timers[timers.length - 1];
             t.fn();
@@ -112,79 +120,86 @@ def test_reconnect_backoff_doubles_then_caps(js):
         var delays = timers.map(function(t) { return t.delay; });
         var delays_ok = JSON.stringify(delays) ===
             JSON.stringify([3000, 6000, 12000, 15000, 15000, 15000, 15000]);
-    ''')
-    assert js.eval('delays_ok')
+    """)
+    assert js.eval("delays_ok")
 
 
 def test_reconnect_reuses_handlers_and_reports_reconnected(js):
-    js.eval('var reconnect_attempts = {};')
-    js.eval('var reconnect_max_delay = 15000;')
-    js.eval('var reconnect_pending = {};')
-    js.eval('var timers = [];')
-    js.eval('setTimeout = function(fn, delay) { timers.push({ fn: fn, delay: delay }); };')
-    js.eval('window = {};')
-    js.eval('function make_socket(name) {'
-            '  window["ws_" + name] = { onopen: null, onmessage: null, onclose: null };'
-            '  return window["ws_" + name];'
-            '}')
-    js.eval('var growls = 0;')
-    js.eval('showGrowl = function() { growls++; };')
+    js.eval("var reconnect_attempts = {};")
+    js.eval("var reconnect_max_delay = 15000;")
+    js.eval("var reconnect_pending = {};")
+    js.eval("var timers = [];")
+    js.eval("setTimeout = function(fn, delay) { timers.push({ fn: fn, delay: delay }); };")
+    js.eval("window = {};")
+    js.eval(
+        "function make_socket(name) {"
+        '  window["ws_" + name] = { onopen: null, onmessage: null, onclose: null };'
+        '  return window["ws_" + name];'
+        "}"
+    )
+    js.eval("var growls = 0;")
+    js.eval("showGrowl = function() { growls++; };")
     js.eval('var onmessageFn = function() { return "msg-handler"; };')
-    js.eval('var oncloseFn = function() {};')
-    js.eval('window["ws_status"] = { onopen: function(){}, onmessage: onmessageFn, onclose: oncloseFn };')
+    js.eval("var oncloseFn = function() {};")
+    js.eval(
+        'window["ws_status"] = { onopen: function(){}, onmessage: onmessageFn, onclose: oncloseFn };'
+    )
 
     js.eval('schedule_reconnect("status");')
-    js.eval('timers[0].fn();')  # reconnect opens
+    js.eval("timers[0].fn();")  # reconnect opens
     js.eval('window["ws_status"].onopen();')  # browser fires onopen
 
     # the new socket keeps the message handler from the old one
     assert js.eval('window["ws_status"].onmessage === onmessageFn')
     # the status socket shows a growl and resets the attempt counter
-    assert js.eval('growls') == 1
+    assert js.eval("growls") == 1
     assert js.eval('reconnect_attempts["status"]') == 0
 
 
 def test_all_sockets_reconnect_on_close():
     src = open(JS_PATH).read()
-    for name in ('status', 'control', 'config', 'storage'):
-        assert re.search(r"schedule_reconnect\('%s'\)" % name, src), \
-            'no reconnect for %s socket' % name
+    for name in ("status", "control", "config", "storage"):
+        assert re.search(r"schedule_reconnect\('%s'\)" % name, src), (
+            "no reconnect for %s socket" % name
+        )
 
 
 ########################################################################
 # overview schedule label
 ########################################################################
 
+
 def test_label_shows_running_profile(js):
     js.eval('var running_profile_name = "cone-05-long-bisque";')
     js.eval('var selected_profile_name = "bisque-06";')
     js.eval('var el = { innerHTML: "" };')
     js.eval('function $(id) { return id === "selected_profile_label" ? el : null; }')
-    js.eval('updateSelectedProfileLabel();')
-    assert js.eval('el.innerHTML') == 'cone-05-long-bisque'
+    js.eval("updateSelectedProfileLabel();")
+    assert js.eval("el.innerHTML") == "cone-05-long-bisque"
 
 
 def test_label_shows_selected_when_not_running(js):
-    js.eval('var running_profile_name = null;')
+    js.eval("var running_profile_name = null;")
     js.eval('var selected_profile_name = "bisque-06";')
     js.eval('var el = { innerHTML: "" };')
     js.eval('function $(id) { return id === "selected_profile_label" ? el : null; }')
-    js.eval('updateSelectedProfileLabel();')
-    assert js.eval('el.innerHTML') == 'bisque-06'
+    js.eval("updateSelectedProfileLabel();")
+    assert js.eval("el.innerHTML") == "bisque-06"
 
 
 def test_label_placeholder_when_nothing_selected(js):
-    js.eval('var running_profile_name = null;')
-    js.eval('var selected_profile_name = null;')
+    js.eval("var running_profile_name = null;")
+    js.eval("var selected_profile_name = null;")
     js.eval('var el = { innerHTML: "" };')
     js.eval('function $(id) { return id === "selected_profile_label" ? el : null; }')
-    js.eval('updateSelectedProfileLabel();')
-    assert js.eval('el.innerHTML') == 'Select Profile'
+    js.eval("updateSelectedProfileLabel();")
+    assert js.eval("el.innerHTML") == "Select Profile"
 
 
 ########################################################################
 # schedule description hover in the overview tab
 ########################################################################
+
 
 def test_label_title_shows_running_profile_description(js):
     js.eval('var profiles = [{ name: "cone-05", description: "Bisque to cone 05" }];')
@@ -192,516 +207,600 @@ def test_label_title_shows_running_profile_description(js):
     js.eval('var selected_profile_name = "bisque-06";')
     js.eval('var el = { innerHTML: "", title: "" };')
     js.eval('function $(id) { return id === "selected_profile_label" ? el : null; }')
-    js.eval('updateSelectedProfileLabel();')
-    assert js.eval('el.title') == 'Bisque to cone 05'
+    js.eval("updateSelectedProfileLabel();")
+    assert js.eval("el.title") == "Bisque to cone 05"
 
 
 def test_label_title_shows_selected_profile_description(js):
     js.eval('var profiles = [{ name: "bisque-06", description: "Ware bisque" }];')
-    js.eval('var running_profile_name = null;')
+    js.eval("var running_profile_name = null;")
     js.eval('var selected_profile_name = "bisque-06";')
     js.eval('var el = { innerHTML: "", title: "" };')
     js.eval('function $(id) { return id === "selected_profile_label" ? el : null; }')
-    js.eval('updateSelectedProfileLabel();')
-    assert js.eval('el.title') == 'Ware bisque'
+    js.eval("updateSelectedProfileLabel();")
+    assert js.eval("el.title") == "Ware bisque"
 
 
 def test_label_title_empty_without_description(js):
     js.eval('var profiles = [{ name: "legacy" }];')
-    js.eval('var running_profile_name = null;')
+    js.eval("var running_profile_name = null;")
     js.eval('var selected_profile_name = "legacy";')
     js.eval('var el = { innerHTML: "", title: "stale" };')
     js.eval('function $(id) { return id === "selected_profile_label" ? el : null; }')
-    js.eval('updateSelectedProfileLabel();')
-    assert js.eval('el.title') == ''
+    js.eval("updateSelectedProfileLabel();")
+    assert js.eval("el.title") == ""
 
 
 def test_profile_description_lookup(js):
     js.eval('var profiles = [{ name: "a", description: "first" }, { name: "b" }];')
-    assert js.eval('profileDescription("a")') == 'first'
-    assert js.eval('profileDescription("b")') == ''
-    assert js.eval('profileDescription("missing")') == ''
-    js.eval('profiles = undefined;')
-    assert js.eval('profileDescription("a")') == ''
+    assert js.eval('profileDescription("a")') == "first"
+    assert js.eval('profileDescription("b")') == ""
+    assert js.eval('profileDescription("missing")') == ""
+    js.eval("profiles = undefined;")
+    assert js.eval('profileDescription("a")') == ""
 
 
 def test_profile_editor_has_description_field():
     # the edit page in the schedules tab must offer a description input
-    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
-                                             'public', 'index.html'))).read()
+    html = open(
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "public", "index.html"))
+    ).read()
     assert re.search(r'id="form_profile_description"', html)
-    assert re.search(r'Description', html)
+    assert re.search(r"Description", html)
 
 
 def test_edit_mode_populates_and_save_sends_description():
     src = open(JS_PATH).read()
-    assert "$('form_profile_description').value = prof.description || '';" in src, \
-        'enterEditMode must load the profile description'
-    assert '"description": $(\'form_profile_description\').value' in src, \
-        'saveProfile must include the description in the PUT payload'
+    assert "$('form_profile_description').value = prof.description || '';" in src, (
+        "enterEditMode must load the profile description"
+    )
+    assert "\"description\": $('form_profile_description').value" in src, (
+        "saveProfile must include the description in the PUT payload"
+    )
 
 
 ########################################################################
 # schedule name slugifying (names become filenames on save)
 ########################################################################
 
+
 def test_slugify_spaces_become_dashes(js):
-    assert js.eval('slugifyProfileName("My Bisque 06")') == 'My-Bisque-06'
-    assert js.eval('slugifyProfileName("  spaced \t out  ")') == 'spaced-out'
+    assert js.eval('slugifyProfileName("My Bisque 06")') == "My-Bisque-06"
+    assert js.eval('slugifyProfileName("  spaced \t out  ")') == "spaced-out"
 
 
 def test_slugify_drops_unsafe_characters(js):
-    assert js.eval('slugifyProfileName("../evil")') == 'evil'
-    assert js.eval('slugifyProfileName("a/b\\c:d")') == 'abcd'
-    assert js.eval('slugifyProfileName(".hidden")') == 'hidden'
-    assert js.eval('slugifyProfileName("trailing.")') == 'trailing'
+    assert js.eval('slugifyProfileName("../evil")') == "evil"
+    assert js.eval('slugifyProfileName("a/b\\c:d")') == "abcd"
+    assert js.eval('slugifyProfileName(".hidden")') == "hidden"
+    assert js.eval('slugifyProfileName("trailing.")') == "trailing"
 
 
 def test_slugify_leaves_valid_names_alone(js):
-    for name in ('cone-05', 'cone-05-long-bisque', 'leg1', 'a.b_c-d'):
-        assert js.eval('slugifyProfileName(%r)' % name) == name
+    for name in ("cone-05", "cone-05-long-bisque", "leg1", "a.b_c-d"):
+        assert js.eval("slugifyProfileName(%r)" % name) == name
 
 
 def test_slugify_empty_when_nothing_usable(js):
-    assert js.eval('slugifyProfileName("")') == ''
-    assert js.eval('slugifyProfileName("   ")') == ''
-    assert js.eval('slugifyProfileName("!!!")') == ''
-    assert js.eval('slugifyProfileName(null)') == ''
+    assert js.eval('slugifyProfileName("")') == ""
+    assert js.eval('slugifyProfileName("   ")') == ""
+    assert js.eval('slugifyProfileName("!!!")') == ""
+    assert js.eval("slugifyProfileName(null)") == ""
 
 
 def test_save_profile_slugifies_and_rejects_empty_name():
     src = open(JS_PATH).read()
-    body = extract_function(src, 'saveProfile')
-    assert 'slugifyProfileName(' in body, \
-        'saveProfile must slugify the schedule name before saving'
-    assert 'ERROR 94' in body, \
-        'saveProfile must show an error when no usable name remains'
+    body = extract_function(src, "saveProfile")
+    assert "slugifyProfileName(" in body, "saveProfile must slugify the schedule name before saving"
+    assert "ERROR 94" in body, "saveProfile must show an error when no usable name remains"
 
 
 def test_share_profile_slugifies_name():
     src = open(JS_PATH).read()
-    body = extract_function(src, 'shareProfile')
-    assert 'slugifyProfileName(' in body, \
-        'shareProfile must slugify the schedule name like saveProfile does'
+    body = extract_function(src, "shareProfile")
+    assert "slugifyProfileName(" in body, (
+        "shareProfile must slugify the schedule name like saveProfile does"
+    )
 
 
 def test_storage_fail_with_error_shows_growl_not_confirm():
     # a FAIL carrying a server error (e.g. invalid schedule name) must
     # surface the error; only a bare FAIL keeps the overwrite confirm
     src = open(JS_PATH).read()
-    assert 'message.error' in src
-    assert 'Could not save schedule' in src
+    assert "message.error" in src
+    assert "Could not save schedule" in src
 
 
 ########################################################################
 # details TIME box (after COST: total, elapsed, catch up)
 ########################################################################
 
+
 def test_catching_up_seconds_sums_slip(js):
-    js.eval('var data = ['
-            '  { timeDelta: 2, catching_up: true },'
-            '  { timeDelta: 2, catching_up: false },'
-            '  { timeDelta: 3, catching_up: true }];')
-    assert js.eval('catching_up_seconds(data)') == 5
+    js.eval(
+        "var data = ["
+        "  { timeDelta: 2, catching_up: true },"
+        "  { timeDelta: 2, catching_up: false },"
+        "  { timeDelta: 3, catching_up: true }];"
+    )
+    assert js.eval("catching_up_seconds(data)") == 5
 
 
 def test_catching_up_seconds_empty_or_missing(js):
-    js.eval('var nodata = [];')
-    assert js.eval('catching_up_seconds(nodata)') == 0
-    js.eval('var legacy = [{ timeDelta: 2 }];')
-    assert js.eval('catching_up_seconds(legacy)') == 0
+    js.eval("var nodata = [];")
+    assert js.eval("catching_up_seconds(nodata)") == 0
+    js.eval("var legacy = [{ timeDelta: 2 }];")
+    assert js.eval("catching_up_seconds(legacy)") == 0
 
 
 def test_time_box_sits_after_cost_box():
-    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
-                                             'public', 'index.html'))).read()
+    html = open(
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "public", "index.html"))
+    ).read()
     m = re.search(r'id="cost-stats"(.*?)class="charts"', html, re.S)
-    assert m, 'config tab must hold the stats boxes'
+    assert m, "config tab must hold the stats boxes"
     after_cost = m.group(1)
     assert 'id="time-stats"' in after_cost
-    box = after_cost[after_cost.index('id="time-stats"'):]
-    assert 'TIME' in box
+    box = after_cost[after_cost.index('id="time-stats"') :]
+    assert "TIME" in box
     assert 'id="time-total"' not in box
     assert box.index('id="time-elapsed"') < box.index('id="time-catchup"')
 
 
 def test_status_feed_updates_time_box():
     src = open(JS_PATH).read()
-    assert 'x.run_started' in src
+    assert "x.run_started" in src
     assert '"time-elapsed").innerHTML = formatDuration(Date.now() / 1000 - x.run_started)' in src
     assert '"time-catchup").innerHTML = formatDuration(catching_up_seconds(all))' in src
-    assert 'time-total' not in src
+    assert "time-total" not in src
 
 
 ########################################################################
 # simulation badge
 ########################################################################
 
+
 def test_sim_badge_shown_in_simulation(js):
     js.eval('var el = { style: { display: "" } };')
-    js.eval('document = { getElementById: function(id) { return id === "sim_badge" ? el : null; } };')
-    js.eval('toggleSimBadge(true);')
-    assert js.eval('el.style.display') == 'inline-flex'
+    js.eval(
+        'document = { getElementById: function(id) { return id === "sim_badge" ? el : null; } };'
+    )
+    js.eval("toggleSimBadge(true);")
+    assert js.eval("el.style.display") == "inline-flex"
 
 
 def test_sim_badge_hidden_when_real(js):
     js.eval('var el = { style: { display: "inline-flex" } };')
-    js.eval('document = { getElementById: function(id) { return id === "sim_badge" ? el : null; } };')
-    js.eval('toggleSimBadge(false);')
-    assert js.eval('el.style.display') == 'none'
+    js.eval(
+        'document = { getElementById: function(id) { return id === "sim_badge" ? el : null; } };'
+    )
+    js.eval("toggleSimBadge(false);")
+    assert js.eval("el.style.display") == "none"
 
 
 def test_sim_badge_ignores_missing_element(js):
-    js.eval('document = { getElementById: function(id) { return null; } };')
-    assert js.eval('(function(){ try { toggleSimBadge(true); return "ok"; } catch (e) { return "throw"; } })()') == 'ok'
+    js.eval("document = { getElementById: function(id) { return null; } };")
+    assert (
+        js.eval(
+            '(function(){ try { toggleSimBadge(true); return "ok"; } catch (e) { return "throw"; } })()'
+        )
+        == "ok"
+    )
 
 
 ########################################################################
 # app version footer
 ########################################################################
 
+
 def test_version_footer_shows_version(js):
     js.eval('var el = { innerHTML: "" };')
-    js.eval('document = { getElementById: function(id) { return id === "app_version" ? el : null; } };')
+    js.eval(
+        'document = { getElementById: function(id) { return id === "app_version" ? el : null; } };'
+    )
     js.eval('renderAppVersion("2.0.0");')
-    assert js.eval('el.innerHTML') == 'Kiln Controller v2.0.0'
+    assert js.eval("el.innerHTML") == "Kiln Controller v2.0.0"
 
 
 def test_version_footer_escapes_html(js):
     js.eval('var el = { innerHTML: "" };')
-    js.eval('document = { getElementById: function(id) { return id === "app_version" ? el : null; } };')
+    js.eval(
+        'document = { getElementById: function(id) { return id === "app_version" ? el : null; } };'
+    )
     js.eval('renderAppVersion("<script>");')
-    assert '<script>' not in js.eval('el.innerHTML')
+    assert "<script>" not in js.eval("el.innerHTML")
 
 
 def test_version_footer_ignores_missing_element_or_version(js):
-    js.eval('document = { getElementById: function(id) { return null; } };')
-    assert js.eval('(function(){ try { renderAppVersion("2.0.0"); return "ok"; } catch (e) { return "throw"; } })()') == 'ok'
+    js.eval("document = { getElementById: function(id) { return null; } };")
+    assert (
+        js.eval(
+            '(function(){ try { renderAppVersion("2.0.0"); return "ok"; } catch (e) { return "throw"; } })()'
+        )
+        == "ok"
+    )
     js.eval('var el = { innerHTML: "unchanged" };')
-    js.eval('document = { getElementById: function(id) { return id === "app_version" ? el : null; } };')
-    js.eval('renderAppVersion(undefined);')
-    assert js.eval('el.innerHTML') == 'unchanged'
+    js.eval(
+        'document = { getElementById: function(id) { return id === "app_version" ? el : null; } };'
+    )
+    js.eval("renderAppVersion(undefined);")
+    assert js.eval("el.innerHTML") == "unchanged"
 
 
 ########################################################################
 # overview status badge
 ########################################################################
 
+
 def test_status_badge_running(js):
     js.eval('state = "RUNNING";')
     js.eval('var el = { className: "", innerHTML: "" };')
-    js.eval('document = { getElementById: function(id) { return id === "overview_status" ? el : null; } };')
-    js.eval('updateOverviewStatus();')
-    assert js.eval('el.innerHTML') == 'Running'
-    assert js.eval('el.className') == 'badge overview-status text-bg-success'
+    js.eval(
+        'document = { getElementById: function(id) { return id === "overview_status" ? el : null; } };'
+    )
+    js.eval("updateOverviewStatus();")
+    assert js.eval("el.innerHTML") == "Running"
+    assert js.eval("el.className") == "badge overview-status text-bg-success"
 
 
 def test_status_badge_idle(js):
     js.eval('state = "IDLE";')
     js.eval('var el = { className: "", innerHTML: "" };')
-    js.eval('document = { getElementById: function(id) { return id === "overview_status" ? el : null; } };')
-    js.eval('updateOverviewStatus();')
-    assert js.eval('el.innerHTML') == 'Idle'
-    assert js.eval('el.className') == 'badge overview-status text-bg-secondary'
+    js.eval(
+        'document = { getElementById: function(id) { return id === "overview_status" ? el : null; } };'
+    )
+    js.eval("updateOverviewStatus();")
+    assert js.eval("el.innerHTML") == "Idle"
+    assert js.eval("el.className") == "badge overview-status text-bg-secondary"
 
 
 def test_status_badge_paused(js):
     js.eval('state = "PAUSED";')
     js.eval('var el = { className: "", innerHTML: "" };')
-    js.eval('document = { getElementById: function(id) { return id === "overview_status" ? el : null; } };')
-    js.eval('updateOverviewStatus();')
-    assert js.eval('el.innerHTML') == 'Paused'
-    assert js.eval('el.className') == 'badge overview-status text-bg-warning'
+    js.eval(
+        'document = { getElementById: function(id) { return id === "overview_status" ? el : null; } };'
+    )
+    js.eval("updateOverviewStatus();")
+    assert js.eval("el.innerHTML") == "Paused"
+    assert js.eval("el.className") == "badge overview-status text-bg-warning"
 
 
 def test_status_badge_unknown_state(js):
     js.eval('state = "WARPED";')
     js.eval('var el = { className: "", innerHTML: "" };')
-    js.eval('document = { getElementById: function(id) { return id === "overview_status" ? el : null; } };')
-    js.eval('updateOverviewStatus();')
-    assert js.eval('el.innerHTML') == 'WARPED'
-    assert js.eval('el.className') == 'badge overview-status text-bg-secondary'
+    js.eval(
+        'document = { getElementById: function(id) { return id === "overview_status" ? el : null; } };'
+    )
+    js.eval("updateOverviewStatus();")
+    assert js.eval("el.innerHTML") == "WARPED"
+    assert js.eval("el.className") == "badge overview-status text-bg-secondary"
 
 
 def test_status_badge_ignores_missing_element(js):
     js.eval('state = "IDLE";')
-    js.eval('document = { getElementById: function(id) { return null; } };')
-    assert js.eval('(function(){ try { updateOverviewStatus(); return "ok"; } catch (e) { return "throw"; } })()') == 'ok'
+    js.eval("document = { getElementById: function(id) { return null; } };")
+    assert (
+        js.eval(
+            '(function(){ try { updateOverviewStatus(); return "ok"; } catch (e) { return "throw"; } })()'
+        )
+        == "ok"
+    )
 
 
 def test_overview_heading_orders_status_between_name_and_sim():
-    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
-                                             'public', 'index.html'))).read()
-    m = re.search(r'selected_profile_label.*?overview_status.*?sim_badge', html, re.S)
-    assert m, 'status badge must sit between the schedule name and the simulation badge'
+    html = open(
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "public", "index.html"))
+    ).read()
+    m = re.search(r"selected_profile_label.*?overview_status.*?sim_badge", html, re.S)
+    assert m, "status badge must sit between the schedule name and the simulation badge"
 
 
 def test_config_socket_updates_sim_badge():
     src = open(JS_PATH).read()
-    assert 'simulate = x.simulate' in src
-    assert 'toggleSimBadge(simulate)' in src
+    assert "simulate = x.simulate" in src
+    assert "toggleSimBadge(simulate)" in src
 
 
 ########################################################################
 # persisted details pruning
 ########################################################################
 
+
 def test_prune_persisted_all_drops_entries_older_than_cutoff(js):
     js.eval('var STORAGE_KEY = "kiln-controller-all";')
-    js.eval('all = [{ time: 100, v: 1 }, { time: 200, v: 2 }, { time: 300, v: 3 }];')
-    js.eval('var stored = null;')
-    js.eval('localStorage = { setItem: function(k, v) { stored = v; }, removeItem: function(k) {} };')
-    js.eval('save_timer = null;')
-    js.eval('detailsInited = false;')
-    js.eval('function drawall(d) {}')
-    js.eval('function windowed_data() { return all; }')
-    js.eval('prune_persisted_all(200);')
-    assert js.eval('all.length') == 2
-    assert js.eval('all[0].time') == 200
-    assert js.eval('all[1].time') == 300
-    assert js.eval('JSON.parse(stored).length') == 2
+    js.eval("all = [{ time: 100, v: 1 }, { time: 200, v: 2 }, { time: 300, v: 3 }];")
+    js.eval("var stored = null;")
+    js.eval(
+        "localStorage = { setItem: function(k, v) { stored = v; }, removeItem: function(k) {} };"
+    )
+    js.eval("save_timer = null;")
+    js.eval("detailsInited = false;")
+    js.eval("function drawall(d) {}")
+    js.eval("function windowed_data() { return all; }")
+    js.eval("prune_persisted_all(200);")
+    assert js.eval("all.length") == 2
+    assert js.eval("all[0].time") == 200
+    assert js.eval("all[1].time") == 300
+    assert js.eval("JSON.parse(stored).length") == 2
 
 
 def test_prune_persisted_all_keeps_exact_cutoff(js):
     js.eval('var STORAGE_KEY = "kiln-controller-all";')
-    js.eval('all = [{ time: 200, v: 1 }];')
-    js.eval('var stored = null;')
-    js.eval('localStorage = { setItem: function(k, v) { stored = v; }, removeItem: function(k) {} };')
-    js.eval('save_timer = null;')
-    js.eval('detailsInited = false;')
-    js.eval('function drawall(d) {}')
-    js.eval('function windowed_data() { return all; }')
-    js.eval('prune_persisted_all(200);')
-    assert js.eval('all.length') == 1
+    js.eval("all = [{ time: 200, v: 1 }];")
+    js.eval("var stored = null;")
+    js.eval(
+        "localStorage = { setItem: function(k, v) { stored = v; }, removeItem: function(k) {} };"
+    )
+    js.eval("save_timer = null;")
+    js.eval("detailsInited = false;")
+    js.eval("function drawall(d) {}")
+    js.eval("function windowed_data() { return all; }")
+    js.eval("prune_persisted_all(200);")
+    assert js.eval("all.length") == 1
 
 
 def test_backlog_prunes_stale_details():
     src = open(JS_PATH).read()
     # a client connecting into a firing that started while it was away must
     # drop persisted details older than the run start time
-    assert 'prune_persisted_all(x.run_started)' in src
+    assert "prune_persisted_all(x.run_started)" in src
     # ...but a page that stays open and already knows the run must not
     # prune its live data
-    assert 'adopting_run' in src
+    assert "adopting_run" in src
 
 
 def test_backlog_backfills_firing_history():
     src = open(JS_PATH).read()
     # joining (or rejoining) mid-firing must pull the firing's history
     # from the db so graphs show the whole run, not just the tail
-    assert 'backfillHistory(x.run_started)' in src
+    assert "backfillHistory(x.run_started)" in src
 
 
 ########################################################################
 # firing history backfill (db -> graphs on join/reconnect)
 ########################################################################
 
-HISTORY_COLS = ["t", "td", "sp", "isp", "err", "ed",
-                "p", "i", "d", "kp", "ki", "kd", "pid", "out",
-                "rt", "temp", "tgt", "heat", "tt", "cost", "hr",
-                "cu", "te"]
+HISTORY_COLS = [
+    "t",
+    "td",
+    "sp",
+    "isp",
+    "err",
+    "ed",
+    "p",
+    "i",
+    "d",
+    "kp",
+    "ki",
+    "kd",
+    "pid",
+    "out",
+    "rt",
+    "temp",
+    "tgt",
+    "heat",
+    "tt",
+    "cost",
+    "hr",
+    "cu",
+    "te",
+]
 
 
 def _setup_history_context(js):
     src = open(JS_PATH).read()
-    js.eval(extract_function(src, 'unix_to_yymmdd_hhmmss'))
-    js.eval(extract_function(src, 'historyEntryFromRow'))
-    js.eval(extract_function(src, 'mergeHistory'))
-    js.eval(extract_function(src, 'backfillHistory'))
-    js.eval('var all = [];')
-    js.eval('var graph = { live: { data: [] } };')
-    js.eval('var last_sample_time = -Infinity;')
-    js.eval('var history_seq = 0;')
-    js.eval('var history_loaded_for = null;')
-    js.eval('var run_started = 1700000000.0;')
-    js.eval('var save_timer = null;')
-    js.eval('var detailsInited = false;')
-    js.eval('var persisted = 0;')
-    js.eval('function persist_all() { persisted++; }')
-    js.eval('function syncChartData() {}')
-    js.eval('function updateAxis() {}')
-    js.eval('function drawall(d) {}')
-    js.eval('function windowed_data() { return all; }')
-    js.eval('function apiGet(url, cb) { fetched.push(url); cb(canned); }')
-    js.eval('var fetched = [];')
-    js.eval('var canned = null;')
-    js.eval('var growls = [];')
-    js.eval('showGrowl = function(m) { growls.push(m); };')
+    js.eval(extract_function(src, "unix_to_yymmdd_hhmmss"))
+    js.eval(extract_function(src, "historyEntryFromRow"))
+    js.eval(extract_function(src, "mergeHistory"))
+    js.eval(extract_function(src, "backfillHistory"))
+    js.eval("var all = [];")
+    js.eval("var graph = { live: { data: [] } };")
+    js.eval("var last_sample_time = -Infinity;")
+    js.eval("var history_seq = 0;")
+    js.eval("var history_loaded_for = null;")
+    js.eval("var run_started = 1700000000.0;")
+    js.eval("var save_timer = null;")
+    js.eval("var detailsInited = false;")
+    js.eval("var persisted = 0;")
+    js.eval("function persist_all() { persisted++; }")
+    js.eval("function syncChartData() {}")
+    js.eval("function updateAxis() {}")
+    js.eval("function drawall(d) {}")
+    js.eval("function windowed_data() { return all; }")
+    js.eval("function apiGet(url, cb) { fetched.push(url); cb(canned); }")
+    js.eval("var fetched = [];")
+    js.eval("var canned = null;")
+    js.eval("var growls = [];")
+    js.eval("showGrowl = function(m) { growls.push(m); };")
 
 
 def _history_row(t, rt, temp, err=1.0, out=0.5):
     row = [None] * len(HISTORY_COLS)
-    row[HISTORY_COLS.index('t')] = t
-    row[HISTORY_COLS.index('rt')] = rt
-    row[HISTORY_COLS.index('temp')] = temp
-    row[HISTORY_COLS.index('isp')] = temp
-    row[HISTORY_COLS.index('err')] = err
-    row[HISTORY_COLS.index('out')] = out
-    row[HISTORY_COLS.index('sp')] = 200.0
+    row[HISTORY_COLS.index("t")] = t
+    row[HISTORY_COLS.index("rt")] = rt
+    row[HISTORY_COLS.index("temp")] = temp
+    row[HISTORY_COLS.index("isp")] = temp
+    row[HISTORY_COLS.index("err")] = err
+    row[HISTORY_COLS.index("out")] = out
+    row[HISTORY_COLS.index("sp")] = 200.0
     return row
 
 
 def test_history_entry_applies_live_transforms(js):
     _setup_history_context(js)
-    js.eval('var cols = %s;' % json.dumps(HISTORY_COLS))
-    js.eval('var h = historyEntryFromRow(cols, %s);'
-            % json.dumps(_history_row(1700000001.0, 10, 100.0)))
+    js.eval("var cols = %s;" % json.dumps(HISTORY_COLS))
+    js.eval(
+        "var h = historyEntryFromRow(cols, %s);" % json.dumps(_history_row(1700000001.0, 10, 100.0))
+    )
     # overview point carries runtime, temp and the dedupe time
-    assert js.eval('JSON.stringify(h.live)') == '[10,100,1700000001]'
+    assert js.eval("JSON.stringify(h.live)") == "[10,100,1700000001]"
     # details entry mirrors the live path: err negated, out as percent
-    assert js.eval('h.detail.err') == -1.0
-    assert js.eval('h.detail.out') == 50.0
-    assert js.eval('h.detail.time') == 1700000001.0
-    assert js.eval('typeof h.detail.datetime') == 'string'
+    assert js.eval("h.detail.err") == -1.0
+    assert js.eval("h.detail.out") == 50.0
+    assert js.eval("h.detail.time") == 1700000001.0
+    assert js.eval("typeof h.detail.datetime") == "string"
 
 
 def test_history_entry_marks_catchup(js):
     _setup_history_context(js)
-    js.eval('var cols = %s;' % json.dumps(HISTORY_COLS))
+    js.eval("var cols = %s;" % json.dumps(HISTORY_COLS))
     row = _history_row(1700000001.0, 10, 100.0)
-    row[HISTORY_COLS.index('cu')] = 1
-    js.eval('var h = historyEntryFromRow(cols, %s);' % json.dumps(row))
-    assert js.eval('h.detail.catching_up') is True
-    assert js.eval('h.detail.catchingup') == 100.0 or \
-        js.eval('h.detail.catchingup') == 100
+    row[HISTORY_COLS.index("cu")] = 1
+    js.eval("var h = historyEntryFromRow(cols, %s);" % json.dumps(row))
+    assert js.eval("h.detail.catching_up") is True
+    assert js.eval("h.detail.catchingup") == 100.0 or js.eval("h.detail.catchingup") == 100
 
 
 def test_merge_history_backfills_and_dedupes(js):
     _setup_history_context(js)
-    js.eval('var cols = %s;' % json.dumps(HISTORY_COLS))
-    js.eval('var rows = [%s, %s];' % (
-        json.dumps(_history_row(1700000001.0, 10, 100.0)),
-        json.dumps(_history_row(1700000003.0, 12, 102.0))))
-    assert js.eval('mergeHistory(cols, rows)') == 2
-    assert js.eval('graph.live.data.length') == 2
-    assert js.eval('all.length') == 2
-    assert js.eval('last_sample_time') == 1700000003.0
+    js.eval("var cols = %s;" % json.dumps(HISTORY_COLS))
+    js.eval(
+        "var rows = [%s, %s];"
+        % (
+            json.dumps(_history_row(1700000001.0, 10, 100.0)),
+            json.dumps(_history_row(1700000003.0, 12, 102.0)),
+        )
+    )
+    assert js.eval("mergeHistory(cols, rows)") == 2
+    assert js.eval("graph.live.data.length") == 2
+    assert js.eval("all.length") == 2
+    assert js.eval("last_sample_time") == 1700000003.0
     # re-merging the same snapshot appends nothing (idempotent)
-    assert js.eval('mergeHistory(cols, rows)') == 0
-    assert js.eval('all.length') == 2
+    assert js.eval("mergeHistory(cols, rows)") == 0
+    assert js.eval("all.length") == 2
 
 
 def test_merge_history_keeps_newer_live_tail(js):
     _setup_history_context(js)
-    js.eval('var cols = %s;' % json.dumps(HISTORY_COLS))
+    js.eval("var cols = %s;" % json.dumps(HISTORY_COLS))
     # a live tick arrived after the history snapshot was taken
-    js.eval('graph.live.data = [[14, 103, 1700000005.0]];')
-    js.eval('all = [{ time: 1700000005.0 }];')
-    js.eval('last_sample_time = 1700000005.0;')
-    js.eval('var rows = [%s];'
-            % json.dumps(_history_row(1700000003.0, 12, 102.0)))
-    assert js.eval('mergeHistory(cols, rows)') == 0
-    assert js.eval('graph.live.data.length') == 2
-    assert js.eval('graph.live.data[0][0]') == 12   # history first
-    assert js.eval('graph.live.data[1][0]') == 14   # live tail kept
+    js.eval("graph.live.data = [[14, 103, 1700000005.0]];")
+    js.eval("all = [{ time: 1700000005.0 }];")
+    js.eval("last_sample_time = 1700000005.0;")
+    js.eval("var rows = [%s];" % json.dumps(_history_row(1700000003.0, 12, 102.0)))
+    assert js.eval("mergeHistory(cols, rows)") == 0
+    assert js.eval("graph.live.data.length") == 2
+    assert js.eval("graph.live.data[0][0]") == 12  # history first
+    assert js.eval("graph.live.data[1][0]") == 14  # live tail kept
 
 
 def test_backfill_discards_stale_response(js):
     _setup_history_context(js)
-    js.eval('var pending = [];')
-    js.eval('apiGet = function(url, cb) { pending.push(cb); };')
-    js.eval('backfillHistory(1700000000.0);')
+    js.eval("var pending = [];")
+    js.eval("apiGet = function(url, cb) { pending.push(cb); };")
+    js.eval("backfillHistory(1700000000.0);")
     # a newer fetch started before the first answered
-    js.eval('backfillHistory(1700000000.0);')
-    assert js.eval('pending.length') == 2
+    js.eval("backfillHistory(1700000000.0);")
+    assert js.eval("pending.length") == 2
     # the stale first response is discarded...
-    js.eval('pending[0]({ success: true, cols: %s, rows: [%s] });'
-            % (json.dumps(HISTORY_COLS),
-               json.dumps(_history_row(1.0, 1, 10.0))))
-    assert js.eval('graph.live.data.length') == 0
+    js.eval(
+        "pending[0]({ success: true, cols: %s, rows: [%s] });"
+        % (json.dumps(HISTORY_COLS), json.dumps(_history_row(1.0, 1, 10.0)))
+    )
+    assert js.eval("graph.live.data.length") == 0
     # ...the current one applies
-    js.eval('pending[1]({ success: true, cols: %s, rows: [%s] });'
-            % (json.dumps(HISTORY_COLS),
-               json.dumps(_history_row(1700000001.0, 10, 100.0))))
-    assert js.eval('graph.live.data.length') == 1
-    assert js.eval('history_loaded_for') == 1700000000.0
+    js.eval(
+        "pending[1]({ success: true, cols: %s, rows: [%s] });"
+        % (json.dumps(HISTORY_COLS), json.dumps(_history_row(1700000001.0, 10, 100.0)))
+    )
+    assert js.eval("graph.live.data.length") == 1
+    assert js.eval("history_loaded_for") == 1700000000.0
 
 
 def test_backfill_ignores_previous_run(js):
     _setup_history_context(js)
-    js.eval('var pending = [];')
-    js.eval('apiGet = function(url, cb) { pending.push(cb); };')
-    js.eval('backfillHistory(1700000000.0);')
+    js.eval("var pending = [];")
+    js.eval("apiGet = function(url, cb) { pending.push(cb); };")
+    js.eval("backfillHistory(1700000000.0);")
     # the run moved on before the history arrived: discard it
-    js.eval('run_started = 1700009999.0;')
-    js.eval('pending[0]({ success: true, cols: %s, rows: [%s] });'
-            % (json.dumps(HISTORY_COLS),
-               json.dumps(_history_row(1700000001.0, 10, 100.0))))
-    assert js.eval('graph.live.data.length') == 0
-    assert js.eval('history_loaded_for') is None
+    js.eval("run_started = 1700009999.0;")
+    js.eval(
+        "pending[0]({ success: true, cols: %s, rows: [%s] });"
+        % (json.dumps(HISTORY_COLS), json.dumps(_history_row(1700000001.0, 10, 100.0)))
+    )
+    assert js.eval("graph.live.data.length") == 0
+    assert js.eval("history_loaded_for") is None
 
 
 ########################################################################
 # history toast (points transferred)
 ########################################################################
 
+
 def test_backfill_growls_points_loaded(js):
     _setup_history_context(js)
-    js.eval('var pending = [];')
-    js.eval('apiGet = function(url, cb) { pending.push(cb); };')
-    js.eval('backfillHistory(1700000000.0);')
-    js.eval('pending[0]({ success: true, cols: %s, rows: [%s, %s, %s] });'
-            % (json.dumps(HISTORY_COLS),
-               json.dumps(_history_row(1700000001.0, 10, 100.0)),
-               json.dumps(_history_row(1700000003.0, 12, 102.0)),
-               json.dumps(_history_row(1700000005.0, 14, 104.0))))
+    js.eval("var pending = [];")
+    js.eval("apiGet = function(url, cb) { pending.push(cb); };")
+    js.eval("backfillHistory(1700000000.0);")
+    js.eval(
+        "pending[0]({ success: true, cols: %s, rows: [%s, %s, %s] });"
+        % (
+            json.dumps(HISTORY_COLS),
+            json.dumps(_history_row(1700000001.0, 10, 100.0)),
+            json.dumps(_history_row(1700000003.0, 12, 102.0)),
+            json.dumps(_history_row(1700000005.0, 14, 104.0)),
+        )
+    )
     growls = js.eval('growls.join("\\n")')
-    assert '3' in growls and 'points' in growls
+    assert "3" in growls and "points" in growls
 
 
 def test_backfill_no_growl_without_points(js):
     _setup_history_context(js)
-    js.eval('var pending = [];')
-    js.eval('apiGet = function(url, cb) { pending.push(cb); };')
-    js.eval('backfillHistory(1700000000.0);')
-    js.eval('pending[0]({ success: true, cols: %s, rows: [] });'
-            % json.dumps(HISTORY_COLS))
-    assert js.eval('growls.length') == 0
+    js.eval("var pending = [];")
+    js.eval("apiGet = function(url, cb) { pending.push(cb); };")
+    js.eval("backfillHistory(1700000000.0);")
+    js.eval("pending[0]({ success: true, cols: %s, rows: [] });" % json.dumps(HISTORY_COLS))
+    assert js.eval("growls.length") == 0
 
 
 def test_backfill_no_growl_on_failure(js):
     _setup_history_context(js)
-    js.eval('var pending = [];')
-    js.eval('apiGet = function(url, cb) { pending.push(cb); };')
-    js.eval('backfillHistory(1700000000.0);')
+    js.eval("var pending = [];")
+    js.eval("apiGet = function(url, cb) { pending.push(cb); };")
+    js.eval("backfillHistory(1700000000.0);")
     js.eval('pending[0]({ success: false, error: "nope" });')
-    assert js.eval('growls.length') == 0
-    assert js.eval('history_loaded_for') is None
+    assert js.eval("growls.length") == 0
+    assert js.eval("history_loaded_for") is None
 
 
 def test_backfill_no_growl_for_stale_response(js):
     _setup_history_context(js)
-    js.eval('var pending = [];')
-    js.eval('apiGet = function(url, cb) { pending.push(cb); };')
-    js.eval('backfillHistory(1700000000.0);')
-    js.eval('backfillHistory(1700000000.0);')
-    js.eval('pending[0]({ success: true, cols: %s, rows: [%s] });'
-            % (json.dumps(HISTORY_COLS),
-               json.dumps(_history_row(1.0, 1, 10.0))))
-    assert js.eval('growls.length') == 0
+    js.eval("var pending = [];")
+    js.eval("apiGet = function(url, cb) { pending.push(cb); };")
+    js.eval("backfillHistory(1700000000.0);")
+    js.eval("backfillHistory(1700000000.0);")
+    js.eval(
+        "pending[0]({ success: true, cols: %s, rows: [%s] });"
+        % (json.dumps(HISTORY_COLS), json.dumps(_history_row(1.0, 1, 10.0)))
+    )
+    assert js.eval("growls.length") == 0
 
 
 ########################################################################
 # overview live series vs the profiles list arriving late
 ########################################################################
 
+
 def _setup_update_profile_context(js):
     src = open(JS_PATH).read()
-    js.eval(extract_function(src, 'updateProfile'))
+    js.eval(extract_function(src, "updateProfile"))
     js.eval('var state = "IDLE";')
-    js.eval('var run_started = null;')
-    js.eval('var running_profile_name = null;')
-    js.eval('var backlog_profile_name = null;')
-    js.eval('var selected_profile = 0;')
+    js.eval("var run_started = null;")
+    js.eval("var running_profile_name = null;")
+    js.eval("var backlog_profile_name = null;")
+    js.eval("var selected_profile = 0;")
     js.eval('var selected_profile_name = "";')
-    js.eval('var profiles = [{ name: "bisque", data: [[0, 65], [3600, 1000]] },'
-            ' { name: "glaze", data: [[0, 65], [3600, 1500]] }];')
-    js.eval('var graph = { profile: { data: [] }, live: { data: [] } };')
-    js.eval('function syncChartData() {}')
-    js.eval('function updateAxis() {}')
-    js.eval('function updateProfileTable() {}')
-    js.eval('function renderProfiles() {}')
-    js.eval('function updateSelectedProfileLabel() {}')
+    js.eval(
+        'var profiles = [{ name: "bisque", data: [[0, 65], [3600, 1000]] },'
+        ' { name: "glaze", data: [[0, 65], [3600, 1500]] }];'
+    )
+    js.eval("var graph = { profile: { data: [] }, live: { data: [] } };")
+    js.eval("function syncChartData() {}")
+    js.eval("function updateAxis() {}")
+    js.eval("function updateProfileTable() {}")
+    js.eval("function renderProfiles() {}")
+    js.eval("function updateSelectedProfileLabel() {}")
 
 
 def test_update_profile_keeps_backfilled_live_for_firing_schedule(js):
@@ -711,42 +810,40 @@ def test_update_profile_keeps_backfilled_live_for_firing_schedule(js):
     # firing's own schedule must not wipe that just-loaded history.
     _setup_update_profile_context(js)
     js.eval('backlog_profile_name = "bisque";')
-    js.eval('run_started = 1700000000.0;')
-    js.eval('graph.live.data = [[60, 200, 1700000060.0],'
-            ' [120, 300, 1700000120.0]];')
-    js.eval('updateProfile(0);')
-    assert js.eval('graph.live.data.length') == 2
-    assert js.eval('JSON.stringify(graph.profile.data)') == \
-        '[[0,65],[3600,1000]]'
+    js.eval("run_started = 1700000000.0;")
+    js.eval("graph.live.data = [[60, 200, 1700000060.0], [120, 300, 1700000120.0]];")
+    js.eval("updateProfile(0);")
+    assert js.eval("graph.live.data.length") == 2
+    assert js.eval("JSON.stringify(graph.profile.data)") == "[[0,65],[3600,1000]]"
 
 
 def test_update_profile_clears_live_when_leaving_firing_schedule(js):
     _setup_update_profile_context(js)
     js.eval('backlog_profile_name = "bisque";')
-    js.eval('run_started = 1700000000.0;')
-    js.eval('graph.live.data = [[60, 200, 1700000060.0]];')
-    js.eval('updateProfile(1);')
-    assert js.eval('graph.live.data.length') == 0
-    assert js.eval('JSON.stringify(graph.profile.data)') == \
-        '[[0,65],[3600,1500]]'
+    js.eval("run_started = 1700000000.0;")
+    js.eval("graph.live.data = [[60, 200, 1700000060.0]];")
+    js.eval("updateProfile(1);")
+    assert js.eval("graph.live.data.length") == 0
+    assert js.eval("JSON.stringify(graph.profile.data)") == "[[0,65],[3600,1500]]"
 
 
 def test_update_profile_clears_live_when_idle(js):
     _setup_update_profile_context(js)
-    js.eval('graph.live.data = [[60, 200, 1700000060.0]];')
-    js.eval('updateProfile(0);')
-    assert js.eval('graph.live.data.length') == 0
+    js.eval("graph.live.data = [[60, 200, 1700000060.0]];")
+    js.eval("updateProfile(0);")
+    assert js.eval("graph.live.data.length") == 0
 
 
 ########################################################################
 # config editor tab
 ########################################################################
 
+
 def test_tabs_include_config():
     src = open(JS_PATH).read()
     assert re.search(
-        r"var TABS = \[\s*'overview'\s*,\s*'details'\s*,\s*'profiles'\s*,\s*'config'\s*\]",
-        src)
+        r"var TABS = \[\s*'overview'\s*,\s*'details'\s*,\s*'profiles'\s*,\s*'config'\s*\]", src
+    )
 
 
 def test_save_config_posts_editor_contents():
@@ -758,15 +855,15 @@ def test_save_config_posts_editor_contents():
 
 def test_save_config_handles_restart_and_warning_responses():
     src = open(JS_PATH).read()
-    assert 'resp.restart_scheduled' in src
-    assert 'resp.warning' in src
-    assert 'ERROR 96' in src  # save-rejected growl
+    assert "resp.restart_scheduled" in src
+    assert "resp.warning" in src
+    assert "ERROR 96" in src  # save-rejected growl
 
 
 def test_config_tab_loads_editor_on_show():
     src = open(JS_PATH).read()
     m = re.search(r"if \(name === 'config'\)\s*\{[^}]*loadConfigEditor\(\);", src)
-    assert m, 'showTab must load the config editor when the config tab opens'
+    assert m, "showTab must load the config editor when the config tab opens"
     assert re.search(r"fetch\('/api/config/editor'\)", src)
     assert "if (!r.ok)" in src  # non-200 responses are surfaced as errors
 
@@ -774,40 +871,44 @@ def test_config_tab_loads_editor_on_show():
 def test_config_dump_button_lives_at_bottom_of_config_tab():
     # the debug panel holding the config dump moved off the details tab
     # to the bottom of the config tab
-    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
-                                             'public', 'index.html'))).read()
+    html = open(
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "public", "index.html"))
+    ).read()
     m = re.search(r'id="tab-config"(.*?)id="tab-details"', html, re.S)
-    assert m, 'config tab must appear before details tab in index.html'
-    assert 'download_dump()' in m.group(1), \
-        'config dump button must live in the config tab'
+    assert m, "config tab must appear before details tab in index.html"
+    assert "download_dump()" in m.group(1), "config dump button must live in the config tab"
     m = re.search(r'id="tab-details".*?</section>', html, re.S)
-    assert 'download_dump()' not in m.group(0), \
-        'config dump button must not remain in the details tab'
+    assert "download_dump()" not in m.group(0), (
+        "config dump button must not remain in the details tab"
+    )
 
 
 ########################################################################
 # schedules tab: profile rows during a run
 ########################################################################
 
+
 def _setup_profiles_context(js):
-    '''load renderProfiles() with a minimal DOM: two profiles, a stubbed
-    profiles_list element, and a no-op listScheduledRuns().'''
+    """load renderProfiles() with a minimal DOM: two profiles, a stubbed
+    profiles_list element, and a no-op listScheduledRuns()."""
     src = open(JS_PATH).read()
-    js.eval(extract_function(src, 'profileDuration'))
-    js.eval(extract_function(src, 'renderProfiles'))
+    js.eval(extract_function(src, "profileDuration"))
+    js.eval(extract_function(src, "renderProfiles"))
     js.eval('var el = { innerHTML: "" };')
     js.eval("$ = function (id) { return id === 'profiles_list' ? el : null; };")
-    js.eval('var profiles = ['
-            '  { name: "bisque", data: [[0, 65], [3600, 500]] },'
-            '  { name: "glaze", data: [[0, 65], [1800, 400]] }'
-            '];')
-    js.eval('var selected_profile_name = null;')
-    js.eval('var listScheduledRuns = function () {};')
+    js.eval(
+        "var profiles = ["
+        '  { name: "bisque", data: [[0, 65], [3600, 500]] },'
+        '  { name: "glaze", data: [[0, 65], [1800, 400]] }'
+        "];"
+    )
+    js.eval("var selected_profile_name = null;")
+    js.eval("var listScheduledRuns = function () {};")
 
 
 def _render_profiles(js):
-    js.eval('renderProfiles();')
-    return js.eval('el.innerHTML')
+    js.eval("renderProfiles();")
+    return js.eval("el.innerHTML")
 
 
 def test_running_profile_row_hides_run_edit_and_delete(js):
@@ -818,16 +919,16 @@ def test_running_profile_row_hides_run_edit_and_delete(js):
     js.eval('running_profile_name = "bisque";')
     html = _render_profiles(js)
 
-    assert 'abortTask()' in html                 # Stop stays
-    assert 'selectProfile(0, true)' not in html  # Run swapped for Stop
-    assert 'editProfile(0)' not in html          # Edit hidden
-    assert 'selectProfile(0, null)' not in html  # Delete hidden
+    assert "abortTask()" in html  # Stop stays
+    assert "selectProfile(0, true)" not in html  # Run swapped for Stop
+    assert "editProfile(0)" not in html  # Edit hidden
+    assert "selectProfile(0, null)" not in html  # Delete hidden
 
     # rows that are not running keep every button
-    assert 'selectProfile(1, true)' in html      # Run
-    assert 'scheduleProfile(1)' in html          # Schedule
-    assert 'editProfile(1)' in html              # Edit
-    assert 'selectProfile(1, null)' in html      # Delete
+    assert "selectProfile(1, true)" in html  # Run
+    assert "scheduleProfile(1)" in html  # Schedule
+    assert "editProfile(1)" in html  # Edit
+    assert "selectProfile(1, null)" in html  # Delete
 
 
 def test_edit_and_delete_return_when_the_run_ends(js):
@@ -837,39 +938,44 @@ def test_edit_and_delete_return_when_the_run_ends(js):
 
     # the firing completes (or is stopped): running_profile_name clears
     # and the buttons must come back without a page reload
-    js.eval('running_profile_name = null;')
+    js.eval("running_profile_name = null;")
     html = _render_profiles(js)
 
-    assert 'abortTask()' not in html
-    assert 'editProfile(0)' in html
-    assert 'selectProfile(0, null)' in html
+    assert "abortTask()" not in html
+    assert "editProfile(0)" in html
+    assert "selectProfile(0, null)" in html
 
 
 ########################################################################
 # community schedules (kiln-profiles repo)
 ########################################################################
 
+
 def test_schedules_tab_has_community_panel():
-    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
-                                             'public', 'index.html'))).read()
+    html = open(
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "public", "index.html"))
+    ).read()
     assert 'id="remote_profiles_list"' in html
     assert 'id="btn_refresh_remote"' in html
-    assert 'loadRemoteProfiles(true)' in html  # Refresh forces a reload
+    assert "loadRemoteProfiles(true)" in html  # Refresh forces a reload
 
 
 def test_profile_editor_has_share_row():
-    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
-                                             'public', 'index.html'))).read()
+    html = open(
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "public", "index.html"))
+    ).read()
     assert 'id="share_profile_row"' in html
     assert 'id="form_share_category"' in html
     assert 'id="form_share_token"' in html
-    assert 'shareProfile()' in html
+    assert "shareProfile()" in html
 
 
 def test_profiles_tab_loads_remote_profiles_on_show():
     src = open(JS_PATH).read()
-    m = re.search(r"if \(name === 'profiles'\)\s*\{[^}]*renderProfiles\(\);[^}]*loadRemoteProfiles\(\);", src)
-    assert m, 'showTab must load the community profiles when the schedules tab opens'
+    m = re.search(
+        r"if \(name === 'profiles'\)\s*\{[^}]*renderProfiles\(\);[^}]*loadRemoteProfiles\(\);", src
+    )
+    assert m, "showTab must load the community profiles when the schedules tab opens"
 
 
 def test_remote_import_posts_path():
@@ -882,12 +988,12 @@ def test_share_profile_posts_editor_with_temp_units():
     src = open(JS_PATH).read()
     assert "fetch('/api/profiles/remote/upload'" in src
     assert '"temp_units": temp_scale' in src
-    assert 'form_share_category' in src
+    assert "form_share_category" in src
 
 
 def test_config_socket_toggles_share_row():
     src = open(JS_PATH).read()
-    assert 'x.github_sharing_enabled' in src
+    assert "x.github_sharing_enabled" in src
     assert "shareRow.style.display = upload_enabled ? '' : 'none'" in src
 
 
@@ -895,67 +1001,76 @@ def test_load_remote_profiles_renders_install_buttons(js):
     js.eval('var list_el = { innerHTML: "" };')
     js.eval('var share_el = { style: { display: "" } };')
     js.eval('var cat_sel = { innerHTML: "" };')
-    js.eval('var els = {'
-            '  remote_profiles_list: list_el,'
-            '  share_profile_row: share_el,'
-            '  form_share_category: cat_sel };')
-    js.eval('function $(id) { return els[id] || null; }')
-    js.eval('var seen = [];')
-    js.eval('var remote_profiles_loaded = false;')
-    js.eval('apiGet = function(url, cb) { seen.push(url); cb({'
-            '  success: true,'
-            '  upload_enabled: false,'
-            '  categories: ["pottery", "glass"],'
-            '  profiles: [{ name: "cone-05", category: "pottery",'
-            '              path: "pottery/cone-05.json", size: 400, installed: false }]'
-            '}); };')
-    js.eval('loadRemoteProfiles();')
-    assert js.eval('seen[0]') == '/api/profiles/remote'
-    assert 'cone-05' in js.eval('list_el.innerHTML')
-    assert 'Import' in js.eval('list_el.innerHTML') or 'Install' in js.eval('list_el.innerHTML')
+    js.eval(
+        "var els = {"
+        "  remote_profiles_list: list_el,"
+        "  share_profile_row: share_el,"
+        "  form_share_category: cat_sel };"
+    )
+    js.eval("function $(id) { return els[id] || null; }")
+    js.eval("var seen = [];")
+    js.eval("var remote_profiles_loaded = false;")
+    js.eval(
+        "apiGet = function(url, cb) { seen.push(url); cb({"
+        "  success: true,"
+        "  upload_enabled: false,"
+        '  categories: ["pottery", "glass"],'
+        '  profiles: [{ name: "cone-05", category: "pottery",'
+        '              path: "pottery/cone-05.json", size: 400, installed: false }]'
+        "}); };"
+    )
+    js.eval("loadRemoteProfiles();")
+    assert js.eval("seen[0]") == "/api/profiles/remote"
+    assert "cone-05" in js.eval("list_el.innerHTML")
+    assert "Import" in js.eval("list_el.innerHTML") or "Install" in js.eval("list_el.innerHTML")
     # categories are offered in the share select
-    assert 'pottery' in js.eval('cat_sel.innerHTML')
-    assert 'glass' in js.eval('cat_sel.innerHTML')
+    assert "pottery" in js.eval("cat_sel.innerHTML")
+    assert "glass" in js.eval("cat_sel.innerHTML")
     # upload disabled -> share row stays hidden
-    assert js.eval('share_el.style.display') == 'none'
+    assert js.eval("share_el.style.display") == "none"
 
 
 def test_load_remote_profiles_shows_installed_state(js):
     js.eval('var list_el = { innerHTML: "" };')
     js.eval('var share_el = { style: { display: "" } };')
     js.eval('var cat_sel = { innerHTML: "" };')
-    js.eval('var els = {'
-            '  remote_profiles_list: list_el,'
-            '  share_profile_row: share_el,'
-            '  form_share_category: cat_sel };')
-    js.eval('function $(id) { return els[id] || null; }')
-    js.eval('var remote_profiles_loaded = false;')
-    js.eval('apiGet = function(url, cb) { cb({'
-            '  success: true,'
-            '  upload_enabled: true,'
-            '  categories: ["pottery"],'
-            '  profiles: [{ name: "cone-05", category: "pottery",'
-            '              path: "pottery/cone-05.json", installed: true }]'
-            '}); };')
-    js.eval('loadRemoteProfiles();')
-    assert 'installed' in js.eval('list_el.innerHTML')
-    assert js.eval('share_el.style.display') == ''
+    js.eval(
+        "var els = {"
+        "  remote_profiles_list: list_el,"
+        "  share_profile_row: share_el,"
+        "  form_share_category: cat_sel };"
+    )
+    js.eval("function $(id) { return els[id] || null; }")
+    js.eval("var remote_profiles_loaded = false;")
+    js.eval(
+        "apiGet = function(url, cb) { cb({"
+        "  success: true,"
+        "  upload_enabled: true,"
+        '  categories: ["pottery"],'
+        '  profiles: [{ name: "cone-05", category: "pottery",'
+        '              path: "pottery/cone-05.json", installed: true }]'
+        "}); };"
+    )
+    js.eval("loadRemoteProfiles();")
+    assert "installed" in js.eval("list_el.innerHTML")
+    assert js.eval("share_el.style.display") == ""
 
 
 def test_load_remote_profiles_shows_error(js):
     js.eval('var list_el = { innerHTML: "" };')
     js.eval('function $(id) { return id === "remote_profiles_list" ? list_el : null; }')
-    js.eval('var remote_profiles_loaded = false;')
+    js.eval("var remote_profiles_loaded = false;")
     js.eval('apiGet = function(url, cb) { cb({ success: false, error: "repo unreachable" }); };')
-    js.eval('loadRemoteProfiles();')
-    assert 'repo unreachable' in js.eval('list_el.innerHTML')
+    js.eval("loadRemoteProfiles();")
+    assert "repo unreachable" in js.eval("list_el.innerHTML")
 
 
 def test_community_panel_has_search_filter():
-    html = open(os.path.abspath(os.path.join(os.path.dirname(__file__), '..',
-                                             'public', 'index.html'))).read()
+    html = open(
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "public", "index.html"))
+    ).read()
     assert 'id="remote_filter_input"' in html
-    assert 'applyRemoteFilter()' in html
+    assert "applyRemoteFilter()" in html
 
 
 def test_remote_filter_matches_category(js):
@@ -965,14 +1080,18 @@ def test_remote_filter_matches_category(js):
 
 
 def test_remote_filter_matches_tag(js):
-    js.eval('var p = { name: "cone-05-long-bisque", category: "pottery", tags: ["bisque", "cone05"] };')
+    js.eval(
+        'var p = { name: "cone-05-long-bisque", category: "pottery", tags: ["bisque", "cone05"] };'
+    )
     assert js.eval('remoteFilterMatches(p, "bisque")') is True
     assert js.eval('remoteFilterMatches(p, "cone05")') is True
 
 
 def test_remote_filter_matches_description(js):
-    js.eval('var p = { name: "bq1000", category: "pottery", tags: [],'
-            '          description: "fires to cone 05 with a soak" };')
+    js.eval(
+        'var p = { name: "bq1000", category: "pottery", tags: [],'
+        '          description: "fires to cone 05 with a soak" };'
+    )
     assert js.eval('remoteFilterMatches(p, "soak")') is True
     assert js.eval('remoteFilterMatches(p, "Cone")') is True  # case-insensitive
     assert js.eval('remoteFilterMatches(p, "enamel")') is False
@@ -985,160 +1104,187 @@ def test_remote_filter_no_match(js):
 
 
 def test_render_remote_profiles_filters_rows(js):
-    js.eval('remote_profiles = ['
-            '  { name: "cone-05", category: "pottery", tags: ["bisque"], path: "pottery/cone-05.json" },'
-            '  { name: "slumped", category: "glass", tags: ["slumping"], path: "glass/slumped.json" }'
-            '];')
-    js.eval('var els = {'
-            '  remote_profiles_list: { innerHTML: "" },'
-            '  remote_filter_input: { value: "bisque" } };')
-    js.eval('function $(id) { return els[id] || null; }')
-    js.eval('renderRemoteProfiles();')
-    html = js.eval('els.remote_profiles_list.innerHTML')
-    assert 'cone-05' in html
-    assert 'slumped' not in html
+    js.eval(
+        "remote_profiles = ["
+        '  { name: "cone-05", category: "pottery", tags: ["bisque"], path: "pottery/cone-05.json" },'
+        '  { name: "slumped", category: "glass", tags: ["slumping"], path: "glass/slumped.json" }'
+        "];"
+    )
+    js.eval(
+        "var els = {"
+        '  remote_profiles_list: { innerHTML: "" },'
+        '  remote_filter_input: { value: "bisque" } };'
+    )
+    js.eval("function $(id) { return els[id] || null; }")
+    js.eval("renderRemoteProfiles();")
+    html = js.eval("els.remote_profiles_list.innerHTML")
+    assert "cone-05" in html
+    assert "slumped" not in html
 
 
 def test_render_remote_profiles_no_match_message(js):
-    js.eval('remote_profiles = ['
-            '  { name: "cone-05", category: "pottery", tags: ["bisque"], path: "pottery/cone-05.json" }'
-            '];')
-    js.eval('var els = {'
-            '  remote_profiles_list: { innerHTML: "" },'
-            '  remote_filter_input: { value: "metal" } };')
-    js.eval('function $(id) { return els[id] || null; }')
-    js.eval('renderRemoteProfiles();')
-    assert 'metal' in js.eval('els.remote_profiles_list.innerHTML')
-    assert 'No community schedules match' in js.eval('els.remote_profiles_list.innerHTML')
+    js.eval(
+        "remote_profiles = ["
+        '  { name: "cone-05", category: "pottery", tags: ["bisque"], path: "pottery/cone-05.json" }'
+        "];"
+    )
+    js.eval(
+        "var els = {"
+        '  remote_profiles_list: { innerHTML: "" },'
+        '  remote_filter_input: { value: "metal" } };'
+    )
+    js.eval("function $(id) { return els[id] || null; }")
+    js.eval("renderRemoteProfiles();")
+    assert "metal" in js.eval("els.remote_profiles_list.innerHTML")
+    assert "No community schedules match" in js.eval("els.remote_profiles_list.innerHTML")
 
 
 def test_render_remote_profiles_shows_tags(js):
-    js.eval('remote_profiles = ['
-            '  { name: "cone-05", category: "pottery", tags: ["bisque", "cone05"], path: "pottery/cone-05.json" }'
-            '];')
-    js.eval('var els = {'
-            '  remote_profiles_list: { innerHTML: "" },'
-            '  remote_filter_input: { value: "" } };')
-    js.eval('function $(id) { return els[id] || null; }')
-    js.eval('renderRemoteProfiles();')
-    html = js.eval('els.remote_profiles_list.innerHTML')
-    assert 'bisque' in html
-    assert 'cone05' in html
-    assert 'text-bg-light' in html
+    js.eval(
+        "remote_profiles = ["
+        '  { name: "cone-05", category: "pottery", tags: ["bisque", "cone05"], path: "pottery/cone-05.json" }'
+        "];"
+    )
+    js.eval(
+        "var els = {"
+        '  remote_profiles_list: { innerHTML: "" },'
+        '  remote_filter_input: { value: "" } };'
+    )
+    js.eval("function $(id) { return els[id] || null; }")
+    js.eval("renderRemoteProfiles();")
+    html = js.eval("els.remote_profiles_list.innerHTML")
+    assert "bisque" in html
+    assert "cone05" in html
+    assert "text-bg-light" in html
 
 
 def test_delete_profile_reloads_remote_installed_state():
     src = open(JS_PATH).read()
-    body = extract_function(src, 'deleteProfile')
+    body = extract_function(src, "deleteProfile")
     # deleting a local profile must refresh the community list so the
     # installed badge is not stuck
-    assert 'remote_profiles_loaded = false' in body
-    assert 'loadRemoteProfiles()' in body
+    assert "remote_profiles_loaded = false" in body
+    assert "loadRemoteProfiles()" in body
 
 
 def test_share_profile_requires_a_name(js):
-    js.eval('var growls = [];')
-    js.eval('showGrowl = function(m) { growls.push(m); };')
-    js.eval('var els = { form_profile_name: { value: "" }, form_share_category: { value: "pottery" } };')
-    js.eval('function $(id) { return els[id] || null; }')
-    js.eval('graph = { profile: { data: [[0, 20], [100, 30]] } };')
-    js.eval('shareProfile();')
-    assert 'Enter a schedule name first' in js.eval('growls[0]')
-    assert js.eval('growls.length') == 1
+    js.eval("var growls = [];")
+    js.eval("showGrowl = function(m) { growls.push(m); };")
+    js.eval(
+        'var els = { form_profile_name: { value: "" }, form_share_category: { value: "pottery" } };'
+    )
+    js.eval("function $(id) { return els[id] || null; }")
+    js.eval("graph = { profile: { data: [[0, 20], [100, 30]] } };")
+    js.eval("shareProfile();")
+    assert "Enter a schedule name first" in js.eval("growls[0]")
+    assert js.eval("growls.length") == 1
 
 
 def test_share_profile_posts_upload(js):
-    js.eval('var growls = [];')
-    js.eval('showGrowl = function(m) { growls.push(m); };')
-    js.eval('var els = {'
-            '  form_profile_name: { value: "my-bisque" },'
-            '  form_profile_description: { value: "a bisque firing" },'
-            '  form_share_category: { value: "pottery" },'
-            '  form_share_token: { value: "" } };')
-    js.eval('function $(id) { return els[id] || null; }')
-    js.eval('graph = { profile: { data: [[0, 65], [3600, 1708]] } };')
+    js.eval("var growls = [];")
+    js.eval("showGrowl = function(m) { growls.push(m); };")
+    js.eval(
+        "var els = {"
+        '  form_profile_name: { value: "my-bisque" },'
+        '  form_profile_description: { value: "a bisque firing" },'
+        '  form_share_category: { value: "pottery" },'
+        '  form_share_token: { value: "" } };'
+    )
+    js.eval("function $(id) { return els[id] || null; }")
+    js.eval("graph = { profile: { data: [[0, 65], [3600, 1708]] } };")
     js.eval('temp_scale = "f";')
-    js.eval('var posted = null;')
-    js.eval('fetch = function(url, opts) {'
-            '  posted = { url: url, opts: opts };'
-            '  return Promise.resolve({ json: function() { return Promise.resolve({ success: true, name: "my-bisque", pr_url: "https://github.com/x/pull/1" }); } });'
-            '};')
-    js.eval('ws_storage = { send: function() {} };')
-    js.eval('renderProfiles = function() {};')
-    js.eval('shareProfile();')
+    js.eval("var posted = null;")
+    js.eval(
+        "fetch = function(url, opts) {"
+        "  posted = { url: url, opts: opts };"
+        '  return Promise.resolve({ json: function() { return Promise.resolve({ success: true, name: "my-bisque", pr_url: "https://github.com/x/pull/1" }); } });'
+        "};"
+    )
+    js.eval("ws_storage = { send: function() {} };")
+    js.eval("renderProfiles = function() {};")
+    js.eval("shareProfile();")
     for _ in range(10):
         js.execute_pending_job()
-    assert js.eval('posted.url') == '/api/profiles/remote/upload'
-    body = json.loads(js.eval('posted.opts.body'))
-    assert body['category'] == 'pottery'
-    assert body['profile']['name'] == 'my-bisque'
-    assert body['profile']['description'] == 'a bisque firing'
-    assert body['profile']['temp_units'] == 'f'
-    assert body['github_token'] == ''
+    assert js.eval("posted.url") == "/api/profiles/remote/upload"
+    body = json.loads(js.eval("posted.opts.body"))
+    assert body["category"] == "pottery"
+    assert body["profile"]["name"] == "my-bisque"
+    assert body["profile"]["description"] == "a bisque firing"
+    assert body["profile"]["temp_units"] == "f"
+    assert body["github_token"] == ""
     # the profile is submitted as a pull request, with a link
     growls = js.eval('growls.join(",")')
-    assert 'pull request' in growls
-    assert 'view PR' in growls
+    assert "pull request" in growls
+    assert "view PR" in growls
 
 
 def test_share_profile_sends_and_remembers_github_token(js):
-    js.eval('var growls = [];')
-    js.eval('showGrowl = function(m) { growls.push(m); };')
-    js.eval('var els = {'
-            '  form_profile_name: { value: "my-bisque" },'
-            '  form_profile_description: { value: "" },'
-            '  form_share_category: { value: "pottery" },'
-            '  form_share_token: { value: "ghp_abc123" } };')
-    js.eval('function $(id) { return els[id] || null; }')
-    js.eval('graph = { profile: { data: [[0, 65], [3600, 1708]] } };')
+    js.eval("var growls = [];")
+    js.eval("showGrowl = function(m) { growls.push(m); };")
+    js.eval(
+        "var els = {"
+        '  form_profile_name: { value: "my-bisque" },'
+        '  form_profile_description: { value: "" },'
+        '  form_share_category: { value: "pottery" },'
+        '  form_share_token: { value: "ghp_abc123" } };'
+    )
+    js.eval("function $(id) { return els[id] || null; }")
+    js.eval("graph = { profile: { data: [[0, 65], [3600, 1708]] } };")
     js.eval('temp_scale = "c";')
-    js.eval('var stored = null;')
-    js.eval('localStorage = { getItem: function() { return null; },'
-            '  setItem: function(k, v) { stored = v; } };')
-    js.eval('var posted = null;')
-    js.eval('fetch = function(url, opts) {'
-            '  posted = { url: url, opts: opts };'
-            '  return Promise.resolve({ json: function() { return Promise.resolve({ success: true, name: "my-bisque" }); } });'
-            '};')
-    js.eval('ws_storage = { send: function() {} };')
-    js.eval('renderProfiles = function() {};')
-    js.eval('shareProfile();')
+    js.eval("var stored = null;")
+    js.eval(
+        "localStorage = { getItem: function() { return null; },"
+        "  setItem: function(k, v) { stored = v; } };"
+    )
+    js.eval("var posted = null;")
+    js.eval(
+        "fetch = function(url, opts) {"
+        "  posted = { url: url, opts: opts };"
+        '  return Promise.resolve({ json: function() { return Promise.resolve({ success: true, name: "my-bisque" }); } });'
+        "};"
+    )
+    js.eval("ws_storage = { send: function() {} };")
+    js.eval("renderProfiles = function() {};")
+    js.eval("shareProfile();")
     for _ in range(10):
         js.execute_pending_job()
-    body = json.loads(js.eval('posted.opts.body'))
-    assert body['github_token'] == 'ghp_abc123'
+    body = json.loads(js.eval("posted.opts.body"))
+    assert body["github_token"] == "ghp_abc123"
     # the token is remembered for next time
-    assert js.eval('stored') == 'ghp_abc123'
+    assert js.eval("stored") == "ghp_abc123"
 
 
 def test_import_remote_profile_posts_and_refreshes(js):
-    js.eval('var growls = [];')
-    js.eval('showGrowl = function(m) { growls.push(m); };')
-    js.eval('var sent = null;')
-    js.eval('var reloaded = null;')
-    js.eval('var rerendered = null;')
-    js.eval('ws_storage = { send: function(m) { sent = m; } };')
-    js.eval('var posted = null;')
-    js.eval('fetch = function(url, opts) {'
-            '  posted = { url: url, opts: opts };'
-            '  return Promise.resolve({ json: function() { return Promise.resolve({ success: true, name: "cone-05" }); } });'
-            '};')
-    js.eval('renderProfiles = function() { rerendered = true; };')
-    js.eval('loadRemoteProfiles = function(force) { reloaded = force; };')
+    js.eval("var growls = [];")
+    js.eval("showGrowl = function(m) { growls.push(m); };")
+    js.eval("var sent = null;")
+    js.eval("var reloaded = null;")
+    js.eval("var rerendered = null;")
+    js.eval("ws_storage = { send: function(m) { sent = m; } };")
+    js.eval("var posted = null;")
+    js.eval(
+        "fetch = function(url, opts) {"
+        "  posted = { url: url, opts: opts };"
+        '  return Promise.resolve({ json: function() { return Promise.resolve({ success: true, name: "cone-05" }); } });'
+        "};"
+    )
+    js.eval("renderProfiles = function() { rerendered = true; };")
+    js.eval("loadRemoteProfiles = function(force) { reloaded = force; };")
     js.eval('importRemoteProfile("pottery/cone-05.json");')
     for _ in range(10):
         js.execute_pending_job()
-    assert js.eval('posted.url') == '/api/profiles/remote/import'
-    assert json.loads(js.eval('posted.opts.body')) == {'path': 'pottery/cone-05.json'}
-    assert 'Installed' in js.eval('growls.join(",")')
-    assert js.eval('sent') == 'GET'
-    assert js.eval('reloaded') is True   # force a reload to update installed state
-    assert js.eval('rerendered') is True
+    assert js.eval("posted.url") == "/api/profiles/remote/import"
+    assert json.loads(js.eval("posted.opts.body")) == {"path": "pottery/cone-05.json"}
+    assert "Installed" in js.eval('growls.join(",")')
+    assert js.eval("sent") == "GET"
+    assert js.eval("reloaded") is True  # force a reload to update installed state
+    assert js.eval("rerendered") is True
 
 
 ########################################################################
 # scheduling a firing after the current one finishes
 ########################################################################
+
 
 def test_profile_duration_seconds(js):
     js.eval('profiles = [{ name: "candling", data: [[0, 65], [2040, 150], [45240, 150]] }];')
@@ -1150,68 +1296,81 @@ def test_schedule_after_sets_datetime(js):
     js.eval('var el = { value: "" };')
     js.eval('var hidden = { value: "" };')
     js.eval('var note = { style: { display: "none" } };')
-    js.eval('function $(id) {'
-            '  if (id === "schedule_datetime") return el;'
-            '  if (id === "schedule_chain_after") return hidden;'
-            '  if (id === "schedule_chain_note") return note;'
-            '  return null; }')
+    js.eval(
+        "function $(id) {"
+        '  if (id === "schedule_datetime") return el;'
+        '  if (id === "schedule_chain_after") return hidden;'
+        '  if (id === "schedule_chain_note") return note;'
+        "  return null; }"
+    )
     js.eval('scheduleAfter(1787000000, "run:7");')
     # isoLocal produces a local-time 'YYYY-MM-DDTHH:MM' string (minute precision)
-    assert js.eval('el.value.length > 0')
+    assert js.eval("el.value.length > 0")
     import datetime as _dt
-    parsed = _dt.datetime.fromisoformat(js.eval('el.value'))
+
+    parsed = _dt.datetime.fromisoformat(js.eval("el.value"))
     assert abs(parsed.timestamp() - 1787000000) <= 60
     # the chain reference is remembered and the note explains the estimate
-    assert js.eval('hidden.value') == 'run:7'
-    assert js.eval('note.style.display') == ''
+    assert js.eval("hidden.value") == "run:7"
+    assert js.eval("note.style.display") == ""
 
 
 def test_clear_schedule_chain(js):
     js.eval('var hidden = { value: "run:7" };')
     js.eval('var note = { style: { display: "" } };')
-    js.eval('function $(id) {'
-            '  if (id === "schedule_chain_after") return hidden;'
-            '  if (id === "schedule_chain_note") return note;'
-            '  return null; }')
-    js.eval('clearScheduleChain();')
-    assert js.eval('hidden.value') == ''
-    assert js.eval('note.style.display') == 'none'
+    js.eval(
+        "function $(id) {"
+        '  if (id === "schedule_chain_after") return hidden;'
+        '  if (id === "schedule_chain_note") return note;'
+        "  return null; }"
+    )
+    js.eval("clearScheduleChain();")
+    assert js.eval("hidden.value") == ""
+    assert js.eval("note.style.display") == "none"
 
 
-def _schedule_after_stub(js, shown='', inner=''):
-    js.eval('Date.now = function() { return 1000000000000; };')
-    js.eval('var sched_after = { style: { display: %r } };' % shown)
-    js.eval('var sched_list = { innerHTML: %r };' % inner)
-    js.eval('function $(id) {'
-            '  if (id === "schedule_after") return sched_after;'
-            '  if (id === "schedule_after_list") return sched_list;'
-            '  return null; }')
+def _schedule_after_stub(js, shown="", inner=""):
+    js.eval("Date.now = function() { return 1000000000000; };")
+    js.eval("var sched_after = { style: { display: %r } };" % shown)
+    js.eval("var sched_list = { innerHTML: %r };" % inner)
+    js.eval(
+        "function $(id) {"
+        '  if (id === "schedule_after") return sched_after;'
+        '  if (id === "schedule_after_list") return sched_list;'
+        "  return null; }"
+    )
 
 
 def test_render_schedule_after_list_lists_running_and_scheduled(js):
     _schedule_after_stub(js)
-    future = 1000000000 + 10000   # now + 10000s
-    js.eval('oven_status = { state: "RUNNING", profile: "candling", runtime: 3600,'
-            ' totaltime: 45240, run_id: 3 };')
-    js.eval('profiles = ['
-            '  { name: "candling", data: [[0, 65], [2040, 150], [45240, 150]] },'
-            '  { name: "cone-05-long-bisque", data: [[0, 65], [46800, 1708]] }'
-            '];')
-    js.eval('function apiPost(obj, cb) {'
-            '  cb({ success: true, schedules: [{ profile: "cone-05-long-bisque",'
-            '                                    id: "aa11bb22",'
-            '                                    start_time: %d, startat: 0, fired: false }] });'
-            '}' % future)
+    future = 1000000000 + 10000  # now + 10000s
+    js.eval(
+        'oven_status = { state: "RUNNING", profile: "candling", runtime: 3600,'
+        " totaltime: 45240, run_id: 3 };"
+    )
+    js.eval(
+        "profiles = ["
+        '  { name: "candling", data: [[0, 65], [2040, 150], [45240, 150]] },'
+        '  { name: "cone-05-long-bisque", data: [[0, 65], [46800, 1708]] }'
+        "];"
+    )
+    js.eval(
+        "function apiPost(obj, cb) {"
+        '  cb({ success: true, schedules: [{ profile: "cone-05-long-bisque",'
+        '                                    id: "aa11bb22",'
+        "                                    start_time: %d, startat: 0, fired: false }] });"
+        "}" % future
+    )
     js.eval('function formatDuration(s) { return "DUR" + s; }')
-    js.eval('function escHtml(s) { return s; }')
-    js.eval('renderScheduleAfterList();')
-    html = js.eval('sched_list.innerHTML')
-    assert 'candling' in html
-    assert 'cone-05-long-bisque' in html
-    assert 'running' in html
-    assert 'scheduled' in html
-    assert 'After this' in html
-    assert js.eval('sched_after.style.display') == ''   # container is visible
+    js.eval("function escHtml(s) { return s; }")
+    js.eval("renderScheduleAfterList();")
+    html = js.eval("sched_list.innerHTML")
+    assert "candling" in html
+    assert "cone-05-long-bisque" in html
+    assert "running" in html
+    assert "scheduled" in html
+    assert "After this" in html
+    assert js.eval("sched_after.style.display") == ""  # container is visible
     # running firing: chains after run 3, starting ~1 min after its actual end
     assert "scheduleAfter(%d, 'run:3')" % (1000000000 + 45240 - 3600 + 60) in html
     # scheduled firing: chains after the schedule id, ~1 min after its actual end
@@ -1220,61 +1379,71 @@ def test_render_schedule_after_list_lists_running_and_scheduled(js):
 
 def test_render_schedule_after_list_sorts_by_finish(js):
     _schedule_after_stub(js)
-    future = 1000000000 + 10000   # now + 10000s
+    future = 1000000000 + 10000  # now + 10000s
     js.eval('oven_status = { state: "RUNNING", profile: "long", runtime: 0, totaltime: 90000 };')
-    js.eval('profiles = ['
-            '  { name: "long", data: [[0, 65], [90000, 500]] },'
-            '  { name: "short", data: [[0, 65], [1800, 200]] }'
-            '];')
-    js.eval('function apiPost(obj, cb) {'
-            '  cb({ success: true, schedules: [{ profile: "short",'
-            '                                    start_time: %d, startat: 0, fired: false }] });'
-            '}' % future)
+    js.eval(
+        "profiles = ["
+        '  { name: "long", data: [[0, 65], [90000, 500]] },'
+        '  { name: "short", data: [[0, 65], [1800, 200]] }'
+        "];"
+    )
+    js.eval(
+        "function apiPost(obj, cb) {"
+        '  cb({ success: true, schedules: [{ profile: "short",'
+        "                                    start_time: %d, startat: 0, fired: false }] });"
+        "}" % future
+    )
     js.eval('function formatDuration(s) { return "DUR" + s; }')
-    js.eval('function escHtml(s) { return s; }')
-    js.eval('renderScheduleAfterList();')
-    html = js.eval('sched_list.innerHTML')
+    js.eval("function escHtml(s) { return s; }")
+    js.eval("renderScheduleAfterList();")
+    html = js.eval("sched_list.innerHTML")
     # the short scheduled firing finishes first (future + 1800), so it is listed first
-    assert html.index('short') < html.index('long')
+    assert html.index("short") < html.index("long")
 
 
 def test_render_schedule_after_list_hides_when_nothing_to_chain(js):
-    _schedule_after_stub(js, shown='block')
+    _schedule_after_stub(js, shown="block")
     js.eval('oven_status = { state: "IDLE", profile: null };')
-    js.eval('profiles = [];')
-    js.eval('function apiPost(obj, cb) { cb({ success: true, schedules: [] }); }')
-    js.eval('renderScheduleAfterList();')
-    assert js.eval('sched_after.style.display') == 'none'
-    assert js.eval('sched_list.innerHTML') == ''
+    js.eval("profiles = [];")
+    js.eval("function apiPost(obj, cb) { cb({ success: true, schedules: [] }); }")
+    js.eval("renderScheduleAfterList();")
+    assert js.eval("sched_after.style.display") == "none"
+    assert js.eval("sched_list.innerHTML") == ""
 
 
 ########################################################################
 # alerts panel rendering
 ########################################################################
 
+
 def _alert(id, label, description, criticality, enabled=True):
-    return {'id': id, 'label': label, 'description': description,
-            'criticality': criticality, 'enabled': enabled}
+    return {
+        "id": id,
+        "label": label,
+        "description": description,
+        "criticality": criticality,
+        "enabled": enabled,
+    }
 
 
 def test_render_alerts_orders_criticality_descending(js):
     # deliberately pass the registry in reverse to prove grouping wins
     payload = [
-        _alert('run_started', 'Run started', 'desc', 'info'),
-        _alert('catch_up_stalled', 'Behind', 'desc', 'warning'),
-        _alert('tc_failure', 'TC failure', 'desc', 'critical'),
+        _alert("run_started", "Run started", "desc", "info"),
+        _alert("catch_up_stalled", "Behind", "desc", "warning"),
+        _alert("tc_failure", "TC failure", "desc", "critical"),
     ]
-    html = js.eval('renderAlertsHtml(%s)' % json.dumps(payload))
-    assert html.index('Critical') < html.index('Warning') < html.index('Info')
-    assert html.index('tc_failure') < html.index('catch_up_stalled') < html.index('run_started')
+    html = js.eval("renderAlertsHtml(%s)" % json.dumps(payload))
+    assert html.index("Critical") < html.index("Warning") < html.index("Info")
+    assert html.index("tc_failure") < html.index("catch_up_stalled") < html.index("run_started")
 
 
 def test_render_alerts_checkbox_reflects_enabled(js):
     payload = [
-        _alert('a_one', 'One', 'd', 'critical', True),
-        _alert('b_two', 'Two', 'd', 'critical', False),
+        _alert("a_one", "One", "d", "critical", True),
+        _alert("b_two", "Two", "d", "critical", False),
     ]
-    html = js.eval('renderAlertsHtml(%s)' % json.dumps(payload))
+    html = js.eval("renderAlertsHtml(%s)" % json.dumps(payload))
     assert 'id="alert_a_one" checked' in html
     # the disabled switch has no checked attribute
     assert 'id="alert_b_two"' in html and 'alert_b_two" checked' not in html
@@ -1282,27 +1451,26 @@ def test_render_alerts_checkbox_reflects_enabled(js):
 
 def test_render_alerts_escapes_server_strings(js):
     payload = [
-        _alert('x<script>', 'Label <b>bold</b>',
-               'desc with "quotes" & <tags>', 'critical'),
+        _alert("x<script>", "Label <b>bold</b>", 'desc with "quotes" & <tags>', "critical"),
     ]
-    html = js.eval('renderAlertsHtml(%s)' % json.dumps(payload))
-    assert '<script>' not in html
-    assert '&lt;b&gt;bold&lt;/b&gt;' in html
-    assert '&quot;quotes&quot;' in html
+    html = js.eval("renderAlertsHtml(%s)" % json.dumps(payload))
+    assert "<script>" not in html
+    assert "&lt;b&gt;bold&lt;/b&gt;" in html
+    assert "&quot;quotes&quot;" in html
 
 
 def test_render_alerts_wires_toggle_handler(js):
-    payload = [_alert('emergency_shutoff', 'E', 'd', 'critical')]
-    html = js.eval('renderAlertsHtml(%s)' % json.dumps(payload))
+    payload = [_alert("emergency_shutoff", "E", "d", "critical")]
+    html = js.eval("renderAlertsHtml(%s)" % json.dumps(payload))
     assert "onchange=\"toggleAlert('emergency_shutoff', this)\"" in html
 
 
 def test_render_alerts_skips_empty_tiers(js):
-    payload = [_alert('only_info', 'Only', 'd', 'info')]
-    html = js.eval('renderAlertsHtml(%s)' % json.dumps(payload))
-    assert 'Critical' not in html
-    assert 'Warning' not in html
-    assert 'Info' in html
+    payload = [_alert("only_info", "Only", "d", "info")]
+    html = js.eval("renderAlertsHtml(%s)" % json.dumps(payload))
+    assert "Critical" not in html
+    assert "Warning" not in html
+    assert "Info" in html
 
 
 ########################################################################
@@ -1310,26 +1478,25 @@ def test_render_alerts_skips_empty_tiers(js):
 ########################################################################
 
 DELIVERY = {
-    'mqtt_enabled': True,
-    'mqtt_topic': 'kiln/alerts',
-    'webhook_enabled': False,
-    'webhook_url': '',
+    "mqtt_enabled": True,
+    "mqtt_topic": "kiln/alerts",
+    "webhook_enabled": False,
+    "webhook_url": "",
 }
 
 
 def test_render_delivery_section_present_by_default(js):
-    payload = [_alert('run_started', 'Run started', 'd', 'info')]
-    html = js.eval('renderAlertsHtml(%s)' % json.dumps(payload))
-    assert 'Delivery' in html          # renders with no settings passed
-    assert 'delivery_mqtt' in html
-    assert 'delivery_webhook' in html
+    payload = [_alert("run_started", "Run started", "d", "info")]
+    html = js.eval("renderAlertsHtml(%s)" % json.dumps(payload))
+    assert "Delivery" in html  # renders with no settings passed
+    assert "delivery_mqtt" in html
+    assert "delivery_webhook" in html
 
 
 def test_render_delivery_reflects_saved_state(js):
-    payload = [_alert('run_started', 'Run started', 'd', 'info', enabled=False)]
-    delivery = dict(DELIVERY, webhook_url='https://ntfy.sh/my-kiln')
-    html = js.eval('renderAlertsHtml(%s, %s, true)'
-                   % (json.dumps(payload), json.dumps(delivery)))
+    payload = [_alert("run_started", "Run started", "d", "info", enabled=False)]
+    delivery = dict(DELIVERY, webhook_url="https://ntfy.sh/my-kiln")
+    html = js.eval("renderAlertsHtml(%s, %s, true)" % (json.dumps(payload), json.dumps(delivery)))
     # mqtt on, webhook off, topic and url render as input values
     assert 'id="delivery_mqtt" checked' in html
     assert 'id="delivery_webhook" checked' not in html
@@ -1338,20 +1505,21 @@ def test_render_delivery_reflects_saved_state(js):
 
 
 def test_render_delivery_escapes_url_into_attribute(js):
-    payload = [_alert('run_started', 'Run started', 'd', 'info')]
-    evil = {'mqtt_enabled': False, 'mqtt_topic': '', 'webhook_enabled': True,
-            'webhook_url': 'https://x"><script>alert(1)</script>'}
-    html = js.eval('renderAlertsHtml(%s, %s, false)'
-                   % (json.dumps(payload), json.dumps(evil)))
-    assert '<script>' not in html
-    assert '&lt;script&gt;' in html
+    payload = [_alert("run_started", "Run started", "d", "info")]
+    evil = {
+        "mqtt_enabled": False,
+        "mqtt_topic": "",
+        "webhook_enabled": True,
+        "webhook_url": 'https://x"><script>alert(1)</script>',
+    }
+    html = js.eval("renderAlertsHtml(%s, %s, false)" % (json.dumps(payload), json.dumps(evil)))
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html
 
 
 def test_render_delivery_wires_handlers(js):
-    payload = [_alert('run_started', 'Run started', 'd', 'info')]
-    html = js.eval(
-        'renderAlertsHtml(%s, %s, true)'
-        % (json.dumps(payload), json.dumps(DELIVERY)))
+    payload = [_alert("run_started", "Run started", "d", "info")]
+    html = js.eval("renderAlertsHtml(%s, %s, true)" % (json.dumps(payload), json.dumps(DELIVERY)))
     assert "onchange=\"toggleDelivery('mqtt_enabled', this)\"" in html
     assert "onchange=\"toggleDelivery('webhook_enabled', this)\"" in html
     assert "onchange=\"saveDeliveryField('mqtt_topic', this)\"" in html
@@ -1359,10 +1527,12 @@ def test_render_delivery_wires_handlers(js):
 
 
 def test_render_delivery_mqtt_not_configured_hint(js):
-    payload = [_alert('run_started', 'Run started', 'd', 'info')]
-    unconfigured = js.eval('renderAlertsHtml(%s, %s, false)'
-                           % (json.dumps(payload), json.dumps(DELIVERY)))
-    configured = js.eval('renderAlertsHtml(%s, %s, true)'
-                         % (json.dumps(payload), json.dumps(DELIVERY)))
-    assert 'not configured' in unconfigured
-    assert 'not configured' not in configured
+    payload = [_alert("run_started", "Run started", "d", "info")]
+    unconfigured = js.eval(
+        "renderAlertsHtml(%s, %s, false)" % (json.dumps(payload), json.dumps(DELIVERY))
+    )
+    configured = js.eval(
+        "renderAlertsHtml(%s, %s, true)" % (json.dumps(payload), json.dumps(DELIVERY))
+    )
+    assert "not configured" in unconfigured
+    assert "not configured" not in configured

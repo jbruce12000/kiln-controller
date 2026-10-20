@@ -82,8 +82,7 @@ ON samples (firing_id, id)
 
 # any of these columns means the db predates the flat schema and must
 # be wiped for a clean start (see _wipe_legacy).
-LEGACY_SAMPLE_COLUMNS = ("pidstats", "wall_time", "run_started",
-                         "profile", "run_id")
+LEGACY_SAMPLE_COLUMNS = ("pidstats", "wall_time", "run_started", "profile", "run_id")
 
 
 def default_db_path():
@@ -96,6 +95,7 @@ def configured_db_path():
     """config.firing_db_file when set, else the default location."""
     try:
         import config
+
         path = getattr(config, "firing_db_file", None)
         if path:
             return os.path.abspath(path)
@@ -111,8 +111,8 @@ def get_max_firings():
     """config.firing_db_max_firings when set and valid, else 10."""
     try:
         import config
-        value = getattr(config, "firing_db_max_firings",
-                        DEFAULT_MAX_FIRINGS)
+
+        value = getattr(config, "firing_db_max_firings", DEFAULT_MAX_FIRINGS)
         return int(value)
     except Exception:
         return DEFAULT_MAX_FIRINGS
@@ -120,8 +120,7 @@ def get_max_firings():
 
 def _columns(con, table):
     try:
-        return {row[1] for row in
-                con.execute("PRAGMA table_info(%s)" % table).fetchall()}
+        return {row[1] for row in con.execute("PRAGMA table_info(%s)" % table).fetchall()}
     except Exception:
         return set()
 
@@ -136,8 +135,7 @@ class FiringDb:
             os.makedirs(parent, exist_ok=True)
         self._lock = threading.Lock()
         # watcher thread owns writes; allow use from tests/other threads
-        self._con = sqlite3.connect(self.path, timeout=10,
-                                    check_same_thread=False)
+        self._con = sqlite3.connect(self.path, timeout=10, check_same_thread=False)
         try:
             self._con.execute("PRAGMA journal_mode=WAL")
         except Exception:
@@ -177,8 +175,7 @@ class FiringDb:
         with the run-fixed fields (profile, totaltime, pid constants)."""
         if run_started in self._firing_ids:
             return self._firing_ids[run_started]
-        cur = self._con.execute(
-            "SELECT id FROM firings WHERE run_started = ?", (run_started,))
+        cur = self._con.execute("SELECT id FROM firings WHERE run_started = ?", (run_started,))
         row = cur.fetchone()
         if row:
             self._firing_ids[run_started] = row[0]
@@ -187,14 +184,17 @@ class FiringDb:
             "INSERT INTO firings (profile, run_id, run_started,"
             " started_wall, totaltime, kp, ki, kd)"
             " VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (oven_state.get("profile"),
-             oven_state.get("run_id"),
-             run_started,
-             time.time(),
-             self._fnum(oven_state.get("totaltime")),
-             self._fnum(pid.get("kp")),
-             self._fnum(pid.get("ki")),
-             self._fnum(pid.get("kd"))))
+            (
+                oven_state.get("profile"),
+                oven_state.get("run_id"),
+                run_started,
+                time.time(),
+                self._fnum(oven_state.get("totaltime")),
+                self._fnum(pid.get("kp")),
+                self._fnum(pid.get("ki")),
+                self._fnum(pid.get("kd")),
+            ),
+        )
         firing_id = cur.lastrowid
         self._firing_ids[run_started] = firing_id
         return firing_id
@@ -218,8 +218,7 @@ class FiringDb:
             with self._lock:
                 with self._con:
                     if run_started is not None:
-                        firing_id = self._ensure_firing(oven_state, pid,
-                                                        run_started)
+                        firing_id = self._ensure_firing(oven_state, pid, run_started)
                     else:
                         firing_id = None
                     self._con.execute(
@@ -229,25 +228,28 @@ class FiringDb:
                         " dt, err, ed, p, i, d, pid, out)"
                         " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,"
                         " ?, ?, ?, ?, ?, ?, ?, ?)",
-                        (firing_id,
-                         t,
-                         self._fnum(oven_state.get("runtime")),
-                         self._fnum(oven_state.get("temperature")),
-                         self._fnum(oven_state.get("target")),
-                         oven_state.get("state"),
-                         self._fnum(oven_state.get("heat")),
-                         self._fnum(oven_state.get("cost")),
-                         self._fnum(oven_state.get("heat_rate")),
-                         int(bool(oven_state.get("catching_up"))),
-                         oven_state.get("temp_errors"),
-                         self._fnum(pid.get("timeDelta")),
-                         self._fnum(pid.get("err")),
-                         self._fnum(pid.get("errDelta")),
-                         self._fnum(pid.get("p")),
-                         self._fnum(pid.get("i")),
-                         self._fnum(pid.get("d")),
-                         self._fnum(pid.get("pid")),
-                         self._fnum(pid.get("out"))))
+                        (
+                            firing_id,
+                            t,
+                            self._fnum(oven_state.get("runtime")),
+                            self._fnum(oven_state.get("temperature")),
+                            self._fnum(oven_state.get("target")),
+                            oven_state.get("state"),
+                            self._fnum(oven_state.get("heat")),
+                            self._fnum(oven_state.get("cost")),
+                            self._fnum(oven_state.get("heat_rate")),
+                            int(bool(oven_state.get("catching_up"))),
+                            oven_state.get("temp_errors"),
+                            self._fnum(pid.get("timeDelta")),
+                            self._fnum(pid.get("err")),
+                            self._fnum(pid.get("errDelta")),
+                            self._fnum(pid.get("p")),
+                            self._fnum(pid.get("i")),
+                            self._fnum(pid.get("d")),
+                            self._fnum(pid.get("pid")),
+                            self._fnum(pid.get("out")),
+                        ),
+                    )
             return True
         except Exception as e:
             log.error("could not write firing sample: %s" % e)
@@ -280,8 +282,8 @@ class FiringDb:
             with self._lock:
                 with self._con:
                     keep_rows = self._con.execute(
-                        "SELECT id FROM firings ORDER BY id DESC LIMIT ?",
-                        (max_keep,)).fetchall()
+                        "SELECT id FROM firings ORDER BY id DESC LIMIT ?", (max_keep,)
+                    ).fetchall()
                     keep_ids = [r[0] for r in keep_rows]
                     if not keep_ids:
                         return (0, 0)
@@ -289,11 +291,12 @@ class FiringDb:
                     cur = self._con.execute(
                         "DELETE FROM samples WHERE firing_id IS NOT NULL"
                         " AND firing_id NOT IN (%s)" % placeholders,
-                        keep_ids)
+                        keep_ids,
+                    )
                     deleted_samples = cur.rowcount or 0
                     cur = self._con.execute(
-                        "DELETE FROM firings WHERE id NOT IN (%s)"
-                        % placeholders, keep_ids)
+                        "DELETE FROM firings WHERE id NOT IN (%s)" % placeholders, keep_ids
+                    )
                     deleted_firings = cur.rowcount or 0
                     # drop cached ids for firings that no longer exist
                     for started, fid in list(self._firing_ids.items()):
@@ -301,13 +304,13 @@ class FiringDb:
                             # the row may still exist when fewer than
                             # max_keep firings remain; only drop ids that
                             # were actually deleted
-                            cur = self._con.execute(
-                                "SELECT 1 FROM firings WHERE id = ?", (fid,))
+                            cur = self._con.execute("SELECT 1 FROM firings WHERE id = ?", (fid,))
                             if cur.fetchone() is None:
                                 del self._firing_ids[started]
             if deleted_firings:
-                log.info("pruned %d old firing(s), %d sample(s)" %
-                         (deleted_firings, deleted_samples))
+                log.info(
+                    "pruned %d old firing(s), %d sample(s)" % (deleted_firings, deleted_samples)
+                )
             return (deleted_firings, deleted_samples)
         except Exception as e:
             log.error("could not prune old firings: %s" % e)
@@ -317,7 +320,6 @@ class FiringDb:
         """prune old firings on an isolated daemon thread. returns it."""
         if max_keep is None:
             max_keep = get_max_firings()
-        thread = threading.Thread(
-            target=self.prune_old_firings, args=(max_keep,), daemon=True)
+        thread = threading.Thread(target=self.prune_old_firings, args=(max_keep,), daemon=True)
         thread.start()
         return thread

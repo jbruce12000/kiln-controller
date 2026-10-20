@@ -52,8 +52,8 @@ def _invline(a, b, y):
 
 
 def _find_tangent(xdata, ydata, tangentdivisor):
-    '''measure the dead time L and time constant T from the process
-    reaction curve.'''
+    """measure the dead time L and time constant T from the process
+    reaction curve."""
     miny = min(ydata)
     maxy = max(ydata)
     midy = (maxy + miny) / 2
@@ -70,18 +70,20 @@ def _find_tangent(xdata, ydata, tangentdivisor):
     if tangent_min is None or tangent_max is None:
         raise ValueError(
             "could not find tangent points. is the heating curve "
-            "monotonic? try a different tangent divisor.")
+            "monotonic? try a different tangent divisor."
+        )
     if tangent_max[0] == tangent_min[0]:
         raise ValueError(
             "could not compute a tangent slope. the heating curve "
-            "is too flat. try a different tangent divisor.")
+            "is too flat. try a different tangent divisor."
+        )
 
-    tangent_slope = ((tangent_max[1] - tangent_min[1]) /
-                     (tangent_max[0] - tangent_min[0]))
+    tangent_slope = (tangent_max[1] - tangent_min[1]) / (tangent_max[0] - tangent_min[0])
     if tangent_slope == 0:
         raise ValueError(
             "could not compute a tangent line. the heating curve "
-            "is too flat. try a different tangent divisor.")
+            "is too flat. try a different tangent divisor."
+        )
     tangent_offset = tangent_min[1] - _line(tangent_slope, 0, tangent_min[0])
 
     lower_crossing_x = _invline(tangent_slope, tangent_offset, miny)
@@ -93,15 +95,16 @@ def _find_tangent(xdata, ydata, tangentdivisor):
     if L <= 0 or T <= 0:
         raise ValueError(
             "invalid process parameters L=%s, T=%s. the heating curve "
-            "does not look like a step response." % (L, T))
+            "does not look like a step response." % (L, T)
+        )
 
     return L, T
 
 
 class Tuner:
-    '''Drives the oven at full power to produce a process reaction curve,
+    """Drives the oven at full power to produce a process reaction curve,
     then computes Ziegler-Nichols PID values and applies them to
-    config.py.'''
+    config.py."""
 
     IDLE = "IDLE"
     HEATING = "HEATING"
@@ -123,8 +126,8 @@ class Tuner:
         self._stop_requested = False
 
     def start(self, target_temp_c, method=DEFAULT_METHOD, tangent_divisor=8):
-        '''Run the full tuning sequence. Must be called from a gevent
-        greenlet or background thread since it blocks during recording.'''
+        """Run the full tuning sequence. Must be called from a gevent
+        greenlet or background thread since it blocks during recording."""
         if self.oven.state not in ("IDLE", "TUNING"):
             log.error("cannot tune, oven state is %s" % self.oven.state)
             self.state = self.ERROR
@@ -166,8 +169,7 @@ class Tuner:
 
             self.state = self.CALCULATING
             self.phase = None
-            log.info("recording complete -- analyzing %d data points" %
-                     len(self.csv_data))
+            log.info("recording complete -- analyzing %d data points" % len(self.csv_data))
             self._calculate()
 
             if not self._stop_requested:
@@ -196,16 +198,17 @@ class Tuner:
             self.oven.heat = 0
 
     def _record(self, target_temp_c):
-        '''Heat to target, then cool back to target, recording temperature
-        every config.sensor_time_wait seconds.'''
+        """Heat to target, then cool back to target, recording temperature
+        every config.sensor_time_wait seconds."""
         sleepfor = config.sensor_time_wait
         using_sim = config.simulate
 
         # --- heating phase ---
         self.phase = "heating"
         self.oven.heat = self.oven.time_step
-        log.info("HEATING PHASE -- ramping to %.1f %s" %
-                 (to_display(target_temp_c), config.temp_scale))
+        log.info(
+            "HEATING PHASE -- ramping to %.1f %s" % (to_display(target_temp_c), config.temp_scale)
+        )
 
         while True:
             if self._stop_requested:
@@ -217,8 +220,9 @@ class Tuner:
             else:
                 self.oven.output.heat(sleepfor)
 
-            temp = (self.oven.board.temp_sensor.temperature() +
-                    delta_to_c(config.thermocouple_offset))
+            temp = self.oven.board.temp_sensor.temperature() + delta_to_c(
+                config.thermocouple_offset
+            )
             self.csv_data.append((time.time(), to_display(temp)))
 
             # update oven attributes so OvenWatcher broadcasts progress
@@ -227,21 +231,31 @@ class Tuner:
             self.oven.heat = self.oven.time_step
 
             elapsed = time.time() - self.start_time
-            log.info("  heating: %.1f / %.1f %s  (elapsed: %.0fs, %d points)" %
-                     (to_display(temp), to_display(target_temp_c),
-                      config.temp_scale, elapsed, len(self.csv_data)))
+            log.info(
+                "  heating: %.1f / %.1f %s  (elapsed: %.0fs, %d points)"
+                % (
+                    to_display(temp),
+                    to_display(target_temp_c),
+                    config.temp_scale,
+                    elapsed,
+                    len(self.csv_data),
+                )
+            )
 
             if to_display(temp) >= to_display(target_temp_c):
-                log.info("heating phase COMPLETE -- reached %.1f %s in %.0fs" %
-                         (to_display(temp), config.temp_scale, elapsed))
+                log.info(
+                    "heating phase COMPLETE -- reached %.1f %s in %.0fs"
+                    % (to_display(temp), config.temp_scale, elapsed)
+                )
                 break
 
             # safety check
             if to_display(temp) >= config.emergency_shutoff_temp:
                 raise ValueError(
                     "emergency shutoff: temperature %.1f reached "
-                    "emergency_shutoff_temp %.1f" %
-                    (to_display(temp), config.emergency_shutoff_temp))
+                    "emergency_shutoff_temp %.1f"
+                    % (to_display(temp), config.emergency_shutoff_temp)
+                )
 
         if self._stop_requested:
             return
@@ -251,8 +265,10 @@ class Tuner:
         self.oven.heat = 0
         if using_sim:
             self.oven.target = 0
-        log.info("COOLING PHASE -- cooling back to %.1f %s" %
-                 (to_display(target_temp_c), config.temp_scale))
+        log.info(
+            "COOLING PHASE -- cooling back to %.1f %s"
+            % (to_display(target_temp_c), config.temp_scale)
+        )
 
         while True:
             if self._stop_requested:
@@ -264,25 +280,35 @@ class Tuner:
             else:
                 self.oven.output.cool(sleepfor)
 
-            temp = (self.oven.board.temp_sensor.temperature() +
-                    delta_to_c(config.thermocouple_offset))
+            temp = self.oven.board.temp_sensor.temperature() + delta_to_c(
+                config.thermocouple_offset
+            )
             self.csv_data.append((time.time(), to_display(temp)))
 
             self.oven.runtime = time.time() - self.start_time
             self.oven.heat = 0
 
             elapsed = time.time() - self.start_time
-            log.info("  cooling: %.1f / %.1f %s  (elapsed: %.0fs, %d points)" %
-                     (to_display(temp), to_display(target_temp_c),
-                      config.temp_scale, elapsed, len(self.csv_data)))
+            log.info(
+                "  cooling: %.1f / %.1f %s  (elapsed: %.0fs, %d points)"
+                % (
+                    to_display(temp),
+                    to_display(target_temp_c),
+                    config.temp_scale,
+                    elapsed,
+                    len(self.csv_data),
+                )
+            )
 
             if to_display(temp) <= to_display(target_temp_c):
-                log.info("cooling phase COMPLETE -- reached %.1f %s in %.0fs" %
-                         (to_display(temp), config.temp_scale, elapsed))
+                log.info(
+                    "cooling phase COMPLETE -- reached %.1f %s in %.0fs"
+                    % (to_display(temp), config.temp_scale, elapsed)
+                )
                 break
 
     def _calculate(self):
-        '''Parse recorded data and compute Ziegler-Nichols PID values.'''
+        """Parse recorded data and compute Ziegler-Nichols PID values."""
         tangentdivisor = self.tangent_divisor
         method = self.method
 
@@ -308,9 +334,10 @@ class Tuner:
         # only use the heating portion (up to first time max temp is reached)
         max_temp = max(ydata)
         heating_end = ydata.index(max_temp) + 1
-        log.info("heating data: %d of %d points, temp range %.1f - %.1f %s" %
-                 (heating_end, len(xdata), min(ydata), max(ydata),
-                  config.temp_scale))
+        log.info(
+            "heating data: %d of %d points, temp range %.1f - %.1f %s"
+            % (heating_end, len(xdata), min(ydata), max(ydata), config.temp_scale)
+        )
         xdata = xdata[:heating_end]
         ydata = ydata[:heating_end]
 
@@ -318,8 +345,7 @@ class Tuner:
             raise ValueError("not enough heating data to tune against")
 
         L, T = _find_tangent(xdata, ydata, tangentdivisor)
-        log.info("tangent analysis: L (dead time) = %.1fs, T (time constant) = %.1fs" %
-                 (L, T))
+        log.info("tangent analysis: L (dead time) = %.1fs, T (time constant) = %.1fs" % (L, T))
 
         rule = ZN_TABLES[method]
         Kp = rule["factor"] * (T / L)
@@ -337,13 +363,11 @@ class Tuner:
             "ki": round(pid_ki, 3),
             "kd": round(pid_kd, 3),
         }
-        log.info("Ziegler-Nichols (%s): Kp=%.3f Ti=%.1f Td=%.1f" %
-                 (method, Kp, Ti, Td))
-        log.info("PID values: kp=%.3f ki=%.3f kd=%.3f" %
-                 (pid_kp, pid_ki, pid_kd))
+        log.info("Ziegler-Nichols (%s): Kp=%.3f Ti=%.1f Td=%.1f" % (method, Kp, Ti, Td))
+        log.info("PID values: kp=%.3f ki=%.3f kd=%.3f" % (pid_kp, pid_ki, pid_kd))
 
     def _apply_pid(self):
-        '''Write the calculated PID values into config.py and reload.'''
+        """Write the calculated PID values into config.py and reload."""
         if not self.pid_values:
             return
 
@@ -353,41 +377,42 @@ class Tuner:
 
         # read current config.py
         config_path = config.__file__
-        with open(config_path, 'r') as f:
+        with open(config_path, "r") as f:
             text = f.read()
 
         # replace pid lines
-        text = re.sub(r'pid_kp\s*=\s*[\d.]+', 'pid_kp = %s' % kp, text)
-        text = re.sub(r'pid_ki\s*=\s*[\d.]+', 'pid_ki = %s' % ki, text)
-        text = re.sub(r'pid_kd\s*=\s*[\d.]+', 'pid_kd = %s' % kd, text)
+        text = re.sub(r"pid_kp\s*=\s*[\d.]+", "pid_kp = %s" % kp, text)
+        text = re.sub(r"pid_ki\s*=\s*[\d.]+", "pid_ki = %s" % ki, text)
+        text = re.sub(r"pid_kd\s*=\s*[\d.]+", "pid_kd = %s" % kd, text)
 
         # validate syntax before writing
-        compile(text, 'config.py', 'exec')
+        compile(text, "config.py", "exec")
 
         # write the file
-        with open(config_path, 'w') as f:
+        with open(config_path, "w") as f:
             f.write(text)
 
         log.info("wrote new PID values to %s" % config_path)
 
         # reload config module
-        cached = getattr(config, '__cached__', None)
+        cached = getattr(config, "__cached__", None)
         if cached:
             try:
                 os.remove(cached)
             except OSError:
                 pass
         import importlib
+
         importlib.reload(config)
         log.info("reloaded config module -- new values are active")
 
     def stop(self):
-        '''Abort tuning. The record loop will exit on next iteration.'''
+        """Abort tuning. The record loop will exit on next iteration."""
         self._stop_requested = True
         log.info("tuner stop requested")
 
     def get_status(self):
-        '''Return current tuning status.'''
+        """Return current tuning status."""
         elapsed = 0
         if self.start_time:
             elapsed = time.time() - self.start_time
@@ -395,14 +420,14 @@ class Tuner:
         temperature = None
         try:
             temperature = to_display(
-                self.oven.board.temp_sensor.temperature() +
-                delta_to_c(config.thermocouple_offset))
+                self.oven.board.temp_sensor.temperature() + delta_to_c(config.thermocouple_offset)
+            )
         except Exception:
             pass
 
         return {
             "state": self.state,
-            "phase": getattr(self, 'phase', None),
+            "phase": getattr(self, "phase", None),
             "temperature": temperature,
             "target": to_display(self.target_temp_c) if self.target_temp_c else None,
             "elapsed": round(elapsed),

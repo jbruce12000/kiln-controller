@@ -7,7 +7,7 @@ import os
 
 ### Logging
 log_level = logging.INFO
-log_format = '%(asctime)s %(levelname)s %(name)s: %(message)s'
+log_format = "%(asctime)s %(levelname)s %(name)s: %(message)s"
 
 ### Server
 listening_port = 9099
@@ -17,9 +17,9 @@ listening_port = 9099
 #
 # This is used to produce the actual cost during a run. My kiln has three
 # elements that when my switches are set to high, consume 9460 watts.
-kwh_rate        = 0.1319  # cost per kilowatt hour per currency_type to calculate cost to run job
-kw_elements     = 9.460 # if the kiln elements are on, the wattage in kilowatts
-currency_type   = "$"   # Currency Symbol to show when calculating cost to run job
+kwh_rate = 0.1319  # cost per kilowatt hour per currency_type to calculate cost to run job
+kw_elements = 9.460  # if the kiln elements are on, the wattage in kilowatts
+currency_type = "$"  # Currency Symbol to show when calculating cost to run job
 
 ########################################################################
 #
@@ -30,13 +30,13 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 # Blinka supports many different boards. I've only tested raspberry pi.
 #
 # First you must decide whether to use hardware spi or software spi.
-# 
+#
 # Hardware SPI
 #
 # - faster
 # - requires 3 specific GPIO pins be used on rpis
-# - no pins are listed in this config file 
-# 
+# - no pins are listed in this config file
+#
 # Software SPI
 #
 # - slower (which will not matter for reading a thermocouple
@@ -52,7 +52,7 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 #    SPI0_SCLK = BCM pin 11 = CLK on the adafruit-31855
 #    SPI0_MOSI = BCM pin 10 = not connected
 #    SPI0_MISO = BCM pin 9  = D0 on the adafruit-31855
-#   
+#
 # plus a GPIO output to connect to CS. You can use any GPIO pin you want.
 # I chose gpio pin 5:
 #
@@ -81,25 +81,27 @@ currency_type   = "$"   # Currency Symbol to show when calculating cost to run j
 
 try:
     import board
-    spi_sclk  = board.D17    #spi clock
-    spi_miso  = board.D27    #spi Microcomputer In Serial Out
-    spi_cs    = board.D22    #spi Chip Select
-    spi_mosi  = board.D10    #spi Microcomputer Out Serial In (not connected) 
-    gpio_heat = board.D23    #output that controls relay
-    gpio_heat_invert = False #invert the output state
-except (NotImplementedError,AttributeError):
+
+    spi_sclk = board.D17  # spi clock
+    spi_miso = board.D27  # spi Microcomputer In Serial Out
+    spi_cs = board.D22  # spi Chip Select
+    spi_mosi = board.D10  # spi Microcomputer Out Serial In (not connected)
+    gpio_heat = board.D23  # output that controls relay
+    gpio_heat_invert = False  # invert the output state
+except (NotImplementedError, AttributeError):
     print("not running on blinka recognized board, probably a simulation")
 
 #######################################
 ### Thermocouple breakout boards
 #######################################
-# There are only two breakoutboards supported. 
+# There are only two breakoutboards supported.
 #   max31855 - only supports type K thermocouples
 #   max31856 - supports many thermocouples
 max31855 = 1
 max31856 = 0
 # uncomment these two lines if using MAX-31856
 import adafruit_max31856
+
 thermocouple_type = adafruit_max31856.ThermocoupleType.K
 
 # here are the possible max-31856 thermocouple types
@@ -114,15 +116,15 @@ thermocouple_type = adafruit_max31856.ThermocoupleType.K
 
 ########################################################################
 #
-# If your kiln is above the starting temperature of the schedule when you 
-# click the Start button... skip ahead and begin at the first point in 
+# If your kiln is above the starting temperature of the schedule when you
+# click the Start button... skip ahead and begin at the first point in
 # the schedule matching the current kiln temperature.
 seek_start = True
 
 ########################################################################
 #
 # duty cycle of the entire system in seconds
-# 
+#
 # Every N seconds a decision is made about switching the relay[s]
 # on & off and for how long. The thermocouple is read
 # temperature_average_samples times during and the median value is used.
@@ -134,7 +136,7 @@ sensor_time_wait = 2
 #   PID parameters
 #
 # These parameters control kiln temperature change. These settings work
-# well with the simulated oven. You must tune them to work well with 
+# well with the simulated oven. You must tune them to work well with
 # your specific kiln. Note that the integral pid_ki is
 # inverted so that a smaller number means more integral action.
 pid_kp = 4.112
@@ -146,12 +148,12 @@ pid_kd = 139.384
 #
 #   Simulation parameters
 simulate = True
-sim_t_env      = 65   # deg
-sim_c_heat     = 500.0  # J/K  heat capacity of heat element
-sim_c_oven     = 5000.0 # J/K  heat capacity of oven
-sim_p_heat     = 5450.0 # W    heating power of oven
-sim_R_o_nocool = 0.5   # K/W  thermal resistance oven -> environment
-sim_R_ho_noair = 0.1    # K/W  thermal resistance heat element -> oven
+sim_t_env = 65  # deg
+sim_c_heat = 500.0  # J/K  heat capacity of heat element
+sim_c_oven = 5000.0  # J/K  heat capacity of oven
+sim_p_heat = 5450.0  # W    heating power of oven
+sim_R_o_nocool = 0.5  # K/W  thermal resistance oven -> environment
+sim_R_ho_noair = 0.1  # K/W  thermal resistance heat element -> oven
 
 # if you want simulations to happen faster than real time, this can be
 # set as high as 1000 to speed simulations up by 1000 times.
@@ -171,16 +173,18 @@ sim_speedup_factor = 1
 # are written in the display scale above and converted to celsius
 # internally. all values sent to clients via the api, websockets, or
 # logging are converted back to the display scale.
-temp_scale          = "f" # c = Celsius | f = Fahrenheit - Unit to display
-time_scale_slope    = "h" # s = Seconds | m = Minutes | h = Hours - Slope displayed in temp_scale per time_scale_slope
-time_scale_profile  = "m" # s = Seconds | m = Minutes | h = Hours - Enter and view target time in time_scale_profile
+temp_scale = "f"  # c = Celsius | f = Fahrenheit - Unit to display
+time_scale_slope = "h"  # s = Seconds | m = Minutes | h = Hours - Slope displayed in temp_scale per time_scale_slope
+time_scale_profile = (
+    "m"  # s = Seconds | m = Minutes | h = Hours - Enter and view target time in time_scale_profile
+)
 
 # emergency shutoff the profile if this temp is reached or exceeded.
 # This just shuts off the profile. If your SSR is working, your kiln will
 # naturally cool off. If your SSR has failed/shorted/closed circuit, this
 # means your kiln receives full power until your house burns down.
 # this should not replace you watching your kiln or use of a kiln-sitter
-emergency_shutoff_temp = 2264 #cone 7
+emergency_shutoff_temp = 2264  # cone 7
 
 # emergency shutoff if the kiln cannot heat fast enough. if the target
 # temperature is rising but the kiln fails to heat at this rate over a
@@ -189,34 +193,34 @@ emergency_shutoff_temp = 2264 #cone 7
 # it is only evaluated while the profile demands heating, so soaks and
 # cooling segments are ignored. rates are in display degrees per hour.
 # set emergency_heat_rate to 0 to disable this check.
-emergency_heat_rate = 23 # degrees per hour (display scale)
-emergency_heat_rate_window = 22.5 # minutes
+emergency_heat_rate = 23  # degrees per hour (display scale)
+emergency_heat_rate_window = 22.5  # minutes
 
 # If the current temperature is outside the pid control window,
 # delay the schedule until it does back inside. This allows for heating
 # and cooling as fast as possible and not continuing until temp is reached.
 kiln_must_catch_up = True
 
-# This setting is required. 
+# This setting is required.
 # This setting defines the window within which PID control occurs.
 # Outside this window (N degrees below or above the current target)
 # the elements are either 100% on because the kiln is too cold
 # or 100% off because the kiln is too hot. No integral builds up
 # outside the window. The bigger you make the window, the more
 # integral you will accumulate. This should be a positive integer.
-pid_control_window = 10 #degrees
+pid_control_window = 10  # degrees
 
 # thermocouple offset
 # If you put your thermocouple in ice water and it reads 36F, you can
 # set set this offset to -4 to compensate.  This probably means you have a
 # cheap thermocouple.  Invest in a better thermocouple.
-thermocouple_offset=0
+thermocouple_offset = 0
 
 # number of samples of temperature to take over each duty cycle.
-# The larger the number, the more load on the board. K type 
-# thermocouples have a precision of about 1/2 degree C. 
+# The larger the number, the more load on the board. K type
+# thermocouples have a precision of about 1/2 degree C.
 # The median of these samples is used for the temperature.
-temperature_average_samples = 10 
+temperature_average_samples = 10
 
 # Thermocouple AC frequency filtering - set to True if in a 50Hz locale, else leave at False for 60Hz locale
 ac_freq_50hz = False
@@ -244,10 +248,10 @@ ignore_tc_cold_junction_temp_low = False
 ignore_tc_temp_high = False
 ignore_tc_temp_low = False
 ignore_tc_voltage_error = False
-ignore_tc_short_errors = False 
+ignore_tc_short_errors = False
 ignore_tc_unknown_error = False
 
-# This overrides all possible thermocouple errors and prevents the 
+# This overrides all possible thermocouple errors and prevents the
 # process from exiting.
 ignore_tc_too_many_errors = False
 
@@ -261,13 +265,13 @@ ignore_tc_too_many_errors = False
 #   temp_implausible   -> temp_implausible_jump between two readings
 #   tc_failure         -> tc_error_percent_limit
 #   catch_up_stalled   -> catch_up_stalled_minutes
-cooled_safe_temp = 150 # below this the kiln is safe to open
-relay_stuck_on_rise = 25 # rise over the window while elements are off
-relay_stuck_on_window = 10 # minutes
-temp_implausible_jump = 50 # impossible change between two duty cycles
-tc_error_percent_limit = 30 # percent of failed reads per window
-catch_up_stalled_minutes = 15 # minutes behind schedule before alerting
-alert_webhook_timeout = 10 # seconds before giving up on a webhook post
+cooled_safe_temp = 150  # below this the kiln is safe to open
+relay_stuck_on_rise = 25  # rise over the window while elements are off
+relay_stuck_on_window = 10  # minutes
+temp_implausible_jump = 50  # impossible change between two duty cycles
+tc_error_percent_limit = 30  # percent of failed reads per window
+catch_up_stalled_minutes = 15  # minutes behind schedule before alerting
+alert_webhook_timeout = 10  # seconds before giving up on a webhook post
 
 ########################################################################
 # automatic restarts - if you have a power brown-out and the raspberry pi
@@ -280,32 +284,38 @@ alert_webhook_timeout = 10 # seconds before giving up on a webhook post
 # The state file is written to disk every sensor_time_wait seconds (2s by default)
 # and is written in the same directory as config.py.
 automatic_restarts = True
-automatic_restart_window = 15 # max minutes since power outage
-automatic_restart_state_file = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'state.json'))
+automatic_restart_window = 15  # max minutes since power outage
+automatic_restart_state_file = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "state.json")
+)
 
 ########################################################################
 # scheduled runs - start a firing at a specific date and time.
 # schedules are persisted here so they survive a reboot.
 # The kiln-controller.py process must be running for a schedule
 # to fire. The scheduler checks every schedule_poll_interval seconds.
-schedule_state_file = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'storage','schedules.json'))
-schedule_poll_interval = 1 # seconds between schedule checks
+schedule_state_file = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "storage", "schedules.json")
+)
+schedule_poll_interval = 1  # seconds between schedule checks
 # a firing chained after another starts this many seconds after the
 # firing it follows actually ends (not its nominal end, since catch-up
 # can stretch a run past its profile duration).
-schedule_chain_buffer = 60 # seconds
+schedule_chain_buffer = 60  # seconds
 
 ########################################################################
 # alerts state - which alerts are enabled (the Alerts panel toggles).
 # persisted here so choices survive a reboot. never rename an alert id;
 # only add or retire them.
-alerts_state_file = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'storage','alerts.json'))
+alerts_state_file = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "storage", "alerts.json")
+)
 
 ########################################################################
 # firing samples - every duty-cycle broadcast (see Oven.get_state) is
 # appended to this sqlite db so a full firing survives in queryable
 # form without relying on browser localStorage.
-firing_db_file = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'db','firings.db'))
+firing_db_file = os.path.abspath(os.path.join(os.path.dirname(__file__), "db", "firings.db"))
 # max firings kept in the db. older firings (and their samples) are
 # pruned at start-up on an isolated thread so the db does not grow
 # without bound. set to 0 or a negative value to keep everything.
@@ -316,8 +326,10 @@ firing_db_max_firings = 10
 # created a repo where anyone can contribute profiles. The objective is
 # to load profiles from this repository by default.
 # See https://github.com/jbruce12000/kiln-profiles
-kiln_profiles_directory = os.path.abspath(os.path.join(os.path.dirname( __file__ ),"storage", "profiles")) 
-#kiln_profiles_directory = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'..','kiln-profiles','pottery')) 
+kiln_profiles_directory = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), "storage", "profiles")
+)
+# kiln_profiles_directory = os.path.abspath(os.path.join(os.path.dirname( __file__ ),'..','kiln-profiles','pottery'))
 
 ########################################################################
 # community kiln profiles - the Schedules tab can browse, download, and
@@ -350,10 +362,10 @@ throttle_percent = 20
 # sensor read. Leave all of these commented out to disable mqtt.
 # Uncomment and set mqtt_enable to True to turn it on.
 # Requires paho-mqtt (listed in pyproject.toml).
-#mqtt_enable = False
-#mqtt_host = "localhost"
-#mqtt_port = 1883
-#mqtt_user = None
-#mqtt_pass = None
-#mqtt_topic = "kiln/sensor"
-#mqtt_kiln_name = "my-kiln"
+# mqtt_enable = False
+# mqtt_host = "localhost"
+# mqtt_port = 1883
+# mqtt_user = None
+# mqtt_pass = None
+# mqtt_topic = "kiln/sensor"
+# mqtt_kiln_name = "my-kiln"

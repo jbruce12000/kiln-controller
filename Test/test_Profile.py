@@ -2,8 +2,9 @@ from lib.oven import Profile
 import os
 import json
 
-def get_profile(file = "test-fast.json"):
-    profile_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Test', file))
+
+def get_profile(file="test-fast.json"):
+    profile_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Test", file))
     print(profile_path)
     with open(profile_path) as infile:
         profile_json = json.dumps(json.load(infile))
@@ -33,7 +34,6 @@ def test_find_time_from_temperature():
 
     time = profile.find_next_time_from_temperature(1900)
     assert time == 10400.0
-
 
 
 def test_find_time_odd_profile():
@@ -76,5 +76,3 @@ def test_find_x_given_y_on_line_from_two_points():
     time = profile.find_x_given_y_on_line_from_two_points(y, p1, p2)
 
     assert time == 0
-
-
