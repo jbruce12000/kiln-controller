@@ -1614,6 +1614,17 @@ def api_alerts_save():
             "delivery": alert_store.delivery_settings(),
             "mqtt_configured": mqtt_enabled()}
 
+@app.post('/api/alerts/test')
+def api_alerts_test():
+    '''send a test alert. ALerts are delivered in the background, so success here
+    means it was handed off; delivery failures land in the log.'''
+    if not alert_manager.emit('test', context={
+            'message': 'Test alert from kiln-controller. '
+                       'If you can read this, alert delivery works.'}):
+        return {"success": False,
+                "error": "the test alert was not sent; is its switch on?"}
+    return {"success": True}
+
 @app.post('/api/tune')
 def handle_tune():
     '''PID auto-tuner endpoint. start begins a tuning run in a background

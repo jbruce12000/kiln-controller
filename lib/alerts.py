@@ -110,6 +110,12 @@ ALERTS = [
         'description': 'The controller process started up. Unexpected restarts are worth noticing.',
         'criticality': INFO,
     },
+    {
+        'id': 'test',
+        'label': 'Test alert',
+        'description': 'Sent when you press Send test alert below, to check that delivery works.',
+        'criticality': INFO,
+    },
 ]
 
 # where fired alerts go beyond the log. these are the web-editable
@@ -267,6 +273,7 @@ EVENT_ALERTS = {
     'restart_not_resumed',
     'scheduled_run_missed',
     'controller_restarted',
+    'test',
 }
 
 
