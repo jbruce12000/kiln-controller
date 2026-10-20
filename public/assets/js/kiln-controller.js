@@ -1422,7 +1422,12 @@ function saveDeliveryField(field, input) {
     });
 }
 
-// send a test alert. waits for any in-progress delivery save to finish first, then triggers the test alert. 
+// the most recent delivery save, settled either way; testDelivery
+// waits on it
+var deliverySaving = Promise.resolve();
+
+// send a test alert. waits for any in-progress delivery save to finish
+// first, then triggers the test alert.
 function testDelivery(button) {
     button.disabled = true;
     deliverySaving
@@ -1445,10 +1450,6 @@ function testDelivery(button) {
         button.disabled = false;
     });
 }
-
-// the most recent delivery save, settled either way; testDelivery
-// waits on it
-var deliverySaving = Promise.resolve();
 
 function postDelivery(update, cb) {
     deliverySaving = fetch('/api/alerts', {

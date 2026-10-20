@@ -1616,7 +1616,7 @@ def api_alerts_save():
 
 @app.post('/api/alerts/test')
 def api_alerts_test():
-    '''send a test alert. ALerts are delivered in the background, so success here
+    '''send a test alert. Alerts are delivered in the background, so success here
     means it was handed off; delivery failures land in the log.'''
     if not alert_manager.emit('test', context={
             'message': 'Test alert from kiln-controller. '

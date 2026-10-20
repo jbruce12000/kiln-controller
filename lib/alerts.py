@@ -262,9 +262,9 @@ class AlertStore(object):
 # lookup table for emission-time metadata
 ALERT_DEFS = {a['id']: a for a in ALERTS}
 
-# lifecycle events that happen at most once per run or per process.
-# they bypass cooldown so nothing can suppress them; every other alert
-# is a repeating condition and gets rate limited.
+# one-shot events that happen at most once per run or per process, plus
+# the manual test alert. they bypass cooldown so nothing can suppress
+# them; every other alert is a repeating condition and gets rate limited.
 EVENT_ALERTS = {
     'run_started',
     'run_completed',
