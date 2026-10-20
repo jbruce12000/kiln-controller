@@ -7,16 +7,17 @@ import time
 import argparse
 
 try:
-        sys.dont_write_bytecode = True
-        import config
-        sys.dont_write_bytecode = False
+    sys.dont_write_bytecode = True
+    import config
+
+    sys.dont_write_bytecode = False
 
 except ImportError:
-        print("Could not import config file.")
-        print("Copy config.py.EXAMPLE to config.py and adapt it for your setup.")
-        exit(1)
+    print("Could not import config file.")
+    print("Copy config.py.EXAMPLE to config.py and adapt it for your setup.")
+    exit(1)
 
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), 'lib/'))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.realpath(__file__)), "lib/"))
 from temp import to_c, to_display, delta_to_c
 
 
@@ -78,21 +79,21 @@ DEFAULT_METHOD = "critically_damped"
 
 
 def recordprofile(csvfile, targettemp):
-    '''heat the kiln from ambient to targettemp (celsius, internal
+    """heat the kiln from ambient to targettemp (celsius, internal
     scale) at max power and back, recording the temperature in the
     display scale every config.sensor_time_wait seconds.
     This produces the process reaction curve used for tuning.
-    '''
+    """
 
     script_dir = os.path.dirname(os.path.realpath(__file__))
-    sys.path.insert(0, script_dir + '/lib/')
+    sys.path.insert(0, script_dir + "/lib/")
 
     from oven import RealOven, SimulatedOven
 
     # open the file to log data to
-    f = open(csvfile, 'w')
+    f = open(csvfile, "w")
     csvout = csv.writer(f)
-    csvout.writerow(['time', 'temperature'])
+    csvout.writerow(["time", "temperature"])
 
     # the tuner drives the oven directly, so the oven's background run()
     # thread must not try an automatic restart from a saved state file
@@ -119,20 +120,21 @@ def recordprofile(csvfile, targettemp):
     #
     # We record the temperature every config.sensor_time_wait
     try:
-
         # heating to target
         temp = 0
         sleepfor = config.sensor_time_wait
         stage = "heating"
-        while(temp <= targettemp):
+        while temp <= targettemp:
             if config.simulate:
                 oven.heat_then_cool()
             else:
                 oven.output.heat(sleepfor)
-            temp = oven.board.temp_sensor.temperature() + \
-                delta_to_c(config.thermocouple_offset)
+            temp = oven.board.temp_sensor.temperature() + delta_to_c(config.thermocouple_offset)
 
-            print("stage = %s, actual = %.2f, target = %.2f" % (stage,to_display(temp),to_display(targettemp)))
+            print(
+                "stage = %s, actual = %.2f, target = %.2f"
+                % (stage, to_display(temp), to_display(targettemp))
+            )
             csvout.writerow([time.time(), to_display(temp)])
             f.flush()
 
@@ -140,15 +142,17 @@ def recordprofile(csvfile, targettemp):
         stage = "cooling"
         if config.simulate:
             oven.target = 0
-        while(temp >= targettemp):
+        while temp >= targettemp:
             if config.simulate:
                 oven.heat_then_cool()
             else:
                 oven.output.cool(sleepfor)
-            temp = oven.board.temp_sensor.temperature() + \
-                delta_to_c(config.thermocouple_offset)
+            temp = oven.board.temp_sensor.temperature() + delta_to_c(config.thermocouple_offset)
 
-            print("stage = %s, actual = %.2f, target = %.2f" % (stage,to_display(temp),to_display(targettemp)))
+            print(
+                "stage = %s, actual = %.2f, target = %.2f"
+                % (stage, to_display(temp), to_display(targettemp))
+            )
             csvout.writerow([time.time(), to_display(temp)])
             f.flush()
 
@@ -167,9 +171,16 @@ def invline(a, b, y):
     return (y - b) / a
 
 
-def plot(xdata, ydata,
-         tangent_min, tangent_max, tangent_slope, tangent_offset,
-         lower_crossing_x, upper_crossing_x):
+def plot(
+    xdata,
+    ydata,
+    tangent_min,
+    tangent_max,
+    tangent_slope,
+    tangent_offset,
+    lower_crossing_x,
+    upper_crossing_x,
+):
     from matplotlib import pyplot
 
     minx = min(xdata)
@@ -179,24 +190,29 @@ def plot(xdata, ydata,
 
     pyplot.scatter(xdata, ydata)
 
-    pyplot.plot([minx, maxx], [miny, miny], '--', color='purple')
-    pyplot.plot([minx, maxx], [maxy, maxy], '--', color='purple')
+    pyplot.plot([minx, maxx], [miny, miny], "--", color="purple")
+    pyplot.plot([minx, maxx], [maxy, maxy], "--", color="purple")
 
-    pyplot.plot(tangent_min[0], tangent_min[1], 'v', color='red')
-    pyplot.plot(tangent_max[0], tangent_max[1], 'v', color='red')
-    pyplot.plot([minx, maxx], [line(tangent_slope, tangent_offset, minx), line(tangent_slope, tangent_offset, maxx)], '--', color='red')
+    pyplot.plot(tangent_min[0], tangent_min[1], "v", color="red")
+    pyplot.plot(tangent_max[0], tangent_max[1], "v", color="red")
+    pyplot.plot(
+        [minx, maxx],
+        [line(tangent_slope, tangent_offset, minx), line(tangent_slope, tangent_offset, maxx)],
+        "--",
+        color="red",
+    )
 
-    pyplot.plot([lower_crossing_x, lower_crossing_x], [miny, maxy], '--', color='black')
-    pyplot.plot([upper_crossing_x, upper_crossing_x], [miny, maxy], '--', color='black')
+    pyplot.plot([lower_crossing_x, lower_crossing_x], [miny, maxy], "--", color="black")
+    pyplot.plot([upper_crossing_x, upper_crossing_x], [miny, maxy], "--", color="black")
 
     pyplot.show()
 
 
 def find_tangent(xdata, ydata, tangentdivisor):
-    '''measure the dead time L and time constant T from the process
+    """measure the dead time L and time constant T from the process
     reaction curve. The tangent line is drawn through two points on the
     mid section of the heating curve.
-    '''
+    """
     # gather points for tangent line
     miny = min(ydata)
     maxy = max(ydata)
@@ -215,18 +231,21 @@ def find_tangent(xdata, ydata, tangentdivisor):
     if tangent_min is None or tangent_max is None:
         raise ValueError(
             "could not find tangent points. is the heating curve "
-            "monotonic? try a different --tangent_divisor.")
+            "monotonic? try a different --tangent_divisor."
+        )
     if tangent_max[0] == tangent_min[0]:
         raise ValueError(
             "could not compute a tangent slope. the heating curve "
-            "is too flat. try a different --tangent_divisor.")
+            "is too flat. try a different --tangent_divisor."
+        )
 
     # calculate tangent line to the main temperature curve
     tangent_slope = (tangent_max[1] - tangent_min[1]) / (tangent_max[0] - tangent_min[0])
     if tangent_slope == 0:
         raise ValueError(
             "could not compute a tangent line. the heating curve "
-            "is too flat. try a different --tangent_divisor.")
+            "is too flat. try a different --tangent_divisor."
+        )
     tangent_offset = tangent_min[1] - line(tangent_slope, 0, tangent_min[0])
 
     # determine the point at which the tangent line crosses the
@@ -241,16 +260,25 @@ def find_tangent(xdata, ydata, tangentdivisor):
     if L <= 0 or T <= 0:
         raise ValueError(
             "invalid process parameters L=%s, T=%s. the heating curve "
-            "does not look like a step response." % (L, T))
+            "does not look like a step response." % (L, T)
+        )
 
-    return L, T, tangent_min, tangent_max, tangent_slope, tangent_offset, \
-        lower_crossing_x, upper_crossing_x
+    return (
+        L,
+        T,
+        tangent_min,
+        tangent_max,
+        tangent_slope,
+        tangent_offset,
+        lower_crossing_x,
+        upper_crossing_x,
+    )
 
 
 def calculate(filename, method=DEFAULT_METHOD, tangentdivisor=8, showplot=False):
-    '''parse the recorded tuning curve and print Ziegler-Nichols PID
+    """parse the recorded tuning curve and print Ziegler-Nichols PID
     values ready to paste into config.py
-    '''
+    """
     if tangentdivisor < 2:
         raise ValueError("--tangent_divisor must be >= 2")
     if method not in ZN_TABLES:
@@ -263,8 +291,8 @@ def calculate(filename, method=DEFAULT_METHOD, tangentdivisor=8, showplot=False)
     with open(filename) as f:
         for row in csv.DictReader(f):
             try:
-                rowtime = float(row['time'])
-                temp = float(row['temperature'])
+                rowtime = float(row["time"])
+                temp = float(row["temperature"])
                 if filemintime is None:
                     filemintime = rowtime
 
@@ -287,9 +315,16 @@ def calculate(filename, method=DEFAULT_METHOD, tangentdivisor=8, showplot=False)
     if len(xdata) < 2:
         raise ValueError("not enough heating data to tune against")
 
-    L, T, tangent_min, tangent_max, tangent_slope, tangent_offset, \
-        lower_crossing_x, upper_crossing_x = \
-        find_tangent(xdata, ydata, tangentdivisor)
+    (
+        L,
+        T,
+        tangent_min,
+        tangent_max,
+        tangent_slope,
+        tangent_offset,
+        lower_crossing_x,
+        upper_crossing_x,
+    ) = find_tangent(xdata, ydata, tangentdivisor)
 
     rule = ZN_TABLES[method]
 
@@ -323,21 +358,48 @@ def calculate(filename, method=DEFAULT_METHOD, tangentdivisor=8, showplot=False)
     print("Start with these values and fine tune from there.")
 
     if showplot:
-        plot(xdata, ydata,
-             tangent_min, tangent_max, tangent_slope, tangent_offset,
-             lower_crossing_x, upper_crossing_x)
+        plot(
+            xdata,
+            ydata,
+            tangent_min,
+            tangent_max,
+            tangent_slope,
+            tangent_offset,
+            lower_crossing_x,
+            upper_crossing_x,
+        )
 
 
 def main():
-    parser = argparse.ArgumentParser(description='Kiln tuner')
-    parser.add_argument('-c', '--calculate_only', action='store_true')
-    parser.add_argument('-t', '--target_temp', type=float, default=400, help="Target temperature")
-    parser.add_argument('-d', '--tangent_divisor', type=float, default=8, help="Adjust the tangent calculation to fit better. Must be >= 2 (default 8).")
-    parser.add_argument('-m', '--method', default=DEFAULT_METHOD,
-                        choices=list(ZN_TABLES.keys()),
-                        help="Ziegler-Nichols tuning rule (default %s)" % DEFAULT_METHOD)
-    parser.add_argument('-s', '--showplot', action='store_true', help="draw plot so you can see tangent line and possibly change")
-    parser.add_argument('--csvfile', type=str, default="tuning.csv", help="tuning curve csv file (default tuning.csv)")
+    parser = argparse.ArgumentParser(description="Kiln tuner")
+    parser.add_argument("-c", "--calculate_only", action="store_true")
+    parser.add_argument("-t", "--target_temp", type=float, default=400, help="Target temperature")
+    parser.add_argument(
+        "-d",
+        "--tangent_divisor",
+        type=float,
+        default=8,
+        help="Adjust the tangent calculation to fit better. Must be >= 2 (default 8).",
+    )
+    parser.add_argument(
+        "-m",
+        "--method",
+        default=DEFAULT_METHOD,
+        choices=list(ZN_TABLES.keys()),
+        help="Ziegler-Nichols tuning rule (default %s)" % DEFAULT_METHOD,
+    )
+    parser.add_argument(
+        "-s",
+        "--showplot",
+        action="store_true",
+        help="draw plot so you can see tangent line and possibly change",
+    )
+    parser.add_argument(
+        "--csvfile",
+        type=str,
+        default="tuning.csv",
+        help="tuning curve csv file (default tuning.csv)",
+    )
     args = parser.parse_args()
 
     target = args.target_temp

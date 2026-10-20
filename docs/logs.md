@@ -101,6 +101,7 @@ Any spreadsheet opens the csv directly. For pandas:
 
 ```python
 import pandas as pd
+
 df = pd.read_csv("firing.csv")
 df.plot(x="stamp", y=["temperature", "target"])
 ```

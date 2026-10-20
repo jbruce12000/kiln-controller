@@ -26,7 +26,7 @@ from lib.temp import to_c
 
 
 def get_profile(file="test-fast.json"):
-    profile_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'Test', file))
+    profile_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "Test", file))
     with open(profile_path) as infile:
         profile_json = json.dumps(json.load(infile))
     return Profile(profile_json)
@@ -59,13 +59,14 @@ class FakeBoard:
 
 @pytest.fixture
 def no_auto_restarts(monkeypatch):
-    monkeypatch.setattr(config, 'automatic_restarts', False)
-    monkeypatch.setattr(config, 'thermocouple_offset', 0)
+    monkeypatch.setattr(config, "automatic_restarts", False)
+    monkeypatch.setattr(config, "thermocouple_offset", 0)
 
 
 ########################################################################
 # Profile
 ########################################################################
+
 
 def test_get_target_temperature():
     profile = get_profile()
@@ -80,14 +81,14 @@ def test_get_target_temperature_after_end_is_zero():
 
 
 def test_get_target_temperature_at_exact_end_holds_final_temp():
-    '''at t == duration there is no next point to interpolate from; this
-    used to crash with TypeError instead of holding the final temp'''
+    """at t == duration there is no next point to interpolate from; this
+    used to crash with TypeError instead of holding the final temp"""
     profile = Profile('{"name": "x", "data": [[0, 100], [600, 200]]}')
     assert profile.get_target_temperature(profile.get_duration()) == 200
 
 
 def test_get_target_temperature_single_point_profile():
-    '''a one-point profile must work at and after its only timestamp'''
+    """a one-point profile must work at and after its only timestamp"""
     profile = Profile('{"name": "x", "data": [[600, 150]]}')
     assert profile.get_target_temperature(300) == 150
     assert profile.get_target_temperature(profile.get_duration()) == 150
@@ -141,8 +142,8 @@ def test_get_surrounding_points():
 
 
 def test_get_surrounding_points_before_first_point_holds_start():
-    '''a time before the profile's first point must hold the starting
-    temperature, not wrap around to the last point of the profile'''
+    """a time before the profile's first point must hold the starting
+    temperature, not wrap around to the last point of the profile"""
     profile = Profile('{"name": "x", "data": [[600, 100], [1200, 200]]}')
 
     assert profile.get_surrounding_points(0) == ([600, 100], [600, 100])
@@ -164,25 +165,26 @@ def test_profile_sorts_data():
 # PID
 ########################################################################
 
+
 def test_pid_max_heating():
     pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
     out = pid.compute(500, 100, datetime.datetime(2020, 1, 1))
     assert out == 1
-    assert pid.pidstats['err'] == 400
+    assert pid.pidstats["err"] == 400
 
 
 def test_pid_max_cooling():
     pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
     out = pid.compute(100, 500, datetime.datetime(2020, 1, 1))
     assert out == 0
-    assert pid.pidstats['err'] == -400
+    assert pid.pidstats["err"] == -400
 
 
 def test_pid_throttle_below_threshold(monkeypatch):
     # config.throttle_below_temp is in the display scale (f here), the
     # pid compares against the celsius setpoint internally
-    monkeypatch.setattr(config, 'throttle_below_temp', 300)
-    monkeypatch.setattr(config, 'throttle_percent', 20)
+    monkeypatch.setattr(config, "throttle_below_temp", 300)
+    monkeypatch.setattr(config, "throttle_percent", 20)
     pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
     # 200f setpoint = 93.3c, below 300f = 148.9c -> throttled
     out = pid.compute(to_c(200), 50, datetime.datetime(2020, 1, 1))
@@ -190,17 +192,17 @@ def test_pid_throttle_below_threshold(monkeypatch):
 
 
 def test_pid_throttle_below_threshold_celsius(monkeypatch):
-    monkeypatch.setattr(config, 'temp_scale', 'c')
-    monkeypatch.setattr(config, 'throttle_below_temp', 150)
-    monkeypatch.setattr(config, 'throttle_percent', 20)
+    monkeypatch.setattr(config, "temp_scale", "c")
+    monkeypatch.setattr(config, "throttle_below_temp", 150)
+    monkeypatch.setattr(config, "throttle_percent", 20)
     pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
     out = pid.compute(100, 50, datetime.datetime(2020, 1, 1))
     assert out == pytest.approx(0.2)
 
 
 def test_pid_no_throttle_above_threshold(monkeypatch):
-    monkeypatch.setattr(config, 'throttle_below_temp', 300)
-    monkeypatch.setattr(config, 'throttle_percent', 20)
+    monkeypatch.setattr(config, "throttle_below_temp", 300)
+    monkeypatch.setattr(config, "throttle_percent", 20)
     pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
     # 1000c setpoint is way above 300f = 148.9c -> no throttle
     out = pid.compute(1000, 100, datetime.datetime(2020, 1, 1))
@@ -214,12 +216,12 @@ def test_pid_inside_window():
     pid.lastNow = now1
     out = pid.compute(100, 98, now2)
     assert 0 <= out <= 1
-    assert 'setpoint' in pid.pidstats
-    assert pid.pidstats['setpoint'] == 100
-    assert pid.pidstats['ispoint'] == 98
-    assert pid.pidstats['err'] == 2
-    assert pid.pidstats['timeDelta'] == 2
-    assert pid.pidstats['out'] == 1.0  # clamped to the window
+    assert "setpoint" in pid.pidstats
+    assert pid.pidstats["setpoint"] == 100
+    assert pid.pidstats["ispoint"] == 98
+    assert pid.pidstats["err"] == 2
+    assert pid.pidstats["timeDelta"] == 2
+    assert pid.pidstats["out"] == 1.0  # clamped to the window
 
 
 def test_pid_never_outputs_negative():
@@ -235,8 +237,8 @@ def test_pid_time_delta_unaffected_by_dst():
     # PID timeDelta must measure real elapsed time, not naive wall-clock
     # difference. across the spring-forward transition naive subtraction
     # reports 2 hours even though only 1 hour really passed.
-    old_tz = os.environ.get('TZ')
-    os.environ['TZ'] = 'America/New_York'
+    old_tz = os.environ.get("TZ")
+    os.environ["TZ"] = "America/New_York"
     time.tzset()
     try:
         pid = PID(ki=config.pid_ki, kd=config.pid_kd, kp=config.pid_kp)
@@ -244,18 +246,19 @@ def test_pid_time_delta_unaffected_by_dst():
         now2 = datetime.datetime(2020, 3, 8, 3, 30)  # after the jump
         pid.lastNow = now1
         pid.compute(100, 98, now2)
-        assert pid.pidstats['timeDelta'] == pytest.approx(3600, abs=2)
+        assert pid.pidstats["timeDelta"] == pytest.approx(3600, abs=2)
     finally:
         if old_tz is None:
-            os.environ.pop('TZ', None)
+            os.environ.pop("TZ", None)
         else:
-            os.environ['TZ'] = old_tz
+            os.environ["TZ"] = old_tz
         time.tzset()
 
 
 ########################################################################
 # Oven
 ########################################################################
+
 
 def test_get_start_from_temperature():
     profile = get_profile()
@@ -299,11 +302,11 @@ def test_run_profile(no_auto_restarts):
 
 
 def test_run_profile_seek_start_time_matches_runtime(no_auto_restarts, monkeypatch):
-    '''seek offset must be reflected in start_time so update_runtime
+    """seek offset must be reflected in start_time so update_runtime
     preserves the sought position. previously start_time was derived from
     startat alone and the seek silently reset to zero unless
-    kiln_must_catch_up happened to shift it back.'''
-    monkeypatch.setattr(config, 'kiln_must_catch_up', False)
+    kiln_must_catch_up happened to shift it back."""
+    monkeypatch.setattr(config, "kiln_must_catch_up", False)
     oven = Oven()
     oven.board = FakeBoard(250)  # kiln still hot from a previous run
     oven.run_profile(get_profile(), startat=0, allow_seek=True)
@@ -339,14 +342,15 @@ def test_run_sequence_increments_and_run_id_in_status(no_auto_restarts):
     oven.board = FakeBoard(250)
     oven.run_profile(get_profile(), startat=0, allow_seek=False)
     assert oven.run_sequence == 1
-    assert oven.get_state()['run_id'] == 1
+    assert oven.get_state()["run_id"] == 1
     oven.run_profile(get_profile(), startat=0, allow_seek=False)
     assert oven.run_sequence == 2
-    assert oven.get_state()['run_id'] == 2
+    assert oven.get_state()["run_id"] == 2
 
 
 def test_abort_run_tracks_ended_sequence_and_idle_since(no_auto_restarts):
     import time as _time
+
     oven = Oven()
     oven.board = FakeBoard(250)
     oven.run_profile(get_profile(), startat=0, allow_seek=False)
@@ -365,12 +369,24 @@ def test_abort_run_tracks_ended_sequence_and_idle_since(no_auto_restarts):
 def test_get_state():
     oven = Oven()
     state = oven.get_state()
-    assert state['state'] == 'IDLE'
-    assert state['profile'] is None
-    assert state['pidstats'] == {}
-    for key in ('cost', 'runtime', 'temperature', 'target', 'heat',
-                'heat_rate', 'totaltime', 'kwh_rate', 'currency_type',
-                'profile', 'pidstats', 'catching_up', 'temp_errors'):
+    assert state["state"] == "IDLE"
+    assert state["profile"] is None
+    assert state["pidstats"] == {}
+    for key in (
+        "cost",
+        "runtime",
+        "temperature",
+        "target",
+        "heat",
+        "heat_rate",
+        "totaltime",
+        "kwh_rate",
+        "currency_type",
+        "profile",
+        "pidstats",
+        "catching_up",
+        "temp_errors",
+    ):
         assert key in state
 
 
@@ -378,70 +394,77 @@ def test_get_state_reports_duty_cycle_read_errors():
     oven = Oven()
     oven.board = FakeBoard(250)
     oven.board.temp_sensor.status.errors = 4
-    assert oven.get_state()['temp_errors'] == 4
+    assert oven.get_state()["temp_errors"] == 4
 
 
 def test_get_state_reports_display_scale(monkeypatch):
     # internally everything is celsius, get_state reports the display scale
-    monkeypatch.setattr(config, 'temp_scale', 'f')
+    monkeypatch.setattr(config, "temp_scale", "f")
     oven = Oven()
-    oven.board = FakeBoard(100)     # 100c internal
-    oven.target = 200               # 200c internal
-    oven.heat_rate = 300            # 300 c/hr internal
+    oven.board = FakeBoard(100)  # 100c internal
+    oven.target = 200  # 200c internal
+    oven.heat_rate = 300  # 300 c/hr internal
     state = oven.get_state()
-    assert state['temperature'] == pytest.approx(212.0)  # 100c -> 212f
-    assert state['target'] == pytest.approx(392.0)       # 200c -> 392f
-    assert state['heat_rate'] == pytest.approx(540.0)    # 300 c/hr -> 540 f/hr
+    assert state["temperature"] == pytest.approx(212.0)  # 100c -> 212f
+    assert state["target"] == pytest.approx(392.0)  # 200c -> 392f
+    assert state["heat_rate"] == pytest.approx(540.0)  # 300 c/hr -> 540 f/hr
 
-    monkeypatch.setattr(config, 'temp_scale', 'c')
+    monkeypatch.setattr(config, "temp_scale", "c")
     oven2 = Oven()
     oven2.board = FakeBoard(100)
     oven2.target = 200
     oven2.heat_rate = 300
     state2 = oven2.get_state()
-    assert state2['temperature'] == 100.0
-    assert state2['target'] == 200.0
-    assert state2['heat_rate'] == 300.0
+    assert state2["temperature"] == 100.0
+    assert state2["target"] == 200.0
+    assert state2["heat_rate"] == 300.0
 
 
 def test_get_state_reports_display_pidstats(monkeypatch):
-    monkeypatch.setattr(config, 'temp_scale', 'f')
+    monkeypatch.setattr(config, "temp_scale", "f")
     oven = Oven()
     oven.pid.pidstats = {
-        'setpoint': 200, 'ispoint': 100, 'err': 100,
-        'errDelta': 0.5, 'p': 100, 'i': 50, 'd': 2, 'pid': 0.5, 'out': 0.5,
+        "setpoint": 200,
+        "ispoint": 100,
+        "err": 100,
+        "errDelta": 0.5,
+        "p": 100,
+        "i": 50,
+        "d": 2,
+        "pid": 0.5,
+        "out": 0.5,
     }
     ps = oven.get_display_pidstats()
-    assert ps['setpoint'] == pytest.approx(392.0)
-    assert ps['ispoint'] == pytest.approx(212.0)
-    assert ps['err'] == pytest.approx(180.0)
-    assert ps['errDelta'] == pytest.approx(0.9)
-    assert ps['p'] == pytest.approx(180.0)
-    assert ps['i'] == pytest.approx(90.0)
-    assert ps['d'] == pytest.approx(3.6)
-    assert ps['pid'] == 0.5
-    assert ps['out'] == 0.5
+    assert ps["setpoint"] == pytest.approx(392.0)
+    assert ps["ispoint"] == pytest.approx(212.0)
+    assert ps["err"] == pytest.approx(180.0)
+    assert ps["errDelta"] == pytest.approx(0.9)
+    assert ps["p"] == pytest.approx(180.0)
+    assert ps["i"] == pytest.approx(90.0)
+    assert ps["d"] == pytest.approx(3.6)
+    assert ps["pid"] == 0.5
+    assert ps["out"] == 0.5
 
 
 def test_emergency_shutoff_compares_config_in_display_scale(no_auto_restarts, monkeypatch):
     # config.emergency_shutoff_temp is in the display scale (f), the
     # sensor reports celsius, so a 1000c oven must trip a 2264f cutoff
-    monkeypatch.setattr(config, 'emergency_shutoff_temp', 2264)
+    monkeypatch.setattr(config, "emergency_shutoff_temp", 2264)
     oven = Oven()
     oven.board = FakeBoard(1000)  # 1000c = 1832f, below 2264f
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     oven.reset_if_emergency()
-    assert oven.state == 'RUNNING'
+    assert oven.state == "RUNNING"
 
     oven2 = Oven()
     oven2.board = FakeBoard(1500)  # 1500c = 2732f, above 2264f
-    oven2.state = 'RUNNING'
+    oven2.state = "RUNNING"
     oven2.reset_if_emergency()
-    assert oven2.state == 'IDLE'
+    assert oven2.state == "IDLE"
 
 
 def test_get_start_from_temperature_reports_display_scale(monkeypatch):
-    monkeypatch.setattr(config, 'temp_scale', 'f')
+    monkeypatch.setattr(config, "temp_scale", "f")
     profile = get_profile()
     # 250c = 482f -> seek forward
     assert Oven.get_start_from_temperature(profile, 250) == 3800
@@ -475,9 +498,9 @@ def test_update_cost():
 
 def test_reset():
     oven = Oven()
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     oven.reset()
-    assert oven.state == 'IDLE'
+    assert oven.state == "IDLE"
     assert oven.cost == 0
     assert oven.target == 0
     assert oven.heat == 0
@@ -487,37 +510,37 @@ def test_reset_if_schedule_ended(no_auto_restarts):
     oven = Oven()
     oven.runtime = 20000
     oven.totaltime = 19400
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     oven.reset_if_schedule_ended()
-    assert oven.state == 'IDLE'
+    assert oven.state == "IDLE"
 
 
 def test_reset_if_schedule_ended_not_ended():
     oven = Oven()
     oven.runtime = 100
     oven.totaltime = 19400
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     oven.reset_if_schedule_ended()
-    assert oven.state == 'RUNNING'
+    assert oven.state == "RUNNING"
 
 
 def test_reset_if_emergency_too_hot(no_auto_restarts, monkeypatch):
-    monkeypatch.setattr(config, 'emergency_shutoff_temp', 2264)
+    monkeypatch.setattr(config, "emergency_shutoff_temp", 2264)
     oven = Oven()
     oven.board = FakeBoard(3000)
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     oven.reset_if_emergency()
-    assert oven.state == 'IDLE'
+    assert oven.state == "IDLE"
 
 
 def test_reset_if_emergency_ignored_when_told_to(no_auto_restarts, monkeypatch):
-    monkeypatch.setattr(config, 'emergency_shutoff_temp', 2264)
-    monkeypatch.setattr(config, 'ignore_temp_too_high', True)
+    monkeypatch.setattr(config, "emergency_shutoff_temp", 2264)
+    monkeypatch.setattr(config, "ignore_temp_too_high", True)
     oven = Oven()
     oven.board = FakeBoard(3000)
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     oven.reset_if_emergency()
-    assert oven.state == 'RUNNING'
+    assert oven.state == "RUNNING"
 
 
 def test_target_is_rising():
@@ -542,100 +565,100 @@ def _seed_heat_rate_window(oven, temp1):
 
 
 def test_reset_if_emergency_heat_rate_too_low(no_auto_restarts, monkeypatch):
-    monkeypatch.setattr(config, 'emergency_heat_rate', 23)
-    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    monkeypatch.setattr(config, "emergency_heat_rate", 23)
+    monkeypatch.setattr(config, "emergency_heat_rate_window", 22.5)
     oven = Oven()
     oven.profile = get_profile()
     oven.runtime = 6000  # rising segment
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     _seed_heat_rate_window(oven, 0)
     oven.board = FakeBoard(1)  # only 1c rise over the window
     oven.reset_if_emergency()
-    assert oven.state == 'IDLE'
+    assert oven.state == "IDLE"
 
 
 def test_reset_if_emergency_heat_rate_fast_enough(no_auto_restarts, monkeypatch):
-    monkeypatch.setattr(config, 'emergency_heat_rate', 23)
-    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    monkeypatch.setattr(config, "emergency_heat_rate", 23)
+    monkeypatch.setattr(config, "emergency_heat_rate_window", 22.5)
     oven = Oven()
     oven.profile = get_profile()
     oven.runtime = 6000  # rising segment
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     _seed_heat_rate_window(oven, 0)
     oven.board = FakeBoard(100)  # 100c rise over the window
     oven.reset_if_emergency()
-    assert oven.state == 'RUNNING'
+    assert oven.state == "RUNNING"
 
 
 def test_reset_if_emergency_heat_rate_ignored_when_told_to(no_auto_restarts, monkeypatch):
-    monkeypatch.setattr(config, 'emergency_heat_rate', 23)
-    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
-    monkeypatch.setattr(config, 'ignore_heat_rate_too_low', True)
+    monkeypatch.setattr(config, "emergency_heat_rate", 23)
+    monkeypatch.setattr(config, "emergency_heat_rate_window", 22.5)
+    monkeypatch.setattr(config, "ignore_heat_rate_too_low", True)
     oven = Oven()
     oven.profile = get_profile()
     oven.runtime = 6000
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     _seed_heat_rate_window(oven, 0)
     oven.board = FakeBoard(1)
     oven.reset_if_emergency()
-    assert oven.state == 'RUNNING'
+    assert oven.state == "RUNNING"
 
 
 def test_reset_if_emergency_heat_rate_disabled(no_auto_restarts, monkeypatch):
-    monkeypatch.setattr(config, 'emergency_heat_rate', 0)
-    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    monkeypatch.setattr(config, "emergency_heat_rate", 0)
+    monkeypatch.setattr(config, "emergency_heat_rate_window", 22.5)
     oven = Oven()
     oven.profile = get_profile()
     oven.runtime = 6000
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     _seed_heat_rate_window(oven, 0)
     oven.board = FakeBoard(1)
     oven.reset_if_emergency()
-    assert oven.state == 'RUNNING'
+    assert oven.state == "RUNNING"
 
 
 def test_reset_if_emergency_heat_rate_needs_full_window(no_auto_restarts, monkeypatch):
-    monkeypatch.setattr(config, 'emergency_heat_rate', 23)
-    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    monkeypatch.setattr(config, "emergency_heat_rate", 23)
+    monkeypatch.setattr(config, "emergency_heat_rate_window", 22.5)
     oven = Oven()
     oven.profile = get_profile()
     oven.runtime = 6000
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     oven.emergency_heat_rate_temps = []
     oven.board = FakeBoard(1)
     oven.reset_if_emergency()
-    assert oven.state == 'RUNNING'
+    assert oven.state == "RUNNING"
 
 
 def test_reset_if_emergency_heat_rate_skipped_on_flat_segment(no_auto_restarts, monkeypatch):
-    monkeypatch.setattr(config, 'emergency_heat_rate', 23)
-    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    monkeypatch.setattr(config, "emergency_heat_rate", 23)
+    monkeypatch.setattr(config, "emergency_heat_rate_window", 22.5)
     oven = Oven()
     oven.profile = get_profile()
     oven.runtime = 15000  # flat 2250c hold
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     _seed_heat_rate_window(oven, 0)
     oven.board = FakeBoard(1)
     oven.reset_if_emergency()
-    assert oven.state == 'RUNNING'
+    assert oven.state == "RUNNING"
 
 
 def test_reset_if_emergency_heat_rate_skipped_on_cooling_segment(no_auto_restarts, monkeypatch):
-    monkeypatch.setattr(config, 'emergency_heat_rate', 23)
-    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    monkeypatch.setattr(config, "emergency_heat_rate", 23)
+    monkeypatch.setattr(config, "emergency_heat_rate_window", 22.5)
     oven = Oven()
     oven.profile = get_profile()
     oven.runtime = 18000  # cooling 2250->700c segment
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     _seed_heat_rate_window(oven, 0)
     oven.board = FakeBoard(1)
     oven.reset_if_emergency()
-    assert oven.state == 'RUNNING'
+    assert oven.state == "RUNNING"
 
 
 def test_kiln_must_catch_up_too_cold(monkeypatch):
-    monkeypatch.setattr(config, 'kiln_must_catch_up', True)
-    monkeypatch.setattr(config, 'pid_control_window', 5)
+    monkeypatch.setattr(config, "kiln_must_catch_up", True)
+    monkeypatch.setattr(config, "pid_control_window", 5)
     oven = Oven()
     oven.board = FakeBoard(400)
     oven.target = 500
@@ -644,8 +667,8 @@ def test_kiln_must_catch_up_too_cold(monkeypatch):
 
 
 def test_kiln_must_catch_up_too_hot(monkeypatch):
-    monkeypatch.setattr(config, 'kiln_must_catch_up', True)
-    monkeypatch.setattr(config, 'pid_control_window', 5)
+    monkeypatch.setattr(config, "kiln_must_catch_up", True)
+    monkeypatch.setattr(config, "pid_control_window", 5)
     oven = Oven()
     oven.board = FakeBoard(600)
     oven.target = 500
@@ -654,8 +677,8 @@ def test_kiln_must_catch_up_too_hot(monkeypatch):
 
 
 def test_kiln_must_catch_up_within_window(monkeypatch):
-    monkeypatch.setattr(config, 'kiln_must_catch_up', True)
-    monkeypatch.setattr(config, 'pid_control_window', 5)
+    monkeypatch.setattr(config, "kiln_must_catch_up", True)
+    monkeypatch.setattr(config, "pid_control_window", 5)
     oven = Oven()
     oven.board = FakeBoard(501)
     oven.target = 500
@@ -664,7 +687,7 @@ def test_kiln_must_catch_up_within_window(monkeypatch):
 
 
 def test_kiln_must_catch_up_disabled(monkeypatch):
-    monkeypatch.setattr(config, 'kiln_must_catch_up', False)
+    monkeypatch.setattr(config, "kiln_must_catch_up", False)
     oven = Oven()
     oven.board = FakeBoard(400)
     oven.target = 500
@@ -673,42 +696,39 @@ def test_kiln_must_catch_up_disabled(monkeypatch):
 
 
 def test_save_state(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, 'automatic_restart_state_file',
-                        str(tmp_path / 'state.json'))
+    monkeypatch.setattr(config, "automatic_restart_state_file", str(tmp_path / "state.json"))
     oven = Oven()
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     oven.cost = 1.25
     oven.save_state()
-    with open(tmp_path / 'state.json') as f:
+    with open(tmp_path / "state.json") as f:
         d = json.load(f)
-    assert d['state'] == 'RUNNING'
-    assert d['cost'] == 1.25
+    assert d["state"] == "RUNNING"
+    assert d["cost"] == 1.25
 
 
 def test_save_automatic_restart_state_disabled(monkeypatch):
-    monkeypatch.setattr(config, 'automatic_restarts', False)
+    monkeypatch.setattr(config, "automatic_restarts", False)
     oven = Oven()
     assert oven.save_automatic_restart_state() is False
 
 
 def test_save_automatic_restart_state_enabled(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, 'automatic_restarts', True)
-    monkeypatch.setattr(config, 'automatic_restart_state_file',
-                        str(tmp_path / 'state.json'))
+    monkeypatch.setattr(config, "automatic_restarts", True)
+    monkeypatch.setattr(config, "automatic_restart_state_file", str(tmp_path / "state.json"))
     oven = Oven()
     assert oven.save_automatic_restart_state() is not False
-    assert os.path.exists(tmp_path / 'state.json')
+    assert os.path.exists(tmp_path / "state.json")
 
 
 def test_state_file_is_old(tmp_path, monkeypatch):
-    monkeypatch.setattr(config, 'automatic_restart_state_file',
-                        str(tmp_path / 'state.json'))
+    monkeypatch.setattr(config, "automatic_restart_state_file", str(tmp_path / "state.json"))
     oven = Oven()
     # missing file counts as old
     assert oven.state_file_is_old() is True
 
-    state_file = tmp_path / 'state.json'
-    state_file.write_text(json.dumps({'state': 'RUNNING'}))
+    state_file = tmp_path / "state.json"
+    state_file.write_text(json.dumps({"state": "RUNNING"}))
     old = datetime.datetime.now().timestamp() - 60 * 60
     os.utime(state_file, (old, old))
     assert oven.state_file_is_old() is True
@@ -719,40 +739,40 @@ def test_state_file_is_old(tmp_path, monkeypatch):
 
 
 def test_should_i_automatic_restart(tmp_path, monkeypatch):
-    state_file = tmp_path / 'state.json'
-    monkeypatch.setattr(config, 'automatic_restart_state_file', str(state_file))
-    monkeypatch.setattr(config, 'automatic_restarts', True)
+    state_file = tmp_path / "state.json"
+    monkeypatch.setattr(config, "automatic_restart_state_file", str(state_file))
+    monkeypatch.setattr(config, "automatic_restarts", True)
 
     oven = Oven()
     # old/missing state file -> no restart
     assert oven.should_i_automatic_restart() is False
 
     fresh = datetime.datetime.now().timestamp()
-    state_file.write_text(json.dumps({'state': 'RUNNING', 'runtime': 60}))
+    state_file.write_text(json.dumps({"state": "RUNNING", "runtime": 60}))
     os.utime(state_file, (fresh, fresh))
     assert oven.should_i_automatic_restart() is True
 
-    state_file.write_text(json.dumps({'state': 'IDLE', 'runtime': 60}))
+    state_file.write_text(json.dumps({"state": "IDLE", "runtime": 60}))
     os.utime(state_file, (fresh, fresh))
     assert oven.should_i_automatic_restart() is False
 
 
 def test_automatic_restart(tmp_path, monkeypatch):
-    storage = tmp_path / 'storage'
-    profiles_dir = storage / 'profiles'
+    storage = tmp_path / "storage"
+    profiles_dir = storage / "profiles"
     profiles_dir.mkdir(parents=True)
-    with open(profiles_dir / 'test-fast.json', 'w') as f:
-        f.write(open(os.path.join(os.path.dirname(__file__), 'test-fast.json')).read())
+    with open(profiles_dir / "test-fast.json", "w") as f:
+        f.write(open(os.path.join(os.path.dirname(__file__), "test-fast.json")).read())
 
-    state_file = tmp_path / 'state.json'
-    state_file.write_text(json.dumps({
-        'state': 'RUNNING', 'runtime': 60, 'profile': 'test-fast', 'cost': 3.5
-    }))
+    state_file = tmp_path / "state.json"
+    state_file.write_text(
+        json.dumps({"state": "RUNNING", "runtime": 60, "profile": "test-fast", "cost": 3.5})
+    )
 
-    monkeypatch.setattr(config, 'automatic_restart_state_file', str(state_file))
-    monkeypatch.setattr(config, 'kiln_profiles_directory', str(profiles_dir))
-    monkeypatch.setattr(oven_module(), '__file__', str(storage / 'oven.py'))
-    monkeypatch.setattr(oven_module().time, 'sleep', lambda s: None)
+    monkeypatch.setattr(config, "automatic_restart_state_file", str(state_file))
+    monkeypatch.setattr(config, "kiln_profiles_directory", str(profiles_dir))
+    monkeypatch.setattr(oven_module(), "__file__", str(storage / "oven.py"))
+    monkeypatch.setattr(oven_module().time, "sleep", lambda s: None)
 
     oven = Oven()
     recorder = types.SimpleNamespace(record=lambda profile: None)
@@ -761,35 +781,33 @@ def test_automatic_restart(tmp_path, monkeypatch):
     calls = {}
 
     def fake_run_profile(self, profile, startat=0, allow_seek=True):
-        calls['profile'] = profile
-        calls['startat'] = startat
-        calls['allow_seek'] = allow_seek
+        calls["profile"] = profile
+        calls["startat"] = startat
+        calls["allow_seek"] = allow_seek
 
-    monkeypatch.setattr(oven_module().Oven, 'run_profile', fake_run_profile)
+    monkeypatch.setattr(oven_module().Oven, "run_profile", fake_run_profile)
 
     oven.automatic_restart()
 
-    assert calls['startat'] == 1
-    assert calls['allow_seek'] is False
-    assert calls['profile'].name == 'test-fast'
+    assert calls["startat"] == 1
+    assert calls["allow_seek"] is False
+    assert calls["profile"].name == "test-fast"
     assert oven.cost == 3.5
 
 
 def _restart_env(tmp_path, monkeypatch, state):
-    '''a rebooted oven pointed at a tmp state file and tmp profiles
-    directory. returns (oven, state_file).'''
-    profiles_dir = tmp_path / 'storage' / 'profiles'
+    """a rebooted oven pointed at a tmp state file and tmp profiles
+    directory. returns (oven, state_file)."""
+    profiles_dir = tmp_path / "storage" / "profiles"
     profiles_dir.mkdir(parents=True, exist_ok=True)
-    state_file = tmp_path / 'state.json'
+    state_file = tmp_path / "state.json"
     state_file.write_text(json.dumps(state))
-    monkeypatch.setattr(config, 'automatic_restarts', True)
-    monkeypatch.setattr(config, 'automatic_restart_state_file',
-                        str(state_file))
-    monkeypatch.setattr(config, 'kiln_profiles_directory', str(profiles_dir))
-    monkeypatch.setattr(config, 'thermocouple_offset', 0)
-    monkeypatch.setattr(oven_module(), '__file__',
-                        str(tmp_path / 'storage' / 'oven.py'))
-    monkeypatch.setattr(oven_module().time, 'sleep', lambda s: None)
+    monkeypatch.setattr(config, "automatic_restarts", True)
+    monkeypatch.setattr(config, "automatic_restart_state_file", str(state_file))
+    monkeypatch.setattr(config, "kiln_profiles_directory", str(profiles_dir))
+    monkeypatch.setattr(config, "thermocouple_offset", 0)
+    monkeypatch.setattr(oven_module(), "__file__", str(tmp_path / "storage" / "oven.py"))
+    monkeypatch.setattr(oven_module().time, "sleep", lambda s: None)
     oven = Oven()
     oven.board = FakeBoard(100)
     # base Oven has no heater output (only the sim/real subclasses
@@ -800,22 +818,21 @@ def _restart_env(tmp_path, monkeypatch, state):
 
 
 def _install_profile(tmp_path):
-    with open(tmp_path / 'storage' / 'profiles' / 'test-fast.json',
-              'w') as f:
-        f.write(open(os.path.join(os.path.dirname(__file__),
-                                  'test-fast.json')).read())
+    with open(tmp_path / "storage" / "profiles" / "test-fast.json", "w") as f:
+        f.write(open(os.path.join(os.path.dirname(__file__), "test-fast.json")).read())
 
 
 def test_failed_restart_preserves_resume_file(tmp_path, monkeypatch):
-    '''the reported bug: a restart that fails (here the profile file
+    """the reported bug: a restart that fails (here the profile file
     is missing) must not destroy the resume -- the run() error handler
     used to abort_run(), overwriting the file with IDLE so the firing
     could never resume. now the oven stays IDLE, the file is untouched,
-    and restoring the profile lets the next tick resume.'''
+    and restoring the profile lets the next tick resume."""
     oven, state_file = _restart_env(
-        tmp_path, monkeypatch,
-        {'state': 'RUNNING', 'runtime': 60, 'profile': 'test-fast',
-         'cost': 1.0})
+        tmp_path,
+        monkeypatch,
+        {"state": "RUNNING", "runtime": 60, "profile": "test-fast", "cost": 1.0},
+    )
 
     sleeps = []
 
@@ -824,19 +841,19 @@ def test_failed_restart_preserves_resume_file(tmp_path, monkeypatch):
         if len(sleeps) >= 2:
             raise StopIteration
 
-    monkeypatch.setattr(oven_module().time, 'sleep', counting_sleep)
+    monkeypatch.setattr(oven_module().time, "sleep", counting_sleep)
     with pytest.raises(StopIteration):
         oven.run()
 
     # failed twice, stayed IDLE, and -- critically -- the resume file
     # still says RUNNING so the firing is not lost
     assert oven.state == "IDLE"
-    assert json.loads(state_file.read_text())['state'] == "RUNNING"
+    assert json.loads(state_file.read_text())["state"] == "RUNNING"
     assert oven.should_i_automatic_restart() is True
 
     # the profile reappears (e.g. re-synced): the next tick resumes
     _install_profile(tmp_path)
-    monkeypatch.setattr(oven_module().time, 'sleep', lambda s: None)
+    monkeypatch.setattr(oven_module().time, "sleep", lambda s: None)
     oven._run_once()
     assert oven.state == "RUNNING"
     assert oven.profile.name == "test-fast"
@@ -844,87 +861,90 @@ def test_failed_restart_preserves_resume_file(tmp_path, monkeypatch):
 
 
 def test_restart_missing_profile_retries_quietly(tmp_path, monkeypatch):
-    '''a missing profile file is transient (it may be re-synced): the
+    """a missing profile file is transient (it may be re-synced): the
     restart raises RestartRetry so run() preserves the resume file and
-    retries without a per-second ERROR spamming the syslog.'''
+    retries without a per-second ERROR spamming the syslog."""
     oven, state_file = _restart_env(
-        tmp_path, monkeypatch,
-        {'state': 'RUNNING', 'runtime': 60, 'profile': 'test-fast',
-         'cost': 1.0})
+        tmp_path,
+        monkeypatch,
+        {"state": "RUNNING", "runtime": 60, "profile": "test-fast", "cost": 1.0},
+    )
     with pytest.raises(RestartRetry):
         oven.automatic_restart()
     assert oven.state == "IDLE"
-    assert json.loads(state_file.read_text())['state'] == "RUNNING"
+    assert json.loads(state_file.read_text())["state"] == "RUNNING"
 
 
 def test_restart_prefers_embedded_profile_data(tmp_path, monkeypatch):
-    '''runs started from unsaved ui profiles resume from the profile
-    embedded in the state file even when no file exists on disk.'''
+    """runs started from unsaved ui profiles resume from the profile
+    embedded in the state file even when no file exists on disk."""
     oven, _ = _restart_env(
-        tmp_path, monkeypatch,
-        {'state': 'RUNNING', 'runtime': 60, 'profile': 't',
-         'profile_data': {'name': 't', 'data': [[0, 20], [600, 100]]},
-         'cost': 1.0})
+        tmp_path,
+        monkeypatch,
+        {
+            "state": "RUNNING",
+            "runtime": 60,
+            "profile": "t",
+            "profile_data": {"name": "t", "data": [[0, 20], [600, 100]]},
+            "cost": 1.0,
+        },
+    )
     assert oven.automatic_restart() is True
     assert oven.state == "RUNNING"
     assert oven.profile.name == "t"
 
 
-def test_restart_matches_profile_by_name_not_filename(tmp_path,
-                                                      monkeypatch):
-    '''a stored profile renamed on disk still resumes: lookup matches
-    the internal name, never "<name>.json".'''
+def test_restart_matches_profile_by_name_not_filename(tmp_path, monkeypatch):
+    """a stored profile renamed on disk still resumes: lookup matches
+    the internal name, never "<name>.json"."""
     oven, _ = _restart_env(
-        tmp_path, monkeypatch,
-        {'state': 'RUNNING', 'runtime': 60, 'profile': 'test-fast',
-         'cost': 1.0})
-    with open(tmp_path / 'storage' / 'profiles' / 'renamed.json',
-              'w') as f:
-        f.write(open(os.path.join(os.path.dirname(__file__),
-                                   'test-fast.json')).read())
+        tmp_path,
+        monkeypatch,
+        {"state": "RUNNING", "runtime": 60, "profile": "test-fast", "cost": 1.0},
+    )
+    with open(tmp_path / "storage" / "profiles" / "renamed.json", "w") as f:
+        f.write(open(os.path.join(os.path.dirname(__file__), "test-fast.json")).read())
     assert oven.automatic_restart() is True
     assert oven.profile.name == "test-fast"
 
 
-def test_restart_without_resumable_profile_clears_resume(tmp_path,
-                                                         monkeypatch):
-    '''a resume with neither embedded data nor a profile name can never
+def test_restart_without_resumable_profile_clears_resume(tmp_path, monkeypatch):
+    """a resume with neither embedded data nor a profile name can never
     succeed: it is cleared to IDLE (stopping the 1/sec retry loop) and
-    reports the loss instead of raising forever.'''
+    reports the loss instead of raising forever."""
     oven, state_file = _restart_env(
-        tmp_path, monkeypatch,
-        {'state': 'RUNNING', 'runtime': 60, 'profile': None, 'cost': 1.0})
+        tmp_path, monkeypatch, {"state": "RUNNING", "runtime": 60, "profile": None, "cost": 1.0}
+    )
     assert oven.automatic_restart() is False
     assert oven.state == "IDLE"
-    assert json.loads(state_file.read_text())['state'] == "IDLE"
+    assert json.loads(state_file.read_text())["state"] == "IDLE"
     assert oven.should_i_automatic_restart() is False
 
 
 def test_save_state_embeds_profile_data(tmp_path, monkeypatch):
-    '''the resume file carries the full profile so restarts do not
-    depend on the profile file.'''
-    monkeypatch.setattr(config, 'automatic_restart_state_file',
-                        str(tmp_path / 'state.json'))
+    """the resume file carries the full profile so restarts do not
+    depend on the profile file."""
+    monkeypatch.setattr(config, "automatic_restart_state_file", str(tmp_path / "state.json"))
     oven = Oven()
     oven.profile = Profile('{"name":"t","data":[[0, 20],[600, 100]]}')
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     oven.save_state()
-    with open(tmp_path / 'state.json') as f:
+    with open(tmp_path / "state.json") as f:
         d = json.load(f)
-    assert d['profile'] == 't'
-    assert d['profile_data'] == {'name': 't',
-                                 'data': [[0, 20], [600, 100]]}
+    assert d["profile"] == "t"
+    assert d["profile_data"] == {"name": "t", "data": [[0, 20], [600, 100]]}
 
 
 def test_restart_without_ovenwatcher_attached(tmp_path, monkeypatch):
-    '''the control thread starts before kiln-controller attaches the
+    """the control thread starts before kiln-controller attaches the
     watcher; a reboot resume racing that setup used to die with
     AttributeError (and then wipe the resume file). the firing itself
-    must resume regardless.'''
+    must resume regardless."""
     oven, _ = _restart_env(
-        tmp_path, monkeypatch,
-        {'state': 'RUNNING', 'runtime': 120, 'profile': 'test-fast',
-         'cost': 2.0})
+        tmp_path,
+        monkeypatch,
+        {"state": "RUNNING", "runtime": 120, "profile": "test-fast", "cost": 2.0},
+    )
     _install_profile(tmp_path)
     oven.ovenwatcher = None  # set_ovenwatcher() has not run yet
     oven.automatic_restart()
@@ -933,154 +953,176 @@ def test_restart_without_ovenwatcher_attached(tmp_path, monkeypatch):
 
 
 def test_automatic_restart_preserves_firing_identity(tmp_path, monkeypatch):
-    '''a service restart / power-cycle resume continues the SAME firing:
+    """a service restart / power-cycle resume continues the SAME firing:
     run_id, ended_run_sequence and the watcher's run_started must all
-    survive the reboot instead of starting a new firing.'''
+    survive the reboot instead of starting a new firing."""
     saved_started = 1700000000.0
     oven, _ = _restart_env(
-        tmp_path, monkeypatch,
-        {'state': 'RUNNING', 'runtime': 120, 'profile': 'test-fast',
-         'cost': 2.0, 'run_id': 7, 'ended_run_sequence': 6,
-         'run_started': saved_started})
+        tmp_path,
+        monkeypatch,
+        {
+            "state": "RUNNING",
+            "runtime": 120,
+            "profile": "test-fast",
+            "cost": 2.0,
+            "run_id": 7,
+            "ended_run_sequence": 6,
+            "run_started": saved_started,
+        },
+    )
     _install_profile(tmp_path)
     recorded = {}
 
     class Recorder:
         def record(self, profile, started=None):
-            recorded['started'] = started
+            recorded["started"] = started
 
     oven.ovenwatcher = Recorder()
     oven.automatic_restart()
     assert oven.state == "RUNNING"
     assert oven.run_sequence == 7
-    assert oven.get_state()['run_id'] == 7
+    assert oven.get_state()["run_id"] == 7
     assert oven.ended_run_sequence == 6
-    assert recorded['started'] == pytest.approx(saved_started)
+    assert recorded["started"] == pytest.approx(saved_started)
 
 
-def test_automatic_restart_legacy_state_starts_new_identity(tmp_path,
-                                                            monkeypatch):
-    '''state files written before run identity was saved have no
-    run_id/run_started keys: the resume falls back to a fresh firing.'''
+def test_automatic_restart_legacy_state_starts_new_identity(tmp_path, monkeypatch):
+    """state files written before run identity was saved have no
+    run_id/run_started keys: the resume falls back to a fresh firing."""
     oven, _ = _restart_env(
-        tmp_path, monkeypatch,
-        {'state': 'RUNNING', 'runtime': 60, 'profile': 'test-fast',
-         'cost': 1.0})
+        tmp_path,
+        monkeypatch,
+        {"state": "RUNNING", "runtime": 60, "profile": "test-fast", "cost": 1.0},
+    )
     _install_profile(tmp_path)
     recorded = {}
 
     class Recorder:
         def record(self, profile, started=None):
-            recorded['started'] = started
+            recorded["started"] = started
 
     oven.ovenwatcher = Recorder()
     oven.automatic_restart()
     assert oven.state == "RUNNING"
     assert oven.run_sequence == 1
-    assert recorded['started'] is None
+    assert recorded["started"] is None
 
 
 def test_save_state_persists_firing_identity(tmp_path, monkeypatch):
-    '''the resume file must carry the firing identity so the rebooted
-    process can continue it: run_id, ended_run_sequence, run_started.'''
-    monkeypatch.setattr(config, 'automatic_restart_state_file',
-                        str(tmp_path / 'state.json'))
+    """the resume file must carry the firing identity so the rebooted
+    process can continue it: run_id, ended_run_sequence, run_started."""
+    monkeypatch.setattr(config, "automatic_restart_state_file", str(tmp_path / "state.json"))
     oven = Oven()
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     oven.run_sequence = 7
     oven.ended_run_sequence = 6
     started = datetime.datetime.fromtimestamp(1700000000.0)
     oven.ovenwatcher = types.SimpleNamespace(started=started)
     oven.save_state()
-    with open(tmp_path / 'state.json') as f:
+    with open(tmp_path / "state.json") as f:
         d = json.load(f)
-    assert d['run_id'] == 7
-    assert d['ended_run_sequence'] == 6
-    assert d['run_started'] == pytest.approx(1700000000.0)
+    assert d["run_id"] == 7
+    assert d["ended_run_sequence"] == 6
+    assert d["run_started"] == pytest.approx(1700000000.0)
 
 
 def test_resumed_firing_appends_to_same_db_row(tmp_path):
-    '''samples recorded before and after a restart (same run_started)
-    land in one firings row, not two.'''
+    """samples recorded before and after a restart (same run_started)
+    land in one firings row, not two."""
     from lib.firing_db import FiringDb
-    db = FiringDb(path=str(tmp_path / 'firings.db'))
+
+    db = FiringDb(path=str(tmp_path / "firings.db"))
     started = 1700000000.0
-    before = {'profile': 'test-fast', 'run_id': 7, 'runtime': 60,
-              'temperature': 100, 'target': 110, 'state': 'RUNNING',
-              'heat': 1.0, 'totaltime': 600, 'cost': 1.0,
-              'heat_rate': 0, 'catching_up': False, 'temp_errors': 0,
-              'pidstats': {'time': started, 'timeDelta': 2, 'err': 10,
-                           'errDelta': 0, 'p': 1, 'i': 0, 'd': 0,
-                           'pid': 1, 'out': 0.5, 'kp': 4, 'ki': 32,
-                           'kd': 139},
-              'run_started': started}
-    after = dict(before, runtime=62, cost=1.1,
-                 pidstats=dict(before['pidstats'], time=started + 2))
+    before = {
+        "profile": "test-fast",
+        "run_id": 7,
+        "runtime": 60,
+        "temperature": 100,
+        "target": 110,
+        "state": "RUNNING",
+        "heat": 1.0,
+        "totaltime": 600,
+        "cost": 1.0,
+        "heat_rate": 0,
+        "catching_up": False,
+        "temp_errors": 0,
+        "pidstats": {
+            "time": started,
+            "timeDelta": 2,
+            "err": 10,
+            "errDelta": 0,
+            "p": 1,
+            "i": 0,
+            "d": 0,
+            "pid": 1,
+            "out": 0.5,
+            "kp": 4,
+            "ki": 32,
+            "kd": 139,
+        },
+        "run_started": started,
+    }
+    after = dict(before, runtime=62, cost=1.1, pidstats=dict(before["pidstats"], time=started + 2))
     assert db.record_state(before) is True
     assert db.record_state(after) is True
-    rows = db._con.execute("SELECT id FROM firings WHERE run_started = ?",
-                           (started,)).fetchall()
+    rows = db._con.execute("SELECT id FROM firings WHERE run_started = ?", (started,)).fetchall()
     assert len(rows) == 1
     count = db._con.execute(
-        "SELECT COUNT(*) FROM samples WHERE firing_id = ?",
-        (rows[0][0],)).fetchone()[0]
+        "SELECT COUNT(*) FROM samples WHERE firing_id = ?", (rows[0][0],)
+    ).fetchone()[0]
     assert count == 2
     db.close()
 
 
 def test_pause_outage_resumes_paused(tmp_path, monkeypatch):
-    '''an outage while paused must resume paused at the frozen
+    """an outage while paused must resume paused at the frozen
     runtime -- previously nothing was saved while paused, so the
-    reboot rewound to a stale RUNNING sample and silently unpaused.'''
+    reboot rewound to a stale RUNNING sample and silently unpaused."""
     oven, state_file = _restart_env(
-        tmp_path, monkeypatch,
-        {'state': 'RUNNING', 'runtime': 60, 'profile': 'test-fast',
-         'cost': 1.0})
+        tmp_path,
+        monkeypatch,
+        {"state": "RUNNING", "runtime": 60, "profile": "test-fast", "cost": 1.0},
+    )
     _install_profile(tmp_path)
     oven.run_profile(get_profile(), allow_seek=False)
     oven.runtime = 60
     oven.state = "PAUSED"
     oven._run_once()  # PAUSED tick saves
     saved = json.loads(state_file.read_text())
-    assert saved['state'] == "PAUSED"
+    assert saved["state"] == "PAUSED"
 
-    rebooted, _ = _restart_env(
-        tmp_path, monkeypatch,
-        json.loads(state_file.read_text()))
+    rebooted, _ = _restart_env(tmp_path, monkeypatch, json.loads(state_file.read_text()))
     rebooted._run_once()
     assert rebooted.state == "PAUSED"
     assert rebooted.runtime == pytest.approx(60)
     assert rebooted.profile.name == "test-fast"
 
 
-def test_should_i_corrupt_file_returns_false(tmp_path, monkeypatch,
-                                             caplog):
-    '''a torn write from an unclean shutdown must decline loudly, not
-    raise into the run() handler (which would overwrite the file).'''
-    state_file = tmp_path / 'state.json'
+def test_should_i_corrupt_file_returns_false(tmp_path, monkeypatch, caplog):
+    """a torn write from an unclean shutdown must decline loudly, not
+    raise into the run() handler (which would overwrite the file)."""
+    state_file = tmp_path / "state.json"
     state_file.write_text('{"state": "RUNN')
-    monkeypatch.setattr(config, 'automatic_restarts', True)
-    monkeypatch.setattr(config, 'automatic_restart_state_file',
-                        str(state_file))
+    monkeypatch.setattr(config, "automatic_restarts", True)
+    monkeypatch.setattr(config, "automatic_restart_state_file", str(state_file))
     oven = Oven()
     assert oven.should_i_automatic_restart() is False
 
 
 def test_save_state_is_atomic(tmp_path, monkeypatch):
-    '''tmp + rename: no leftover tmp file, content always parses.'''
-    monkeypatch.setattr(config, 'automatic_restart_state_file',
-                        str(tmp_path / 'state.json'))
+    """tmp + rename: no leftover tmp file, content always parses."""
+    monkeypatch.setattr(config, "automatic_restart_state_file", str(tmp_path / "state.json"))
     oven = Oven()
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     oven.save_state()
-    assert not os.path.exists(str(tmp_path / 'state.json.tmp'))
-    with open(tmp_path / 'state.json') as f:
-        assert json.load(f)['state'] == 'RUNNING'
+    assert not os.path.exists(str(tmp_path / "state.json.tmp"))
+    with open(tmp_path / "state.json") as f:
+        assert json.load(f)["state"] == "RUNNING"
 
 
 def test_run_unknown_state_does_not_auto_restart(monkeypatch):
-    '''the autotuner puts its oven in state TUNING; the background
-    run() loop must not check for an automatic restart then.'''
+    """the autotuner puts its oven in state TUNING; the background
+    run() loop must not check for an automatic restart then."""
     oven = Oven()
     oven.state = "TUNING"
 
@@ -1093,9 +1135,8 @@ def test_run_unknown_state_does_not_auto_restart(monkeypatch):
     def fake_sleep(secs):
         raise StopIteration
 
-    monkeypatch.setattr(oven_module().Oven, 'should_i_automatic_restart',
-                        fake_should_restart)
-    monkeypatch.setattr(oven_module().time, 'sleep', fake_sleep)
+    monkeypatch.setattr(oven_module().Oven, "should_i_automatic_restart", fake_should_restart)
+    monkeypatch.setattr(oven_module().time, "sleep", fake_sleep)
 
     with pytest.raises(StopIteration):
         oven.run()
@@ -1108,21 +1149,24 @@ def test_run_unknown_state_does_not_auto_restart(monkeypatch):
 # Oven.run() loop branches
 ########################################################################
 
+
 def test_run_idle_restarts_when_asked(monkeypatch):
     oven = Oven()
     oven.state = "IDLE"
     restart_calls = []
     sleeps = []
 
-    monkeypatch.setattr(oven_module().Oven, 'should_i_automatic_restart', lambda self: True)
-    monkeypatch.setattr(oven_module().Oven, 'automatic_restart', lambda self: restart_calls.append(1))
+    monkeypatch.setattr(oven_module().Oven, "should_i_automatic_restart", lambda self: True)
+    monkeypatch.setattr(
+        oven_module().Oven, "automatic_restart", lambda self: restart_calls.append(1)
+    )
 
     def fake_sleep(secs):
         sleeps.append(secs)
         if len(sleeps) >= 2:
             raise StopIteration
 
-    monkeypatch.setattr(oven_module().time, 'sleep', fake_sleep)
+    monkeypatch.setattr(oven_module().time, "sleep", fake_sleep)
 
     with pytest.raises(StopIteration):
         oven.run()
@@ -1136,13 +1180,15 @@ def test_run_idle_waits_when_no_restart_wanted(monkeypatch):
     oven.state = "IDLE"
     restart_calls = []
 
-    monkeypatch.setattr(oven_module().Oven, 'should_i_automatic_restart', lambda self: False)
-    monkeypatch.setattr(oven_module().Oven, 'automatic_restart', lambda self: restart_calls.append(1))
+    monkeypatch.setattr(oven_module().Oven, "should_i_automatic_restart", lambda self: False)
+    monkeypatch.setattr(
+        oven_module().Oven, "automatic_restart", lambda self: restart_calls.append(1)
+    )
 
     def fake_sleep(secs):
         raise StopIteration
 
-    monkeypatch.setattr(oven_module().time, 'sleep', fake_sleep)
+    monkeypatch.setattr(oven_module().time, "sleep", fake_sleep)
 
     with pytest.raises(StopIteration):
         oven.run()
@@ -1156,27 +1202,35 @@ def test_run_paused_branch(monkeypatch):
     oven.profile = Profile('{"name":"t","data":[[0, 20],[600, 100]]}')
     calls = []
 
-    monkeypatch.setattr(oven_module().Oven, 'update_runtime', lambda self: calls.append('runtime'))
-    monkeypatch.setattr(oven_module().Oven, 'update_target_temp', lambda self: calls.append('target'))
+    monkeypatch.setattr(oven_module().Oven, "update_runtime", lambda self: calls.append("runtime"))
+    monkeypatch.setattr(
+        oven_module().Oven, "update_target_temp", lambda self: calls.append("target")
+    )
     # stubbed: the real one would write the real state.json restart file
-    monkeypatch.setattr(oven_module().Oven, 'save_automatic_restart_state',
-                        lambda self: calls.append('save'), raising=False)
-    monkeypatch.setattr(oven_module().Oven, 'heat_then_cool',
-                        lambda self: calls.append('heat'), raising=False)
-    monkeypatch.setattr(oven_module().Oven, 'reset_if_emergency', lambda self: calls.append('emergency'))
+    monkeypatch.setattr(
+        oven_module().Oven,
+        "save_automatic_restart_state",
+        lambda self: calls.append("save"),
+        raising=False,
+    )
+    monkeypatch.setattr(
+        oven_module().Oven, "heat_then_cool", lambda self: calls.append("heat"), raising=False
+    )
+    monkeypatch.setattr(
+        oven_module().Oven, "reset_if_emergency", lambda self: calls.append("emergency")
+    )
 
     def ended(self):
-        calls.append('ended')
-        if calls.count('ended') >= 2:
+        calls.append("ended")
+        if calls.count("ended") >= 2:
             raise StopIteration
 
-    monkeypatch.setattr(oven_module().Oven, 'reset_if_schedule_ended', ended)
+    monkeypatch.setattr(oven_module().Oven, "reset_if_schedule_ended", ended)
 
     with pytest.raises(StopIteration):
         oven.run()
 
-    assert calls == (['runtime', 'target', 'save', 'heat', 'emergency',
-                      'ended'] * 2)
+    assert calls == (["runtime", "target", "save", "heat", "emergency", "ended"] * 2)
 
 
 def test_run_running_branch(monkeypatch):
@@ -1185,31 +1239,42 @@ def test_run_running_branch(monkeypatch):
     oven.profile = Profile('{"name":"t","data":[[0, 20],[600, 100]]}')
     calls = []
 
-    monkeypatch.setattr(oven_module().Oven, 'update_cost', lambda self: calls.append('cost'))
-    monkeypatch.setattr(oven_module().Oven, 'save_automatic_restart_state', lambda self: calls.append('save'))
-    monkeypatch.setattr(oven_module().Oven, 'kiln_must_catch_up', lambda self: calls.append('catch'))
-    monkeypatch.setattr(oven_module().Oven, 'update_runtime', lambda self: calls.append('runtime'))
-    monkeypatch.setattr(oven_module().Oven, 'update_target_temp', lambda self: calls.append('target'))
-    monkeypatch.setattr(oven_module().Oven, 'heat_then_cool',
-                          lambda self: calls.append('heat'), raising=False)
-    monkeypatch.setattr(oven_module().Oven, 'reset_if_emergency', lambda self: calls.append('emergency'))
+    monkeypatch.setattr(oven_module().Oven, "update_cost", lambda self: calls.append("cost"))
+    monkeypatch.setattr(
+        oven_module().Oven, "save_automatic_restart_state", lambda self: calls.append("save")
+    )
+    monkeypatch.setattr(
+        oven_module().Oven, "kiln_must_catch_up", lambda self: calls.append("catch")
+    )
+    monkeypatch.setattr(oven_module().Oven, "update_runtime", lambda self: calls.append("runtime"))
+    monkeypatch.setattr(
+        oven_module().Oven, "update_target_temp", lambda self: calls.append("target")
+    )
+    monkeypatch.setattr(
+        oven_module().Oven, "heat_then_cool", lambda self: calls.append("heat"), raising=False
+    )
+    monkeypatch.setattr(
+        oven_module().Oven, "reset_if_emergency", lambda self: calls.append("emergency")
+    )
 
     def ended(self):
-        calls.append('ended')
-        if calls.count('ended') >= 2:
+        calls.append("ended")
+        if calls.count("ended") >= 2:
             raise StopIteration
 
-    monkeypatch.setattr(oven_module().Oven, 'reset_if_schedule_ended', ended)
+    monkeypatch.setattr(oven_module().Oven, "reset_if_schedule_ended", ended)
 
     with pytest.raises(StopIteration):
         oven.run()
 
-    assert calls == (['cost', 'save', 'catch', 'runtime', 'target', 'heat', 'emergency', 'ended'] * 2)
+    assert calls == (
+        ["cost", "save", "catch", "runtime", "target", "heat", "emergency", "ended"] * 2
+    )
 
 
 def test_run_paused_or_running_without_profile_returns_to_idle(monkeypatch):
-    '''pause/resume requested while idle must not crash the control
-    thread on a missing profile; the oven goes back to IDLE instead'''
+    """pause/resume requested while idle must not crash the control
+    thread on a missing profile; the oven goes back to IDLE instead"""
     for state in ("PAUSED", "RUNNING"):
         oven = Oven()
         oven.state = state
@@ -1217,7 +1282,7 @@ def test_run_paused_or_running_without_profile_returns_to_idle(monkeypatch):
         def fake_sleep(secs):
             raise StopIteration
 
-        monkeypatch.setattr(oven_module().time, 'sleep', fake_sleep)
+        monkeypatch.setattr(oven_module().time, "sleep", fake_sleep)
 
         with pytest.raises(StopIteration):
             oven.run()
@@ -1226,8 +1291,8 @@ def test_run_paused_or_running_without_profile_returns_to_idle(monkeypatch):
 
 
 def test_run_survives_control_loop_error(monkeypatch):
-    '''an unhandled error must not kill the control thread: the oven is
-    reset to a safe idle state and the loop keeps running'''
+    """an unhandled error must not kill the control thread: the oven is
+    reset to a safe idle state and the loop keeps running"""
     oven = Oven()
     oven.state = "RUNNING"
     oven.profile = Profile('{"name":"t","data":[[0, 20],[600, 100]]}')
@@ -1237,33 +1302,36 @@ def test_run_survives_control_loop_error(monkeypatch):
     def boom(self):
         raise RuntimeError("simulated control loop failure")
 
-    monkeypatch.setattr(oven_module().Oven, 'update_cost', boom)
-    monkeypatch.setattr(oven_module().Oven, 'abort_run',
-                        lambda self, reason='stopped': aborts.append(reason))
+    monkeypatch.setattr(oven_module().Oven, "update_cost", boom)
+    monkeypatch.setattr(
+        oven_module().Oven, "abort_run", lambda self, reason="stopped": aborts.append(reason)
+    )
 
     def fake_sleep(secs):
         sleeps.append(secs)
         if len(sleeps) >= 2:
             raise StopIteration
 
-    monkeypatch.setattr(oven_module().time, 'sleep', fake_sleep)
+    monkeypatch.setattr(oven_module().time, "sleep", fake_sleep)
 
     with pytest.raises(StopIteration):
         oven.run()
 
     # the loop recovered from the first error and kept going
-    assert aborts == ['control loop error', 'control loop error']
+    assert aborts == ["control loop error", "control loop error"]
     assert sleeps == [1, 1]
 
 
 def oven_module():
     import lib.oven
+
     return lib.oven
 
 
 ########################################################################
 # SimulatedOven
 ########################################################################
+
 
 def make_sim():
     sim = SimulatedOven.__new__(SimulatedOven)
@@ -1307,14 +1375,14 @@ def test_sim_temp_changes(monkeypatch):
     sim.temp_changes()
     assert sim.temperature == sim.t
     assert sim.board.temp_sensor.simulated_temperature == sim.t
-    assert sim.p_ho > 0.0     # heat moved into the oven
-    assert sim.t_h > 200.0    # heater got hotter
-    assert sim.t > 100.0      # oven heated up
+    assert sim.p_ho > 0.0  # heat moved into the oven
+    assert sim.t_h > 200.0  # heater got hotter
+    assert sim.t > 100.0  # oven heated up
 
 
 def test_sim_heat_then_cool_heating(monkeypatch):
-    monkeypatch.setattr(oven_module().time, 'sleep', lambda s: None)
-    monkeypatch.setattr(config, 'thermocouple_offset', 0)
+    monkeypatch.setattr(oven_module().time, "sleep", lambda s: None)
+    monkeypatch.setattr(config, "thermocouple_offset", 0)
     sim = make_sim()
     sim.target = 5000  # far above, max heating
     sim.totaltime = 10000
@@ -1323,8 +1391,8 @@ def test_sim_heat_then_cool_heating(monkeypatch):
 
 
 def test_sim_heat_then_cool_cooling(monkeypatch):
-    monkeypatch.setattr(oven_module().time, 'sleep', lambda s: None)
-    monkeypatch.setattr(config, 'thermocouple_offset', 0)
+    monkeypatch.setattr(oven_module().time, "sleep", lambda s: None)
+    monkeypatch.setattr(config, "thermocouple_offset", 0)
     sim = make_sim()
     sim.target = 0  # far below, no heat
     sim.totaltime = 10000
@@ -1342,11 +1410,11 @@ def test_sim_get_start_time():
 
 
 def test_sim_update_runtime(monkeypatch):
-    clock = {'epoch': 1_600_000_000.0}
-    monkeypatch.setattr(oven_module().time, 'time', lambda: clock['epoch'])
+    clock = {"epoch": 1_600_000_000.0}
+    monkeypatch.setattr(oven_module().time, "time", lambda: clock["epoch"])
     sim = make_sim()
     sim.speedup_factor = 1
-    sim.start_time = clock['epoch'] - 100  # 100s ago
+    sim.start_time = clock["epoch"] - 100  # 100s ago
     sim.update_runtime()
     assert sim.runtime == 100
 
@@ -1358,28 +1426,28 @@ def test_sim_update_runtime(monkeypatch):
 def test_runtime_survives_spring_forward(monkeypatch):
     # the wall clock jumps forward an hour during the firing; the
     # elapsed-time tracking must keep using real time, not local time
-    clock = {'epoch': 1_600_000_000.0, 'wall': 0}
-    monkeypatch.setattr(oven_module().time, 'time', lambda: clock['epoch'])
+    clock = {"epoch": 1_600_000_000.0, "wall": 0}
+    monkeypatch.setattr(oven_module().time, "time", lambda: clock["epoch"])
 
     class FakeDateTime(datetime.datetime):
         @classmethod
         def now(cls, tz=None):
-            return cls.fromtimestamp(clock['epoch'] + clock['wall'])
+            return cls.fromtimestamp(clock["epoch"] + clock["wall"])
 
-    monkeypatch.setattr(oven_module().datetime, 'datetime', FakeDateTime)
+    monkeypatch.setattr(oven_module().datetime, "datetime", FakeDateTime)
     oven = Oven()
     oven.board = FakeBoard(250)
     oven.run_profile(get_profile(), startat=0, allow_seek=False)
     assert oven.runtime == 0
 
-    clock['epoch'] += 1200
+    clock["epoch"] += 1200
     oven.update_runtime()
     assert oven.runtime == pytest.approx(1200)
 
     # the DST transition happens here: local time jumps ahead 3600s while
     # only 1200 more real seconds passed
-    clock['epoch'] += 1200
-    clock['wall'] += 3600
+    clock["epoch"] += 1200
+    clock["wall"] += 3600
     oven.update_runtime()
     assert oven.runtime == pytest.approx(2400)
 
@@ -1387,28 +1455,28 @@ def test_runtime_survives_spring_forward(monkeypatch):
 def test_runtime_survives_fall_back(monkeypatch):
     # the wall clock jumps back an hour during the firing; runtime must
     # not be clamped to zero as it would if it tracked local time
-    clock = {'epoch': 1_600_000_000.0, 'wall': 0}
-    monkeypatch.setattr(oven_module().time, 'time', lambda: clock['epoch'])
+    clock = {"epoch": 1_600_000_000.0, "wall": 0}
+    monkeypatch.setattr(oven_module().time, "time", lambda: clock["epoch"])
 
     class FakeDateTime(datetime.datetime):
         @classmethod
         def now(cls, tz=None):
-            return cls.fromtimestamp(clock['epoch'] + clock['wall'])
+            return cls.fromtimestamp(clock["epoch"] + clock["wall"])
 
-    monkeypatch.setattr(oven_module().datetime, 'datetime', FakeDateTime)
+    monkeypatch.setattr(oven_module().datetime, "datetime", FakeDateTime)
     oven = Oven()
     oven.board = FakeBoard(250)
     oven.run_profile(get_profile(), startat=0, allow_seek=False)
     assert oven.runtime == 0
 
-    clock['epoch'] += 1200
+    clock["epoch"] += 1200
     oven.update_runtime()
     assert oven.runtime == pytest.approx(1200)
 
     # the DST transition happens here: local time falls back 3600s while
     # only 1200 more real seconds passed
-    clock['epoch'] += 1200
-    clock['wall'] -= 3600
+    clock["epoch"] += 1200
+    clock["wall"] -= 3600
     oven.update_runtime()
     assert oven.runtime == pytest.approx(2400)
 
@@ -1416,16 +1484,16 @@ def test_runtime_survives_fall_back(monkeypatch):
 def test_sim_runtime_survives_dst(monkeypatch):
     # the simulated oven's runtime is sped-up time but is still anchored
     # to the real clock, so a DST transition cannot corrupt it
-    clock = {'epoch': 1_600_000_000.0}
-    monkeypatch.setattr(oven_module().time, 'time', lambda: clock['epoch'])
+    clock = {"epoch": 1_600_000_000.0}
+    monkeypatch.setattr(oven_module().time, "time", lambda: clock["epoch"])
     sim = make_sim()
     sim.speedup_factor = 2
-    sim.start_time = clock['epoch']
-    clock['epoch'] += 600
+    sim.start_time = clock["epoch"]
+    clock["epoch"] += 600
     sim.update_runtime()
     assert sim.runtime == pytest.approx(1200)
     # fall-back: local time goes back an hour, real time keeps going
-    clock['epoch'] += 600
+    clock["epoch"] += 600
     sim.update_runtime()
     assert sim.runtime == pytest.approx(2400)
 
@@ -1433,6 +1501,7 @@ def test_sim_runtime_survives_dst(monkeypatch):
 ########################################################################
 # TempTracker / ThermocoupleTracker
 ########################################################################
+
 
 def test_temp_tracker_window():
     tracker = TempTracker()
@@ -1444,14 +1513,14 @@ def test_temp_tracker_window():
 
 
 def test_temp_tracker_empty_reports_zero():
-    '''no reading yet: report zero instead of crashing on an empty median'''
+    """no reading yet: report zero instead of crashing on an empty median"""
     tracker = TempTracker()
     assert tracker.get_avg_temp() == 0
 
 
 def test_temp_tracker_first_reading_is_not_hidden_by_zero_seed():
-    '''the window used to be seeded with zeros, so the median reported
-    0 degC until the whole window had filled with real readings'''
+    """the window used to be seeded with zeros, so the median reported
+    0 degC until the whole window had filled with real readings"""
     tracker = TempTracker()
     tracker.add(500.0)
     assert tracker.get_avg_temp() == 500.0
@@ -1496,7 +1565,7 @@ def test_thermocouple_tracker_duty_cycle_errors_counts_current_cycle():
     half = int(tracker.size / 2)
     for _ in range(tracker.size):
         tracker.bad()
-    for _ in range(half - 3):               # most of the current cycle recovers
+    for _ in range(half - 3):  # most of the current cycle recovers
         tracker.good()
     assert tracker.duty_cycle_errors() == 3
 
@@ -1512,6 +1581,7 @@ def test_thermocouple_tracker_duty_cycle_errors_zero_when_all_good():
 # TempSensorReal.get_temperature (always returns celsius internally)
 ########################################################################
 
+
 class StubTempStatus:
     def __init__(self):
         self.good_calls = 0
@@ -1525,7 +1595,7 @@ class StubTempStatus:
 
 
 def make_sensor(value=25.0, error=None):
-    '''TempSensorReal without __init__, which would touch real hardware.'''
+    """TempSensorReal without __init__, which would touch real hardware."""
     sensor = TempSensorReal.__new__(TempSensorReal)
     sensor.status = StubTempStatus()
 
@@ -1541,50 +1611,50 @@ def make_sensor(value=25.0, error=None):
 def test_get_temperature_returns_celsius_unaffected_by_scale(monkeypatch):
     # the sensor always reports celsius; the display-scale conversion
     # happens at the api boundaries, not at the sensor
-    monkeypatch.setattr(config, 'temp_scale', 'c')
+    monkeypatch.setattr(config, "temp_scale", "c")
     sensor = make_sensor(25.0)
     assert sensor.get_temperature() == 25.0
     assert sensor.status.good_calls == 1
     assert sensor.status.bad_calls == 0
 
-    monkeypatch.setattr(config, 'temp_scale', 'f')
+    monkeypatch.setattr(config, "temp_scale", "f")
     sensor = make_sensor(25.0)
     assert sensor.get_temperature() == 25.0
     assert sensor.status.good_calls == 1
 
     # -40 F == -40 C, so both scales read the same value
-    monkeypatch.setattr(config, 'temp_scale', 'c')
+    monkeypatch.setattr(config, "temp_scale", "c")
     c = make_sensor(-40.0)
-    monkeypatch.setattr(config, 'temp_scale', 'f')
+    monkeypatch.setattr(config, "temp_scale", "f")
     f = make_sensor(-40.0)
     assert c.get_temperature() == f.get_temperature() == -40.0
 
 
 def test_get_temperature_fahrenheit_boiling_and_freezing(monkeypatch):
-    monkeypatch.setattr(config, 'temp_scale', 'f')
+    monkeypatch.setattr(config, "temp_scale", "f")
     assert make_sensor(100.0).get_temperature() == 100.0
     assert make_sensor(0.0).get_temperature() == 0.0
 
 
 def test_get_temperature_scale_case_insensitive(monkeypatch):
-    monkeypatch.setattr(config, 'temp_scale', 'F')
+    monkeypatch.setattr(config, "temp_scale", "F")
     sensor = make_sensor(0.0)
     assert sensor.get_temperature() == 0.0
 
 
 def test_get_temperature_error_ignored_marks_good(monkeypatch):
-    monkeypatch.setattr(config, 'temp_scale', 'f')
-    monkeypatch.setattr(config, 'ignore_tc_lost_connection', True)
-    sensor = make_sensor(error=Max31855_Error('thermocouple not connected'))
+    monkeypatch.setattr(config, "temp_scale", "f")
+    monkeypatch.setattr(config, "ignore_tc_lost_connection", True)
+    sensor = make_sensor(error=Max31855_Error("thermocouple not connected"))
     assert sensor.get_temperature() is None
     assert sensor.status.good_calls == 1
     assert sensor.status.bad_calls == 0
 
 
 def test_get_temperature_error_marks_bad(monkeypatch):
-    monkeypatch.setattr(config, 'temp_scale', 'c')
-    monkeypatch.setattr(config, 'ignore_tc_lost_connection', False)
-    sensor = make_sensor(error=Max31855_Error('thermocouple not connected'))
+    monkeypatch.setattr(config, "temp_scale", "c")
+    monkeypatch.setattr(config, "ignore_tc_lost_connection", False)
+    sensor = make_sensor(error=Max31855_Error("thermocouple not connected"))
     assert sensor.get_temperature() is None
     assert sensor.status.good_calls == 0
     assert sensor.status.bad_calls == 1
@@ -1594,30 +1664,31 @@ def test_get_temperature_error_marks_bad(monkeypatch):
 # Thermocouple errors
 ########################################################################
 
+
 def test_max31855_error_mapping():
-    err = Max31855_Error('thermocouple not connected')
-    assert err.message == 'not connected'
+    err = Max31855_Error("thermocouple not connected")
+    assert err.message == "not connected"
     assert err.ignore is False
-    err = Max31855_Error('random nonsense')
-    assert err.message == 'unknown'
+    err = Max31855_Error("random nonsense")
+    assert err.message == "unknown"
 
 
 def test_max31856_error_mapping():
-    err = Max31856_Error('tc_range')
-    assert err.message == 'thermocouple range fault'
-    err = Max31856_Error('open_tc')
-    assert err.message == 'not connected'
-    err = Max31856_Error('voltage')
-    assert err.message == 'voltage too high or low'
+    err = Max31856_Error("tc_range")
+    assert err.message == "thermocouple range fault"
+    err = Max31856_Error("open_tc")
+    assert err.message == "not connected"
+    err = Max31856_Error("voltage")
+    assert err.message == "voltage too high or low"
 
 
 def test_thermocouple_error_ignore(monkeypatch):
-    monkeypatch.setattr(config, 'ignore_tc_lost_connection', True)
-    err = Max31855_Error('thermocouple not connected')
+    monkeypatch.setattr(config, "ignore_tc_lost_connection", True)
+    err = Max31855_Error("thermocouple not connected")
     assert err.ignore is True
 
-    monkeypatch.setattr(config, 'ignore_tc_lost_connection', False)
-    err = Max31855_Error('thermocouple not connected')
+    monkeypatch.setattr(config, "ignore_tc_lost_connection", False)
+    err = Max31855_Error("thermocouple not connected")
     assert err.ignore is False
 
 
@@ -1625,16 +1696,17 @@ def test_thermocouple_error_ignore(monkeypatch):
 # DupFilter / Duplogger
 ########################################################################
 
+
 def test_dup_filter_deduplicates():
     f = DupFilter()
-    assert f.filter(types.SimpleNamespace(msg='hello')) is True
-    assert f.filter(types.SimpleNamespace(msg='hello')) is False
-    assert f.filter(types.SimpleNamespace(msg='world')) is True
+    assert f.filter(types.SimpleNamespace(msg="hello")) is True
+    assert f.filter(types.SimpleNamespace(msg="hello")) is False
+    assert f.filter(types.SimpleNamespace(msg="world")) is True
 
 
 def test_duplogger_returns_logger():
     logger = Duplogger().logref()
-    assert logger.name.endswith('.dupfree')
+    assert logger.name.endswith(".dupfree")
 
 
 def test_simulated_oven_constructor(monkeypatch):
@@ -1643,12 +1715,12 @@ def test_simulated_oven_constructor(monkeypatch):
     def fake_start(self):
         started.append(True)
 
-    monkeypatch.setattr(oven_module().Oven, 'start', fake_start)
+    monkeypatch.setattr(oven_module().Oven, "start", fake_start)
 
     sim = SimulatedOven()
 
     assert sim.board is not None
-    assert sim.state == 'IDLE'
+    assert sim.state == "IDLE"
     assert sim.target == 0
     assert sim.t_env == pytest.approx(to_c(config.sim_t_env))
     assert sim.speedup_factor == config.sim_speedup_factor
@@ -1660,16 +1732,18 @@ def test_simulated_oven_constructor(monkeypatch):
 # small gap fillers
 ########################################################################
 
+
 def test_reset_if_emergency_too_many_errors(no_auto_restarts, monkeypatch):
-    monkeypatch.setattr(config, 'emergency_heat_rate', 0)
-    monkeypatch.setattr(config, 'ignore_tc_too_many_errors', False)
+    monkeypatch.setattr(config, "emergency_heat_rate", 0)
+    monkeypatch.setattr(config, "ignore_tc_too_many_errors", False)
     oven = Oven()
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     status = types.SimpleNamespace(over_error_limit=lambda: True)
     oven.board = types.SimpleNamespace(
-        temp_sensor=types.SimpleNamespace(temperature=lambda: 100, status=status))
+        temp_sensor=types.SimpleNamespace(temperature=lambda: 100, status=status)
+    )
     oven.reset_if_emergency()
-    assert oven.state == 'IDLE'
+    assert oven.state == "IDLE"
 
 
 def test_update_runtime_clamps_negative_start(monkeypatch):
@@ -1680,7 +1754,7 @@ def test_update_runtime_clamps_negative_start(monkeypatch):
 
 
 def test_should_i_automatic_restart_disabled(monkeypatch):
-    monkeypatch.setattr(config, 'automatic_restarts', False)
+    monkeypatch.setattr(config, "automatic_restarts", False)
     oven = Oven()
     assert oven.should_i_automatic_restart() is False
 
@@ -1693,7 +1767,7 @@ def test_set_ovenwatcher(monkeypatch):
 
 
 def test_sim_update_runtime_clamps_negative_start(monkeypatch):
-    monkeypatch.setattr(oven_module().Oven, 'start', lambda self: None)
+    monkeypatch.setattr(oven_module().Oven, "start", lambda self: None)
     sim = SimulatedOven()
     sim.start_time = time.time() + 300
     sim.update_runtime()
@@ -1701,7 +1775,7 @@ def test_sim_update_runtime_clamps_negative_start(monkeypatch):
 
 
 def test_sim_update_target_temp(monkeypatch):
-    monkeypatch.setattr(oven_module().Oven, 'start', lambda self: None)
+    monkeypatch.setattr(oven_module().Oven, "start", lambda self: None)
     sim = SimulatedOven()
     sim.profile = get_profile()
     sim.runtime = 60
@@ -1712,33 +1786,33 @@ def test_sim_update_target_temp(monkeypatch):
 def test_sim_heat_then_cool_missing_pidstats(monkeypatch):
     sim = make_sim()
     sim.pid.pidstats = {}
-    monkeypatch.setattr(oven_module().time, 'sleep', lambda secs: None)
+    monkeypatch.setattr(oven_module().time, "sleep", lambda secs: None)
     sim.heat_then_cool()
 
 
 def test_thermocouple_error_ignore_all_flags(monkeypatch):
-    monkeypatch.setattr(config, 'ignore_tc_lost_connection', True)
-    monkeypatch.setattr(config, 'ignore_tc_short_errors', True)
-    monkeypatch.setattr(config, 'ignore_tc_unknown_error', True)
-    monkeypatch.setattr(config, 'ignore_tc_cold_junction_range_error', True)
-    monkeypatch.setattr(config, 'ignore_tc_range_error', True)
-    monkeypatch.setattr(config, 'ignore_tc_cold_junction_temp_high', True)
-    monkeypatch.setattr(config, 'ignore_tc_cold_junction_temp_low', True)
-    monkeypatch.setattr(config, 'ignore_tc_temp_high', True)
-    monkeypatch.setattr(config, 'ignore_tc_temp_low', True)
-    monkeypatch.setattr(config, 'ignore_tc_voltage_error', True)
+    monkeypatch.setattr(config, "ignore_tc_lost_connection", True)
+    monkeypatch.setattr(config, "ignore_tc_short_errors", True)
+    monkeypatch.setattr(config, "ignore_tc_unknown_error", True)
+    monkeypatch.setattr(config, "ignore_tc_cold_junction_range_error", True)
+    monkeypatch.setattr(config, "ignore_tc_range_error", True)
+    monkeypatch.setattr(config, "ignore_tc_cold_junction_temp_high", True)
+    monkeypatch.setattr(config, "ignore_tc_cold_junction_temp_low", True)
+    monkeypatch.setattr(config, "ignore_tc_temp_high", True)
+    monkeypatch.setattr(config, "ignore_tc_temp_low", True)
+    monkeypatch.setattr(config, "ignore_tc_voltage_error", True)
 
     cases = [
-        (Max31855_Error('thermocouple not connected'), 'not connected'),
-        (Max31855_Error('short circuit to ground'), 'short circuit'),
-        (Max31855_Error('random nonsense'), 'unknown'),
-        (Max31856_Error('cj_range'), 'cold junction range fault'),
-        (Max31856_Error('tc_range'), 'thermocouple range fault'),
-        (Max31856_Error('cj_high'), 'cold junction temp too high'),
-        (Max31856_Error('cj_low'), 'cold junction temp too low'),
-        (Max31856_Error('tc_high'), 'thermocouple temp too high'),
-        (Max31856_Error('tc_low'), 'thermocouple temp too low'),
-        (Max31856_Error('voltage'), 'voltage too high or low'),
+        (Max31855_Error("thermocouple not connected"), "not connected"),
+        (Max31855_Error("short circuit to ground"), "short circuit"),
+        (Max31855_Error("random nonsense"), "unknown"),
+        (Max31856_Error("cj_range"), "cold junction range fault"),
+        (Max31856_Error("tc_range"), "thermocouple range fault"),
+        (Max31856_Error("cj_high"), "cold junction temp too high"),
+        (Max31856_Error("cj_low"), "cold junction temp too low"),
+        (Max31856_Error("tc_high"), "thermocouple temp too high"),
+        (Max31856_Error("tc_low"), "thermocouple temp too low"),
+        (Max31856_Error("voltage"), "voltage too high or low"),
     ]
     for err, expected in cases:
         assert err.ignore is True, expected
@@ -1746,23 +1820,24 @@ def test_thermocouple_error_ignore_all_flags(monkeypatch):
 
 
 def test_reset_if_emergency_heat_rate_waiting_for_full_window(no_auto_restarts, monkeypatch):
-    monkeypatch.setattr(config, 'emergency_heat_rate', 23)
-    monkeypatch.setattr(config, 'emergency_heat_rate_window', 22.5)
+    monkeypatch.setattr(config, "emergency_heat_rate", 23)
+    monkeypatch.setattr(config, "emergency_heat_rate_window", 22.5)
     oven = Oven()
     oven.profile = get_profile()
     oven.runtime = 6000  # rising segment
-    oven.state = 'RUNNING'
+    oven.state = "RUNNING"
     # one recent sample: window not yet full, so the rate is not trusted
     oven.emergency_heat_rate_temps = [(oven.runtime - 60, 0)]
     oven.board = FakeBoard(100)
     oven.reset_if_emergency()
-    assert oven.state == 'RUNNING'
+    assert oven.state == "RUNNING"
     assert len(oven.emergency_heat_rate_temps) == 2
 
 
 ########################################################################
 # hardware classes (blinka deps faked)
 ########################################################################
+
 
 class FakeDigitalInOut:
     def __init__(self, pin):
@@ -1772,20 +1847,24 @@ class FakeDigitalInOut:
 
 
 def _patch_hardware_deps(monkeypatch):
-    monkeypatch.setattr(oven_module(), 'digitalio',
-                        types.SimpleNamespace(
-                            DigitalInOut=FakeDigitalInOut,
-                            Direction=types.SimpleNamespace(OUTPUT=1)))
-    monkeypatch.setattr(oven_module(), 'bitbangio',
-                        types.SimpleNamespace(SPI=lambda *a, **k: 'spi-bus'))
-    monkeypatch.setattr(config, 'gpio_heat', 23, raising=False)
-    monkeypatch.setattr(config, 'gpio_heat_invert', False, raising=False)
-    monkeypatch.setattr(config, 'spi_sclk', 1, raising=False)
-    monkeypatch.setattr(config, 'spi_mosi', 2, raising=False)
-    monkeypatch.setattr(config, 'spi_miso', 3, raising=False)
-    monkeypatch.setattr(config, 'spi_cs', 4, raising=False)
-    monkeypatch.setattr(config, 'sensor_time_wait', 2, raising=False)
-    monkeypatch.setattr(config, 'temperature_average_samples', 5, raising=False)
+    monkeypatch.setattr(
+        oven_module(),
+        "digitalio",
+        types.SimpleNamespace(
+            DigitalInOut=FakeDigitalInOut, Direction=types.SimpleNamespace(OUTPUT=1)
+        ),
+    )
+    monkeypatch.setattr(
+        oven_module(), "bitbangio", types.SimpleNamespace(SPI=lambda *a, **k: "spi-bus")
+    )
+    monkeypatch.setattr(config, "gpio_heat", 23, raising=False)
+    monkeypatch.setattr(config, "gpio_heat_invert", False, raising=False)
+    monkeypatch.setattr(config, "spi_sclk", 1, raising=False)
+    monkeypatch.setattr(config, "spi_mosi", 2, raising=False)
+    monkeypatch.setattr(config, "spi_miso", 3, raising=False)
+    monkeypatch.setattr(config, "spi_cs", 4, raising=False)
+    monkeypatch.setattr(config, "sensor_time_wait", 2, raising=False)
+    monkeypatch.setattr(config, "temperature_average_samples", 5, raising=False)
 
 
 def test_output_heater_cycles(monkeypatch):
@@ -1804,11 +1883,11 @@ def test_temp_sensor_real_init_and_run(monkeypatch):
     _patch_hardware_deps(monkeypatch)
     sensor = oven_module().TempSensorReal()
     assert sensor.sleeptime == 0.4
-    assert sensor.spi == 'spi-bus'
+    assert sensor.spi == "spi-bus"
     assert isinstance(sensor.cs, FakeDigitalInOut)
     assert sensor.temperature() == 0  # empty tracker medians to 0
 
-    monkeypatch.setattr(sensor, 'get_temperature', lambda: 120.0)
+    monkeypatch.setattr(sensor, "get_temperature", lambda: 120.0)
     sleeps = [0]
 
     def fake_sleep(secs):
@@ -1816,7 +1895,7 @@ def test_temp_sensor_real_init_and_run(monkeypatch):
         if sleeps[0] >= 3:
             raise StopIteration
 
-    monkeypatch.setattr(oven_module().time, 'sleep', fake_sleep)
+    monkeypatch.setattr(oven_module().time, "sleep", fake_sleep)
 
     with pytest.raises(StopIteration):
         sensor.run()
@@ -1832,8 +1911,7 @@ def test_max31855_sensor(monkeypatch):
         def __init__(self, spi, cs):
             pass
 
-    monkeypatch.setitem(sys.modules, 'adafruit_max31855',
-                        types.SimpleNamespace(MAX31855=GoodTC))
+    monkeypatch.setitem(sys.modules, "adafruit_max31855", types.SimpleNamespace(MAX31855=GoodTC))
     sensor = oven_module().Max31855()
     assert sensor.raw_temp() == 25.0
 
@@ -1843,14 +1921,13 @@ def test_max31855_sensor(monkeypatch):
 
         @property
         def temperature_NIST(self):
-            raise RuntimeError('fault reading')
+            raise RuntimeError("fault reading")
 
-    monkeypatch.setitem(sys.modules, 'adafruit_max31855',
-                        types.SimpleNamespace(MAX31855=ErrTC))
+    monkeypatch.setitem(sys.modules, "adafruit_max31855", types.SimpleNamespace(MAX31855=ErrTC))
     sensor2 = oven_module().Max31855()
     with pytest.raises(Max31855_Error) as exc:
         sensor2.raw_temp()
-    assert exc.value.message == 'unknown'
+    assert exc.value.message == "unknown"
 
     class EmptyErrTC:
         def __init__(self, spi, cs):
@@ -1860,18 +1937,19 @@ def test_max31855_sensor(monkeypatch):
         def temperature_NIST(self):
             raise RuntimeError()
 
-    monkeypatch.setitem(sys.modules, 'adafruit_max31855',
-                        types.SimpleNamespace(MAX31855=EmptyErrTC))
+    monkeypatch.setitem(
+        sys.modules, "adafruit_max31855", types.SimpleNamespace(MAX31855=EmptyErrTC)
+    )
     sensor3 = oven_module().Max31855()
     with pytest.raises(Max31855_Error) as exc:
         sensor3.raw_temp()
-    assert exc.value.message == 'unknown'
+    assert exc.value.message == "unknown"
 
 
 def test_max31856_sensor(monkeypatch):
     _patch_hardware_deps(monkeypatch)
-    monkeypatch.setattr(config, 'thermocouple_type', 'K')
-    monkeypatch.setattr(config, 'ac_freq_50hz', True)
+    monkeypatch.setattr(config, "thermocouple_type", "K")
+    monkeypatch.setattr(config, "ac_freq_50hz", True)
 
     class FakeTC:
         temperature = 120.0
@@ -1881,20 +1959,22 @@ def test_max31856_sensor(monkeypatch):
         def __init__(self, spi, cs, thermocouple_type=None):
             pass
 
-    monkeypatch.setitem(sys.modules, 'adafruit_max31856',
-                        types.SimpleNamespace(MAX31856=FakeTC,
-                                              ThermocoupleType=types.SimpleNamespace(K='K')))
+    monkeypatch.setitem(
+        sys.modules,
+        "adafruit_max31856",
+        types.SimpleNamespace(MAX31856=FakeTC, ThermocoupleType=types.SimpleNamespace(K="K")),
+    )
     sensor = oven_module().Max31856()
     assert sensor.thermocouple.noise_rejection == 50
     assert sensor.raw_temp() == 120.0
 
-    monkeypatch.setattr(config, 'ac_freq_50hz', False)
+    monkeypatch.setattr(config, "ac_freq_50hz", False)
     sensor2 = oven_module().Max31856()
     assert sensor2.thermocouple.noise_rejection == 60
-    sensor2.thermocouple.fault = {'cj_range': True, 'voltage': False}
+    sensor2.thermocouple.fault = {"cj_range": True, "voltage": False}
     with pytest.raises(Max31856_Error) as exc:
         sensor2.raw_temp()
-    assert exc.value.message == 'cold junction range fault'
+    assert exc.value.message == "cold junction range fault"
 
 
 def test_real_board_choose_tempsensor(monkeypatch):
@@ -1908,12 +1988,11 @@ def test_real_board_choose_tempsensor(monkeypatch):
             self.started = True
 
     fake_sensor = FakeSensor()
-    monkeypatch.setattr(oven_module(), 'Max31855', lambda: fake_sensor)
-    monkeypatch.setitem(sys.modules, 'board',
-                        types.SimpleNamespace(board_id='TEST_BOARD'))
+    monkeypatch.setattr(oven_module(), "Max31855", lambda: fake_sensor)
+    monkeypatch.setitem(sys.modules, "board", types.SimpleNamespace(board_id="TEST_BOARD"))
 
     board = oven_module().RealBoard()
-    assert board.name == 'TEST_BOARD'
+    assert board.name == "TEST_BOARD"
     assert board.temp_sensor is fake_sensor
     assert fake_sensor.started is True
 
@@ -1922,9 +2001,9 @@ def test_real_board_choose_tempsensor(monkeypatch):
             pass
 
     fake2 = FakeSensor2()
-    monkeypatch.setattr(config, 'max31855', 0)
-    monkeypatch.setattr(config, 'max31856', 1)
-    monkeypatch.setattr(oven_module(), 'Max31856', lambda: fake2)
+    monkeypatch.setattr(config, "max31855", 0)
+    monkeypatch.setattr(config, "max31856", 1)
+    monkeypatch.setattr(oven_module(), "Max31856", lambda: fake2)
     board2 = oven_module().RealBoard()
     assert board2.temp_sensor is fake2
 
@@ -1939,27 +2018,40 @@ def test_real_oven(monkeypatch):
         def temperature(self):
             return 100.0
 
-    monkeypatch.setattr(oven_module(), 'Max31855', lambda: FakeSensor())
-    monkeypatch.setitem(sys.modules, 'board',
-                        types.SimpleNamespace(board_id='TEST_BOARD'))
-    monkeypatch.setattr(oven_module().Oven, 'start', lambda self: None)
+    monkeypatch.setattr(oven_module(), "Max31855", lambda: FakeSensor())
+    monkeypatch.setitem(sys.modules, "board", types.SimpleNamespace(board_id="TEST_BOARD"))
+    monkeypatch.setattr(oven_module().Oven, "start", lambda self: None)
 
     oven = oven_module().RealOven()
-    assert oven.state == 'IDLE'
+    assert oven.state == "IDLE"
     assert oven.output is not None
-    assert oven.board.name == 'TEST_BOARD'
+    assert oven.board.name == "TEST_BOARD"
 
     heat_calls = []
     cool_calls = []
-    monkeypatch.setattr(oven.output, 'heat', lambda s: heat_calls.append(s))
-    monkeypatch.setattr(oven.output, 'cool', lambda s: cool_calls.append(s))
-    monkeypatch.setattr(oven, 'pid', types.SimpleNamespace(
-        compute=lambda setpoint, ispoint, now: 0.4,
-        pidstats={'ispoint': 100, 'setpoint': 200, 'err': -100, 'errDelta': 0,
-                  'p': 0, 'i': 0, 'd': 0, 'pid': 0, 'out': 0.4}))
-    monkeypatch.setattr(oven, 'runtime', 10)
-    monkeypatch.setattr(oven, 'totaltime', 100)
-    monkeypatch.setattr(oven, 'time_step', 2)
+    monkeypatch.setattr(oven.output, "heat", lambda s: heat_calls.append(s))
+    monkeypatch.setattr(oven.output, "cool", lambda s: cool_calls.append(s))
+    monkeypatch.setattr(
+        oven,
+        "pid",
+        types.SimpleNamespace(
+            compute=lambda setpoint, ispoint, now: 0.4,
+            pidstats={
+                "ispoint": 100,
+                "setpoint": 200,
+                "err": -100,
+                "errDelta": 0,
+                "p": 0,
+                "i": 0,
+                "d": 0,
+                "pid": 0,
+                "out": 0.4,
+            },
+        ),
+    )
+    monkeypatch.setattr(oven, "runtime", 10)
+    monkeypatch.setattr(oven, "totaltime", 100)
+    monkeypatch.setattr(oven, "time_step", 2)
 
     oven.heat_then_cool()
     assert oven.heat == pytest.approx(0.8)
@@ -1968,16 +2060,15 @@ def test_real_oven(monkeypatch):
 
 
 def test_temp_sensor_simulated_temperature(monkeypatch):
-    monkeypatch.setattr(config, 'sim_t_env', 77)
+    monkeypatch.setattr(config, "sim_t_env", 77)
     sensor = oven_module().TempSensorSimulated()
     assert sensor.temperature() == to_c(77)
 
 
 def test_temp_sensor_real_hardware_spi(monkeypatch):
     _patch_hardware_deps(monkeypatch)
-    for attr in ('spi_sclk', 'spi_mosi', 'spi_miso'):
+    for attr in ("spi_sclk", "spi_mosi", "spi_miso"):
         monkeypatch.delattr(config, attr, raising=False)
-    monkeypatch.setitem(sys.modules, 'board',
-                        types.SimpleNamespace(SPI=lambda: 'hw-spi'))
+    monkeypatch.setitem(sys.modules, "board", types.SimpleNamespace(SPI=lambda: "hw-spi"))
     sensor = oven_module().TempSensorReal()
-    assert sensor.spi == 'hw-spi'
+    assert sensor.spi == "hw-spi"
