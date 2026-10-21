@@ -6,7 +6,31 @@ on:
       - "v[0-9]+.[0-9]+.[0-9]+"
 
 jobs:
+
+  verify-version:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check tag matches pyproject.toml
+        shell: bash
+        run: |
+          version=$(grep -E '^\s*version\s*=' pyproject.toml | head -n 1 | cut -d '"' -f2)
+          tag="${GITHUB_REF_NAME}"
+
+          # allow tag names like v1.2.3 while pyproject.toml contains 1.2.3
+          if [[ "$tag" == v* && "$version" != v* ]]; then
+            tag="${tag#v}"
+          fi
+
+          if [[ "$version" != "$tag" ]]; then
+            echo "Version mismatch: pyproject.toml=$version, tag=$tag"
+            exit 1
+          fi
+
+          echo "OK: pyproject.toml version matches tag ($version)"
+
   release:
+    needs: verify-version
     runs-on: ubuntu-latest
     permissions:
       contents: write
