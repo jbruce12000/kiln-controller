@@ -42,6 +42,7 @@ Alerts come in three tiers, shown most critical first in the panel:
 | `run_completed` | Run completed | A firing finished its schedule successfully. |
 | `cooled_safe` | Kiln cooled to safe temperature | After a finished run the kiln dropped below a safe handling temperature and can be opened. |
 | `controller_restarted` | Controller restarted | The controller process started up. Unexpected restarts are worth noticing. |
+| `test` | Test alert | Sent when you press **Send test alert** on the config tab, to check that delivery works. |
 
 These ids are stable: they appear in stored settings and in delivered
 payloads, so they are never renamed -- only added or retired.
@@ -112,6 +113,10 @@ Every delivery carries the same json payload:
 `alert_id` is the stable registry id from the tables above; match on it when
 building automations. `context` carries whatever details the detector had
 (rise amounts, minutes behind, temperatures) and varies per alert.
+
+**Send test alert**, below the delivery settings, fires a test alert
+(`alert_id` `"test"`, criticality `info`). Delivery happens in the
+background as usual, so if it does not arrive, the reason is in the log.
 
 Storage format
 --------------

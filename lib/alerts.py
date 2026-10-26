@@ -110,6 +110,12 @@ ALERTS = [
         "description": "The controller process started up. Unexpected restarts are worth noticing.",
         "criticality": INFO,
     },
+    {
+        'id': 'test',
+        'label': 'Test alert',
+        'description': 'Sent when you press Send test alert below, to check that delivery works.',
+        'criticality': INFO,
+    },
 ]
 
 # where fired alerts go beyond the log. these are the web-editable
@@ -263,17 +269,18 @@ class AlertStore(object):
 # lookup table for emission-time metadata
 ALERT_DEFS = {a["id"]: a for a in ALERTS}
 
-# lifecycle events that happen at most once per run or per process.
-# they bypass cooldown so nothing can suppress them; every other alert
-# is a repeating condition and gets rate limited.
+# one-shot events that happen at most once per run or per process, plus
+# the manual test alert. they bypass cooldown so nothing can suppress
+# them; every other alert is a repeating condition and gets rate limited.
 EVENT_ALERTS = {
-    "run_started",
-    "run_completed",
-    "run_aborted",
-    "restart_resumed",
-    "restart_not_resumed",
-    "scheduled_run_missed",
-    "controller_restarted",
+    'run_started',
+    'run_completed',
+    'run_aborted',
+    'restart_resumed',
+    'restart_not_resumed',
+    'scheduled_run_missed',
+    'controller_restarted',
+    'test',
 }
 
 

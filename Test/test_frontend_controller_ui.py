@@ -1527,12 +1527,18 @@ def test_render_delivery_wires_handlers(js):
 
 
 def test_render_delivery_mqtt_not_configured_hint(js):
-    payload = [_alert("run_started", "Run started", "d", "info")]
-    unconfigured = js.eval(
-        "renderAlertsHtml(%s, %s, false)" % (json.dumps(payload), json.dumps(DELIVERY))
-    )
-    configured = js.eval(
-        "renderAlertsHtml(%s, %s, true)" % (json.dumps(payload), json.dumps(DELIVERY))
-    )
-    assert "not configured" in unconfigured
-    assert "not configured" not in configured
+    payload = [_alert('run_started', 'Run started', 'd', 'info')]
+    unconfigured = js.eval('renderAlertsHtml(%s, %s, false)'
+                           % (json.dumps(payload), json.dumps(DELIVERY)))
+    configured = js.eval('renderAlertsHtml(%s, %s, true)'
+                         % (json.dumps(payload), json.dumps(DELIVERY)))
+    assert 'not configured' in unconfigured
+    assert 'not configured' not in configured
+
+
+def test_render_delivery_has_test_button(js):
+    payload = [_alert('run_started', 'Run started', 'd', 'info')]
+    html = js.eval('renderAlertsHtml(%s, %s, true)'
+                   % (json.dumps(payload), json.dumps(DELIVERY)))
+    assert 'id="delivery_test"' in html
+    assert 'onclick="testDelivery(this)"' in html

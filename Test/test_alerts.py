@@ -309,5 +309,34 @@ def test_api_post_unknown_delivery_key_rejected(fake_alert_store):
 
 
 def test_api_post_empty_body_rejected(fake_alert_store):
-    out, _ = wsgi("POST", "/api/alerts", b"{}")
-    assert out["status"] == "400 Bad Request"
+    out, _ = wsgi('POST', '/api/alerts', b'{}')
+    assert out['status'] == '400 Bad Request'
+
+
+########################################################################
+# test alert (config tab "send test alert" button)
+########################################################################
+
+def test_api_test_emits_test_alert(monkeypatch):
+    sent = []
+    monkeypatch.setattr(controller.alert_manager, 'emit',
+                        lambda alert_id, context=None:
+                            sent.append(alert_id) or True)
+    out, resp = wsgi('POST', '/api/alerts/test')
+    assert out['status'] == '200 OK', out['status']
+    assert json.loads(resp) == {'success': True}
+    assert sent == ['test']
+
+
+def test_api_test_reports_suppressed(monkeypatch):
+    monkeypatch.setattr(controller.alert_manager, 'emit',
+                        lambda alert_id, context=None: False)
+    out, resp = wsgi('POST', '/api/alerts/test')
+    assert json.loads(resp)['success'] is False
+
+
+def test_test_alert_is_never_rate_limited(store):
+    manager = alerts_module.AlertManager(store, condition_cooldown=3600)
+    manager.add_sink(alerts_module.LogSink())
+    assert manager.emit('test') is True
+    assert manager.emit('test') is True

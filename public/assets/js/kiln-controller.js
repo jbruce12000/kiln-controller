@@ -1348,6 +1348,9 @@ function renderDeliveryHtml(delivery, mqttConfigured) {
         '<input type="text" class="form-control form-control-sm" id="delivery_webhook_url" ' +
         'value="' + escHtml(delivery.webhook_url || '') + '" placeholder="https://ntfy.sh/my-kiln" spellcheck="false" ' +
         'onchange="saveDeliveryField(\'webhook_url\', this)" /></div>';
+    html += '<button type="button" class="btn btn-outline-secondary btn-sm mt-1" id="delivery_test" ' +
+        'onclick="testDelivery(this)" title="Send a test alert through the saved delivery settings">' +
+        '<i class="bi bi-send"></i>&nbsp; Send test alert</button>';
     return html;
 }
 
@@ -1426,8 +1429,37 @@ function saveDeliveryField(field, input) {
     });
 }
 
+// the most recent delivery save, settled either way; testDelivery
+// waits on it
+var deliverySaving = Promise.resolve();
+
+// send a test alert. waits for any in-progress delivery save to finish
+// first, then triggers the test alert.
+function testDelivery(button) {
+    button.disabled = true;
+    deliverySaving
+    .then(function() {
+        return fetch('/api/alerts/test', { method: 'POST' });
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(resp) {
+        if (!resp.success) {
+            throw new Error(resp.error || 'unknown error');
+        }
+        showGrowl('<i class="bi bi-send"></i> <b>Test alert sent.</b><br/>' +
+                  'If it does not arrive, check the log for the delivery error.', 'success', 8000);
+    })
+    .catch(function(err) {
+        showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> <b>Test alert failed:</b><br/>' +
+                  escHtml(String(err.message || err)), 'error', 8000);
+    })
+    .then(function() {
+        button.disabled = false;
+    });
+}
+
 function postDelivery(update, cb) {
-    fetch('/api/alerts', {
+    deliverySaving = fetch('/api/alerts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ delivery: update })
