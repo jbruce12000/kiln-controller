@@ -1,7 +1,7 @@
 Logs for a Kiln Run
 ===================
 
-Logs from the app on the pi go to **/var/log/daemon.log** and look like this...
+If you've configured auto start, logs from the app on the pi go to **/var/log/daemon.log** and look like this...
 
     May 14 22:36:09 kiln python[350]: 2022-05-14 22:36:09,824 INFO oven: temp=1888.40, target=1888.00, error=-0.40, pid=54.33, p=-3.99, i=69.11, d=-10.79, heat_on=1.09, heat_off=0.91, run_time=27250, total_time=27335, time_left=84
 
