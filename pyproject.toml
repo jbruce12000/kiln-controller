@@ -10,7 +10,7 @@ dependencies = [
     "gevent-websocket ==0.10.1",
     "greenlet ==3.5.6",
     "requests ==2.34.2",
-    "setuptools ==84.0.0",
+    "setuptools==84.1.0",
     "websocket-client==1.9.2",
     # for folks running raspberry pis
     # we have no proof of anyone using another board yet, but when that
