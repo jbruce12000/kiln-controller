@@ -84,9 +84,8 @@ Download [Raspberry PI OS](https://www.raspberrypi.org/software/). Use Rasberry 
     $ sudo apt-get dist-upgrade
     $ git clone https://github.com/jbruce12000/kiln-controller
     $ cd kiln-controller
-    $ python3 -m venv venv
+    $ make install
     $ source venv/bin/activate
-    $ pip install -e .
 
 *Note: The above steps work on ubuntu if you prefer*
 
