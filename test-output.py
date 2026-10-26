@@ -9,6 +9,7 @@ try:
 except NotImplementedError:
     print("not running a recognized blinka board, exiting...")
     import sys
+
     sys.exit()
 
 ########################################################################
@@ -19,10 +20,10 @@ except NotImplementedError:
 # hardware setup: gpio_heat, gpio_heat_invert
 #
 # then run this script...
-# 
+#
 # ./test-output.py
 #
-# This will switch the output on for five seconds and then off for five 
+# This will switch the output on for five seconds and then off for five
 # seconds. Measure the voltage between the output and any ground pin.
 # You can also run ./gpioreadall.py in another window to see the voltage
 # on your configured pin change.

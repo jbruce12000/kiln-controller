@@ -47,8 +47,8 @@ def test_automatic_restart_settings():
 
 
 def test_alert_thresholds():
-    '''thresholds tuned in the alerts section of config.py. ids line up
-    with the alert registry in lib/alerts.py'''
+    """thresholds tuned in the alerts section of config.py. ids line up
+    with the alert registry in lib/alerts.py"""
     assert config.cooled_safe_temp == 150
     assert config.relay_stuck_on_rise == 25
     assert config.relay_stuck_on_window == 10
@@ -59,5 +59,4 @@ def test_alert_thresholds():
 
 
 def test_profiles_directory_points_at_storage():
-    assert config.kiln_profiles_directory.endswith(
-        'storage' + config.os.sep + 'profiles')
+    assert config.kiln_profiles_directory.endswith("storage" + config.os.sep + "profiles")
