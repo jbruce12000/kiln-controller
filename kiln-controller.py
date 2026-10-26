@@ -1520,17 +1520,16 @@ def start_run(wanted, startat=0, allow_seek=None):
     begin_run(profile, startat=startat, allow_seek=allow_seek)
     return True
 
+
 def begin_run(profile, startat=0, allow_seek=True):
-    '''start the oven on a loaded Profile and announce it. every way of
+    """start the oven on a loaded Profile and announce it. every way of
     starting a run (web ui control socket, api, scheduler) comes through
     here so none of them can skip the run_started alert. automatic
     restart after an outage resumes inside the oven instead and raises
-    restart_resumed.'''
+    restart_resumed."""
     oven.run_profile(profile, startat=startat, allow_seek=allow_seek)
     ovenWatcher.record(profile)
-    alert_manager.emit('run_started',
-                       context={'profile': profile.name,
-                                'startat_minutes': startat})
+    alert_manager.emit("run_started", context={"profile": profile.name, "startat_minutes": startat})
 
 
 def parse_start_time(value):
@@ -1854,18 +1853,23 @@ def api_alerts_save():
         "mqtt_configured": mqtt_enabled(),
     }
 
-@app.post('/api/alerts/test')
+
+@app.post("/api/alerts/test")
 def api_alerts_test():
-    '''send a test alert. Alerts are delivered in the background, so success here
-    means it was handed off; delivery failures land in the log.'''
-    if not alert_manager.emit('test', context={
-            'message': 'Test alert from kiln-controller. '
-                       'If you can read this, alert delivery works.'}):
-        return {"success": False,
-                "error": "the test alert was not sent; is its switch on?"}
+    """send a test alert. Alerts are delivered in the background, so success here
+    means it was handed off; delivery failures land in the log."""
+    if not alert_manager.emit(
+        "test",
+        context={
+            "message": "Test alert from kiln-controller. "
+            "If you can read this, alert delivery works."
+        },
+    ):
+        return {"success": False, "error": "the test alert was not sent; is its switch on?"}
     return {"success": True}
 
-@app.post('/api/tune')
+
+@app.post("/api/tune")
 def handle_tune():
     """PID auto-tuner endpoint. start begins a tuning run in a background
     greenlet, status returns current progress, stop aborts."""

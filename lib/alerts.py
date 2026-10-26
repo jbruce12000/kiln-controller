@@ -111,10 +111,10 @@ ALERTS = [
         "criticality": INFO,
     },
     {
-        'id': 'test',
-        'label': 'Test alert',
-        'description': 'Sent when you press Send test alert below, to check that delivery works.',
-        'criticality': INFO,
+        "id": "test",
+        "label": "Test alert",
+        "description": "Sent when you press Send test alert below, to check that delivery works.",
+        "criticality": INFO,
     },
 ]
 
@@ -273,14 +273,14 @@ ALERT_DEFS = {a["id"]: a for a in ALERTS}
 # the manual test alert. they bypass cooldown so nothing can suppress
 # them; every other alert is a repeating condition and gets rate limited.
 EVENT_ALERTS = {
-    'run_started',
-    'run_completed',
-    'run_aborted',
-    'restart_resumed',
-    'restart_not_resumed',
-    'scheduled_run_missed',
-    'controller_restarted',
-    'test',
+    "run_started",
+    "run_completed",
+    "run_aborted",
+    "restart_resumed",
+    "restart_not_resumed",
+    "scheduled_run_missed",
+    "controller_restarted",
+    "test",
 }
 
 
