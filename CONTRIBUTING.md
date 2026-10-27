@@ -8,17 +8,16 @@ The project uses [uv](https://docs.astral.sh/uv/) for dependency management with
 
 ### Using uv (recommended)
 
-1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/).
-2. Clone the repository:
+1. Clone the repository:
    ```bash
    git clone https://github.com/jbruce12000/kiln-controller
    cd kiln-controller
    ```
-3. Set up the development environment:
+2. Set up the development environment:
    ```bash
    make dev-setup
    ```
-   This creates a virtual environment in `venv/` and installs all dependencies (including dev dependencies). The project is installed in editable mode.
+   This installs uv, creates a virtual environment in `venv/` and all dependencies (including dev dependencies). The project is installed in editable mode.
 
 4. Activate the virtual environment if needed (uv commands like `uv run` work without activation, but for direct python commands):
    ```bash
@@ -39,7 +38,7 @@ The project uses [uv](https://docs.astral.sh/uv/) for dependency management with
    ```
 3. Install in editable mode with all dependencies:
    ```bash
-   pip install -e ".[dev]"  # or pip install -e . and then pip install pytest ruff black tomli
+   pip install -e ".[dev]"  # or pip install -e . and then pip install pytest ruff tomli
    ```
 
 ## Running Tests
@@ -69,9 +68,11 @@ uv run ruff check .
 
 ## Makefile Targets
 
-- `make dev-setup` - Set up the development environment with uv
+- `make install` - Install all prerequisites and the project itself
+- `make dev-setup` - Install necessary dependencies and set up the development environment with uv
 - `make test` - Run the test suite
 - `make lint` - Run linting checks
+- `make format` - Formats code using ruff
 
 ## Dependencies
 
@@ -80,7 +81,7 @@ uv run ruff check .
 - The full dependency tree is locked in `uv.lock` for reproducibility
 - Python 3.11+ is required. Note: 3.11 and 3.12 are the tested versions —
   `lgpio` (via `rpi-lgpio`) only ships wheels for those, so Python 3.13+
-  currently fails to install unless you build `lgpio` from source (requires `swig`).
+  will result in installing additional system dependencies for the Makfile target `install`. This will build `lgpio` from source.
 - `quickjs` runs the JavaScript in `public/assets/js/` so the frontend tests
   can exercise it. It publishes wheels for x86_64, macOS, and Windows only, so
   on a Raspberry Pi (ARM) it is compiled from source and needs a C toolchain
@@ -120,3 +121,4 @@ instead.
 ## Questions?
 
 Feel free to open an issue if you have questions about contributing!
+
