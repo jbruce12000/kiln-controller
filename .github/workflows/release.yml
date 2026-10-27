@@ -10,7 +10,7 @@ jobs:
   verify-version:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Check tag matches pyproject.toml
         shell: bash
         run: |
@@ -35,7 +35,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: ncipollo/release-action@v1
         with:
           skipIfReleaseExists: true
