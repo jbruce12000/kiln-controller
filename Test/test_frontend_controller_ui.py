@@ -69,6 +69,10 @@ def js():
     context.eval(extract_function(src, "clearScheduleChain"))
     context.eval(extract_function(src, "renderScheduleAfterList"))
     context.eval("var SCHEDULE_CHAIN_BUFFER = 60;")
+    context.eval(extract_function(src, "formatDPS"))
+    context.eval(extract_function(src, "previewPoints"))
+    context.eval(extract_function(src, "previewSegmentsHtml"))
+    context.eval(extract_function(src, "previewRemoteProfile"))
     return context
 
 
@@ -1536,3 +1540,104 @@ def test_render_delivery_mqtt_not_configured_hint(js):
     )
     assert "not configured" in unconfigured
     assert "not configured" not in configured
+
+
+########################################################################
+# schedule preview
+########################################################################
+
+
+def test_preview_points_sorted_numeric(js):
+    pts = js.eval('JSON.stringify(previewPoints([["3600", "600"], [0, 20], [7200, "bad"]]))')
+    assert json.loads(pts) == [[0, 20], [3600, 600]]
+
+
+def test_preview_segments_rates_and_holds(js):
+    js.eval('var temp_scale_display = "C"; var time_scale_slope = "h";')
+    html = js.eval("previewSegmentsHtml([[0, 20], [3600, 120], [7200, 120], [9000, 1222]])")
+    assert "<th>Rate (&deg;C/h)</th>" in html
+    assert "+100" in html  # 20 -> 120 over an hour
+    assert "hold" in html  # 120 -> 120
+    assert "+2204" in html  # 120 -> 1222 over 30 minutes
+    assert html.count("<tr><td>") == 3
+    assert js.eval("previewSegmentsHtml([[0, 20]])") == ""
+
+
+def test_remote_rows_have_preview_button(js):
+    js.eval(
+        "remote_profiles = ["
+        '  { name: "cone-05", category: "pottery", tags: [], path: "pottery/cone-05.json" }'
+        "];"
+    )
+    js.eval(
+        "var els = {"
+        '  remote_profiles_list: { innerHTML: "" },'
+        '  remote_filter_input: { value: "" } };'
+    )
+    js.eval("function $(id) { return els[id] || null; }")
+    js.eval("renderRemoteProfiles();")
+    html = js.eval("els.remote_profiles_list.innerHTML")
+    assert "previewRemoteProfile('pottery/cone-05.json')" in html
+
+
+def test_saved_rows_have_preview_button():
+    src = open(JS_PATH).read()
+    render = extract_function(src, "renderProfiles")
+    assert """onclick="previewProfile(' + i + ')\"""" in render
+
+
+def test_preview_remote_fetches_without_installing(js):
+    js.eval(
+        'remote_profiles = [{ name: "cone-05", category: "pottery", path: "pottery/cone 05.json", installed: true }];'
+    )
+    js.eval("var fetched = null; var shown = null;")
+    js.eval(
+        "fetch = function(url) {"
+        "  fetched = url;"
+        "  return Promise.resolve({ json: function() { return Promise.resolve("
+        '    { success: true, profile: { name: "cone-05", data: [[0, 20], [3600, 600]] } }); } });'
+        "};"
+    )
+    js.eval(
+        "showPreview = function(name, data, source, remote) {"
+        "  shown = { name: name, data: data, source: source, remote: remote }; };"
+    )
+    js.eval('previewRemoteProfile("pottery/cone 05.json");')
+    for _ in range(10):
+        js.execute_pending_job()
+    assert js.eval("fetched") == "/api/profiles/remote/preview?path=pottery%2Fcone%2005.json"
+    shown = json.loads(js.eval("JSON.stringify(shown)"))
+    assert shown["name"] == "cone-05"
+    assert shown["data"] == [[0, 20], [3600, 600]]
+    assert shown["remote"] == {"path": "pottery/cone 05.json", "installed": True}
+    assert "pottery" in shown["source"]
+
+
+def test_preview_remote_error_shows_growl(js):
+    js.eval("remote_profiles = [];")
+    js.eval("var growls = []; showGrowl = function(m) { growls.push(m); };")
+    js.eval("var shown = null; showPreview = function() { shown = true; };")
+    js.eval(
+        "fetch = function(url) {"
+        "  return Promise.resolve({ json: function() { return Promise.resolve("
+        '    { success: false, error: "could not download profile" }); } });'
+        "};"
+    )
+    js.eval('previewRemoteProfile("pottery/x.json");')
+    for _ in range(10):
+        js.execute_pending_job()
+    assert js.eval("shown") is None
+    assert "could not download profile" in js.eval('growls.join(",")')
+
+
+def test_preview_modal_markup():
+    html = open(os.path.join(os.path.dirname(JS_PATH), "..", "..", "index.html")).read()
+    for id_ in (
+        "previewProfileModal",
+        "preview_canvas",
+        "preview_profile_name",
+        "preview_profile_summary",
+        "preview_profile_segments",
+        "btn_preview_install",
+    ):
+        assert 'id="%s"' % id_ in html
