@@ -18,6 +18,9 @@ lint:
 format: 
 	$(UV) run ruff format .
 
+security: 
+	trivy fs .
+
 prerequisites:
 	@python_version=$$( $(SYSTEM_PYTHON) -c 'import sys; print(sys.version_info[1])' ); \
 	if [ $$python_version -ge $(MIN_PYTHON) ] && [ $$python_version -le $(MAX_PYTHON) ]; then \

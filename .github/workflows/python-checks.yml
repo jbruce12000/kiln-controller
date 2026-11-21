@@ -40,6 +40,3 @@ jobs:
       - name: Run tests
         run: |
           uv run pytest --doctest-modules -v Test -q
-      - name: Check for vulnerabilities
-        run: |
-          uv run pyscan
