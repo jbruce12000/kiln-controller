@@ -2388,3 +2388,75 @@ def test_api_profiles_remote_route(monkeypatch, tmp_path):
     resp = json.loads(b"".join(controller.app(env, start_response)))
     assert out["status"] == "200 OK"
     assert resp["success"] is True
+
+
+def get_path(path, query=""):
+    env = {
+        "REQUEST_METHOD": "GET",
+        "PATH_INFO": path,
+        "QUERY_STRING": query,
+        "SERVER_NAME": "localhost",
+        "SERVER_PORT": "80",
+        "wsgi.input": io.BytesIO(b""),
+        "wsgi.errors": io.StringIO(),
+        "wsgi.version": (1, 0),
+        "wsgi.url_scheme": "http",
+    }
+    out = {}
+
+    def start_response(status, headers, exc_info=None):
+        out["status"] = status
+
+    body = json.loads(b"".join(controller.app(env, start_response)))
+    return out["status"], body
+
+
+def test_api_profiles_remote_preview_in_display_scale(monkeypatch, tmp_path):
+    """an untagged community profile is fahrenheit; preview shows it in
+    the display scale, sorted, and writes nothing"""
+    profile = {"name": "cone-05-long-bisque", "type": "profile", "data": [[46800, 1708], [0, 65]]}
+    urls = []
+    monkeypatch.setattr(
+        controller.requests, "get", lambda url, **k: urls.append(url) or FakeResp(profile)
+    )
+    monkeypatch.setattr(controller, "profile_path", str(tmp_path))
+    monkeypatch.setattr(controller.config, "temp_scale", "c")
+    status, body = get_path(
+        "/api/profiles/remote/preview", "path=pottery%2Fcone-05-long-bisque.json"
+    )
+    assert status == "200 OK", body
+    p = body["profile"]
+    assert p["name"] == "cone-05-long-bisque"
+    assert p["temp_units"] == "c"
+    assert [t for t, _ in p["data"]] == [0, 46800]
+    assert p["data"][0][1] == pytest.approx((65 - 32) * 5 / 9)
+    assert urls[0].endswith("/pottery/cone-05-long-bisque.json")
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_api_profiles_remote_preview_fahrenheit_display(monkeypatch):
+    profile = {"name": "c", "temp_units": "c", "data": [[0, 100], [3600, 1000]]}
+    monkeypatch.setattr(controller.requests, "get", lambda *a, **k: FakeResp(profile))
+    monkeypatch.setattr(controller.config, "temp_scale", "f")
+    status, body = get_path("/api/profiles/remote/preview", "path=pottery%2Fc.json")
+    assert status == "200 OK", body
+    assert body["profile"]["data"] == [[0, 212], [3600, 1832]]
+    assert body["profile"]["temp_units"] == "f"
+
+
+@pytest.mark.parametrize("path", ["", "../../etc/passwd.json", "pottery/x.txt"])
+def test_api_profiles_remote_preview_rejects_bad_path(monkeypatch, path):
+    def no_get(*a, **k):
+        raise AssertionError("must not download")
+
+    monkeypatch.setattr(controller.requests, "get", no_get)
+    status, body = get_path("/api/profiles/remote/preview", "path=" + path)
+    assert status == "400 Bad Request"
+    assert body["success"] is False
+
+
+def test_api_profiles_remote_preview_invalid_profile(monkeypatch):
+    monkeypatch.setattr(controller.requests, "get", lambda *a, **k: FakeResp({"name": "x"}))
+    status, body = get_path("/api/profiles/remote/preview", "path=pottery%2Fx.json")
+    assert status == "400 Bad Request"
+    assert "invalid profile" in body["error"]

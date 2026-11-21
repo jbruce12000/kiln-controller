@@ -1123,6 +1123,7 @@ function renderRemoteProfiles() {
             + (tags ? '<div class="profile-tags">' + tags + '</div>' : '')
             + '</div>'
             + '<div class="btn-group">'
+            + '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="previewRemoteProfile(\'' + p.path + '\')"><i class="bi bi-graph-up"></i> Preview</button>'
             + (p.installed
                 ? '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="importRemoteProfile(\'' + p.path + '\')"><i class="bi bi-arrow-repeat"></i> Re-install</button>'
                 : '<button type="button" class="btn btn-success btn-sm" onclick="importRemoteProfile(\'' + p.path + '\')"><i class="bi bi-download"></i> Install</button>')
@@ -1865,6 +1866,7 @@ function renderProfiles()
             + (running
                 ? '<button type="button" class="btn btn-danger btn-sm" onclick="abortTask()"><i class="bi bi-stop-fill"></i> Stop</button>'
                 : '<button type="button" class="btn btn-success btn-sm" onclick="selectProfile(' + i + ', true)"><i class="bi bi-play-fill"></i> Run</button>')
+            + '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="previewProfile(' + i + ')"><i class="bi bi-graph-up"></i> Preview</button>'
             + '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="scheduleProfile(' + i + ')"><i class="bi bi-calendar-plus"></i> Schedule</button>'
             + (running ? ''
                 : '<button type="button" class="btn btn-outline-secondary btn-sm" onclick="editProfile(' + i + ')"><i class="bi bi-pencil"></i> Edit</button>'
@@ -1894,6 +1896,162 @@ function selectProfile(i, run)
 function editProfile(i)
 {
     enterEditMode(i);
+}
+
+/* ---------------------------------------------------------------------------
+   Schedule preview - the graph, summary and segments of a saved or
+   community schedule, without selecting, running or installing it.
+--------------------------------------------------------------------------- */
+
+var preview_chart = null;
+
+function previewProfile(i) {
+    var p = profiles[i];
+    if (!p) { return; }
+    showPreview(p.name, p.data, 'Saved schedule', null);
+}
+
+function previewRemoteProfile(path) {
+    var entry = null;
+    for (var i = 0; i < remote_profiles.length; i++) {
+        if (remote_profiles[i].path === path) { entry = remote_profiles[i]; }
+    }
+    apiGet('/api/profiles/remote/preview?path=' + encodeURIComponent(path), function(resp) {
+        if (!resp || !resp.success) {
+            showGrowl('<i class="bi bi-exclamation-triangle-fill"></i> <b>ERROR 99:</b><br/>'
+                + escHtml(resp && resp.error ? resp.error : 'Could not load the schedule.'), 'error', 6000);
+            return;
+        }
+        var source = 'Community schedule' + (entry && entry.category ? ' &middot; ' + escHtml(entry.category) : '')
+            + (entry && entry.description ? ' &middot; ' + escHtml(entry.description) : '');
+        showPreview(resp.profile.name, resp.profile.data, source,
+                    { path: path, installed: !!(entry && entry.installed) });
+    });
+}
+
+// [[seconds, temp], ...] sorted by time, as numbers
+function previewPoints(data) {
+    return (data || []).map(function(p) { return [Number(p[0]), Number(p[1])]; })
+        .filter(function(p) { return isFinite(p[0]) && isFinite(p[1]); })
+        .sort(function(a, b) { return a[0] - b[0]; });
+}
+
+function previewSegmentsHtml(pts) {
+    if (pts.length < 2) { return ''; }
+    var unit = '&deg;' + temp_scale_display;
+    var html = '<table class="preview-segments"><thead><tr>'
+        + '<th>Segment</th><th>From</th><th>To</th><th>Time</th>'
+        + '<th>Rate (' + unit + '/' + time_scale_slope + ')</th></tr></thead><tbody>';
+    for (var i = 1; i < pts.length; i++) {
+        var a = pts[i - 1], b = pts[i];
+        var dt = b[0] - a[0];
+        var rate = dt > 0 ? formatDPS((b[1] - a[1]) / dt) : 0;
+        html += '<tr><td>' + i + '</td>'
+            + '<td>' + Math.round(a[1]) + unit + '</td>'
+            + '<td>' + Math.round(b[1]) + unit + '</td>'
+            + '<td>' + formatDuration(dt) + '</td>'
+            + '<td>' + (rate === 0 ? 'hold' : (rate > 0 ? '+' : '') + rate) + '</td></tr>';
+    }
+    return html + '</tbody></table>';
+}
+
+function showPreview(name, data, sourceHtml, remote) {
+    var pts = previewPoints(data);
+    var unit = '&deg;' + temp_scale_display;
+    var duration = pts.length ? pts[pts.length - 1][0] - pts[0][0] : 0;
+    var peak = pts.reduce(function(m, p) { return Math.max(m, p[1]); }, 0);
+    $('preview_profile_name').textContent = name;
+    $('preview_profile_source').innerHTML = sourceHtml;
+    $('preview_profile_summary').innerHTML =
+        '<span>Duration <strong>' + formatDuration(duration) + '</strong></span>'
+        + '<span>Peak <strong>' + Math.round(peak) + unit + '</strong></span>'
+        + '<span>Segments <strong>' + Math.max(pts.length - 1, 0) + '</strong></span>';
+    $('preview_profile_segments').innerHTML = previewSegmentsHtml(pts);
+
+    var install = $('btn_preview_install');
+    if (remote) {
+        install.innerHTML = remote.installed
+            ? '<i class="bi bi-arrow-repeat"></i> Re-install'
+            : '<i class="bi bi-download"></i> Install';
+        install.onclick = function() {
+            bootstrap.Modal.getOrCreateInstance($('previewProfileModal')).hide();
+            importRemoteProfile(remote.path);
+        };
+        install.style.display = '';
+    } else {
+        install.onclick = null;
+        install.style.display = 'none';
+    }
+
+    var modalEl = $('previewProfileModal');
+    // chart.js needs the canvas laid out to size it, so draw once shown
+    modalEl.addEventListener('shown.bs.modal', function() {
+        drawPreviewChart(pts);
+    }, { once: true });
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+}
+
+function drawPreviewChart(pts) {
+    if (preview_chart) {
+        preview_chart.destroy();
+        preview_chart = null;
+    }
+    // modals stay light in both themes, so always the light-theme axes
+    var tc = { axis: 'rgba(40,38,34,0.75)', grid: 'rgba(40,38,34,0.14)' };
+    var maxX = pts.length ? pts[pts.length - 1][0] : 0;
+    var maxY = pts.reduce(function(m, p) { return Math.max(m, p[1]); }, 0);
+    var xs = axisStep(maxX);
+    var ys = yStep(maxY);
+    var font = { family: "Digi", size: 14, weight: "normal" };
+    preview_chart = new Chart($('preview_canvas'), {
+        type: 'line',
+        data: {
+            datasets: [{
+                label: 'Schedule',
+                data: pts.map(function(p) { return { x: p[0], y: p[1] }; }),
+                borderColor: '#75890c',
+                backgroundColor: '#75890c',
+                borderWidth: 2,
+                pointRadius: 3,
+                pointHoverRadius: 6,
+                tension: 0,
+                fill: false,
+                dragData: false
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            interaction: { mode: 'nearest', intersect: false },
+            plugins: {
+                legend: { display: false },
+                dragData: false,
+                tooltip: {
+                    callbacks: {
+                        title: function(items) { return formatDuration(items[0].parsed.x); },
+                        label: function(item) { return Math.round(item.parsed.y) + '°' + temp_scale_display; }
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    type: 'linear',
+                    min: 0,
+                    max: maxX > 0 ? Math.ceil(maxX / xs) * xs : xs,
+                    ticks: { stepSize: xs, maxRotation: 0, callback: timeTickFormatter, color: tc.axis, font: font },
+                    grid: { color: tc.grid }
+                },
+                y: {
+                    type: 'linear',
+                    min: 0,
+                    max: maxY > 0 ? Math.ceil(maxY / ys) * ys : 100,
+                    ticks: { stepSize: ys, color: tc.axis, font: font },
+                    grid: { color: tc.grid }
+                }
+            }
+        }
+    });
 }
 
 /* ---------------------------------------------------------------------------

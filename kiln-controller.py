@@ -2031,26 +2031,85 @@ def api_profiles_remote():
     return json.dumps(list_remote_profiles())
 
 
-@app.post("/api/profiles/remote/import")
-def api_profiles_remote_import():
-    body = bottle.request.json or {}
-    path = body.get("path") or ""
+def _remote_path_error(path):
+    """why a community profile path cannot be fetched, or None if it can"""
     if not path or ".." in path or not path.endswith(".json"):
-        return bottle.HTTPResponse(
-            json.dumps({"success": False, "error": "invalid profile path"}),
-            status=400,
-            headers={"Content-Type": "application/json"},
-        )
+        return "invalid profile path"
     if not _repo_owner_repo():
+        return "kiln_profiles_repo must be a github.com URL"
+    return None
+
+
+def fetch_remote_profile(path):
+    """download one community profile (validated with _remote_path_error
+    first). raises on network or json errors."""
+    resp = requests.get(_raw_url(path), headers=_github_headers(), timeout=15)
+    resp.raise_for_status()
+    return resp.json()
+
+
+def profile_for_display(profile):
+    """a community or stored profile with its data in the display scale.
+    profiles without temp_units "c" are fahrenheit, as import_profile and
+    start_run treat them. raises ValueError on invalid profiles."""
+    if not isinstance(profile, dict) or not isinstance(profile.get("data"), list):
+        raise ValueError("profile has no data")
+    out = {
+        "name": str(profile.get("name") or ""),
+        "data": [(float(t), float(x)) for (t, x) in profile["data"]],
+    }
+    if profile.get("temp_units") != "c":
+        out = convert_to_c(out)
+    if config.temp_scale == "f":
+        out = convert_to_f(out)
+    out["data"] = sorted([t, x] for (t, x) in out["data"])
+    out["temp_units"] = config.temp_scale
+    return out
+
+
+@app.get("/api/profiles/remote/preview")
+def api_profiles_remote_preview():
+    """a community profile's points in the display scale, for previewing
+    its graph without installing it. nothing is written."""
+    path = bottle.request.query.get("path") or ""
+    error = _remote_path_error(path)
+    if error:
         return bottle.HTTPResponse(
-            json.dumps({"success": False, "error": "kiln_profiles_repo must be a github.com URL"}),
+            json.dumps({"success": False, "error": error}),
             status=400,
             headers={"Content-Type": "application/json"},
         )
     try:
-        resp = requests.get(_raw_url(path), headers=_github_headers(), timeout=15)
-        resp.raise_for_status()
-        profile = resp.json()
+        profile = profile_for_display(fetch_remote_profile(path))
+    except (ValueError, TypeError) as e:
+        return bottle.HTTPResponse(
+            json.dumps({"success": False, "error": "invalid profile: %s" % e}),
+            status=400,
+            headers={"Content-Type": "application/json"},
+        )
+    except Exception as e:
+        log.error("could not preview community profile: %s" % e)
+        return bottle.HTTPResponse(
+            json.dumps({"success": False, "error": "could not download profile: %s" % e}),
+            status=400,
+            headers={"Content-Type": "application/json"},
+        )
+    return json.dumps({"success": True, "profile": profile})
+
+
+@app.post("/api/profiles/remote/import")
+def api_profiles_remote_import():
+    body = bottle.request.json or {}
+    path = body.get("path") or ""
+    error = _remote_path_error(path)
+    if error:
+        return bottle.HTTPResponse(
+            json.dumps({"success": False, "error": error}),
+            status=400,
+            headers={"Content-Type": "application/json"},
+        )
+    try:
+        profile = fetch_remote_profile(path)
         import_profile(profile)
     except ValueError as e:
         return bottle.HTTPResponse(

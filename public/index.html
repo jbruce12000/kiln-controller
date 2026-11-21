@@ -403,6 +403,29 @@
   </div>
  </div>
 
+ <div id="previewProfileModal" class="modal fade" tabindex="-1" aria-hidden="true" aria-labelledby="preview_profile_name">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+   <div class="modal-content">
+    <div class="modal-header">
+     <div>
+      <h3 class="modal-title" id="preview_profile_name"></h3>
+      <div class="small text-muted" id="preview_profile_source"></div>
+     </div>
+     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+    </div>
+    <div class="modal-body">
+     <div id="preview_profile_summary" class="preview-summary"></div>
+     <div class="preview-graph"><canvas id="preview_canvas"></canvas></div>
+     <div id="preview_profile_segments" class="mt-3"></div>
+    </div>
+    <div class="modal-footer">
+     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+     <button id="btn_preview_install" type="button" class="btn btn-success" style="display:none"><i class="bi bi-download"></i> Install</button>
+    </div>
+   </div>
+  </div>
+ </div>
+
  <div id="delProfileModal" class="modal fade" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog">
    <div class="modal-content">

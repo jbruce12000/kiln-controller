@@ -515,6 +515,58 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
+   Schedule preview modal. modals keep their light background in both
+   themes (see the .text-muted note above), so these colors are fixed
+   light-theme ones rather than the theme variables.
+--------------------------------------------------------------------------- */
+
+.preview-summary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 20px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #6c6860;
+}
+
+.preview-summary strong {
+    color: #2c2a26;
+    font-size: 15px;
+}
+
+.preview-graph {
+    position: relative;
+    width: 100%;
+    height: clamp(220px, 40vh, 360px);
+}
+
+.preview-segments {
+    width: 100%;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+}
+
+.preview-segments th,
+.preview-segments td {
+    width: auto;   /* undo .modal-body td's 50% */
+    padding: 3px 8px;
+    border-bottom: 1px solid #d6d4cd;
+    color: #2c2a26;
+    text-align: right;
+    white-space: nowrap;
+}
+
+.preview-segments th:first-child,
+.preview-segments td:first-child {
+    text-align: left;
+}
+
+.preview-segments th {
+    color: #6c6860;
+    font-weight: 500;
+}
+
+/* ---------------------------------------------------------------------------
    Tuning: stat boxes
 --------------------------------------------------------------------------- */
 
