@@ -129,6 +129,11 @@ class TempSensor(threading.Thread):
         self.time_step = config.sensor_time_wait
         self.status = ThermocoupleTracker()
 
+    def seconds_since_good_read(self):
+        """seconds since this sensor last produced a valid reading.
+        a sensor that cannot go stale (the simulator) reports 0."""
+        return 0
+
 
 class TempSensorSimulated(TempSensor):
     """Simulates a temperature sensor"""
@@ -154,6 +159,10 @@ class TempSensorReal(TempSensor):
         self.temptracker = TempTracker()
         self.spi_setup()
         self.cs = digitalio.DigitalInOut(config.spi_cs)
+        # time of the last good read. starts at creation so a sensor that
+        # never produces a value also goes stale. monotonic, so a clock
+        # change cannot hide or fake staleness.
+        self.last_good_read = time.monotonic()
 
     def spi_setup(self):
         if (
@@ -192,17 +201,27 @@ class TempSensorReal(TempSensor):
                 # diagnosed from the log.
                 log.error("Problem reading temp %s" % (detail), exc_info=True)
                 self.status.bad()
+        except Exception:
+            # anything else (an OSError from the spi layer, say) is a
+            # failed read too. letting it escape ends the sensor thread,
+            # which freezes the temperature at its last median.
+            log.error("Unexpected error reading temp", exc_info=True)
+            self.status.bad()
         return None
 
     def temperature(self):
         """average temp over a duty cycle"""
         return self.temptracker.get_avg_temp()
 
+    def seconds_since_good_read(self):
+        return time.monotonic() - self.last_good_read
+
     def run(self):
         while True:
             temp = self.get_temperature()
             if temp:
                 self.temptracker.add(temp)
+                self.last_good_read = time.monotonic()
             time.sleep(self.sleeptime)
 
 
@@ -636,6 +655,17 @@ class Oven(threading.Thread):
             self._emit("tc_failure", error_percent=error_percent)
             if config.ignore_tc_too_many_errors == False:
                 self.abort_run(reason="too many thermocouple errors")
+
+        # a sensor thread that died, or never got a reading, leaves the
+        # last (or a zero) temperature in place with no errors counted.
+        # getattr: a config.py from before this setting must stay protected.
+        stale_limit = getattr(config, "emergency_stale_reading_seconds", 30)
+        stale_for = self.board.temp_sensor.seconds_since_good_read()
+        if stale_limit and stale_for > stale_limit:
+            log.info("emergency!!! no valid temperature reading for %d seconds" % stale_for)
+            self._emit("tc_failure", stale_seconds=round(stale_for))
+            if getattr(config, "ignore_tc_stale_reading", False) == False:
+                self.abort_run(reason="temperature reading stale")
 
         self.check_heat_rate_emergency()
 

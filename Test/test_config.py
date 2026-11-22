@@ -32,6 +32,11 @@ def test_emergency_heat_rate():
     assert config.ignore_heat_rate_too_low is False
 
 
+def test_emergency_stale_reading():
+    assert config.emergency_stale_reading_seconds == 30
+    assert config.ignore_tc_stale_reading is False
+
+
 def test_temp_scale():
     assert config.temp_scale == "f"
 

@@ -2,6 +2,7 @@ import datetime
 import json
 import os
 import sys
+import threading
 import time
 import types
 
@@ -18,6 +19,7 @@ from lib.oven import (
     RestartRetry,
     SimulatedOven,
     TempSensorReal,
+    TempSensorSimulated,
     TempTracker,
     ThermocoupleTracker,
 )
@@ -50,6 +52,9 @@ class FakeTempSensor:
 
     def temperature(self):
         return self.temp
+
+    def seconds_since_good_read(self):
+        return 0
 
 
 class FakeBoard:
@@ -1660,6 +1665,193 @@ def test_get_temperature_error_marks_bad(monkeypatch):
     assert sensor.status.bad_calls == 1
 
 
+def test_get_temperature_unexpected_error_marks_bad():
+    # an OSError from the spi layer is not a ThermocoupleError, but it
+    # must still be a failed read and must not escape
+    sensor = make_sensor(error=OSError("spi transfer failed"))
+    assert sensor.get_temperature() is None
+    assert sensor.status.good_calls == 0
+    assert sensor.status.bad_calls == 1
+
+
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
+def test_sensor_thread_survives_unexpected_read_error():
+    # raw_temp returns a value three times, then raises OSError for good.
+    # the thread used to die on the first OSError, leaving the last
+    # median in place and the error tracker at 0 percent.
+    readings = [500.0, 500.0, 500.0]
+    stop = threading.Event()
+
+    def raw_temp():
+        if stop.is_set():
+            raise SystemExit  # not an Exception, so it ends the thread for cleanup
+        if readings:
+            return readings.pop()
+        raise OSError("spi transfer failed")
+
+    sensor = TempSensorReal.__new__(TempSensorReal)
+    threading.Thread.__init__(sensor)
+    sensor.daemon = True
+    sensor.status = ThermocoupleTracker()
+    sensor.temptracker = TempTracker()
+    sensor.sleeptime = 0.001
+    sensor.last_good_read = time.monotonic()
+    sensor.raw_temp = raw_temp
+    sensor.start()
+
+    deadline = time.monotonic() + 5
+    while not sensor.status.over_error_limit() and time.monotonic() < deadline:
+        time.sleep(0.01)
+
+    try:
+        assert sensor.is_alive()
+        assert sensor.temperature() == 500.0
+        assert sensor.status.over_error_limit()
+    finally:
+        stop.set()
+        sensor.join(5)
+
+
+def test_sensor_seconds_since_good_read():
+    sensor = make_sensor()
+    sensor.last_good_read = time.monotonic() - 42
+    assert 42 <= sensor.seconds_since_good_read() < 47
+
+
+def test_sensor_run_records_good_read_time(monkeypatch):
+    sensor = make_sensor(120.0)
+    sensor.temptracker = TempTracker()
+    sensor.sleeptime = 0
+    sensor.last_good_read = time.monotonic() - 100
+
+    def stop(_secs):
+        raise StopIteration
+
+    monkeypatch.setattr(time, "sleep", stop)
+    with pytest.raises(StopIteration):
+        sensor.run()
+    assert sensor.seconds_since_good_read() < 5
+
+
+def test_sensor_run_failed_read_does_not_refresh_good_read_time(monkeypatch):
+    sensor = make_sensor(error=OSError("spi transfer failed"))
+    sensor.temptracker = TempTracker()
+    sensor.sleeptime = 0
+    sensor.last_good_read = time.monotonic() - 100
+
+    def stop(_secs):
+        raise StopIteration
+
+    monkeypatch.setattr(time, "sleep", stop)
+    with pytest.raises(StopIteration):
+        sensor.run()
+    assert sensor.seconds_since_good_read() >= 100
+
+
+def test_simulated_sensor_is_never_stale():
+    assert TempSensorSimulated().seconds_since_good_read() == 0
+
+
+########################################################################
+# Stale temperature readings abort the run
+########################################################################
+
+
+class StaleFakeSensor(FakeTempSensor):
+    def __init__(self, temp, stale_for):
+        FakeTempSensor.__init__(self, temp)
+        self.stale_for = stale_for
+
+    def seconds_since_good_read(self):
+        return self.stale_for
+
+
+def _running_oven_with_stale_sensor(stale_for):
+    oven = Oven()
+    oven.board = FakeBoard(500)
+    oven.board.temp_sensor = StaleFakeSensor(500, stale_for)
+    oven.state = "RUNNING"
+    return oven
+
+
+def test_reset_if_emergency_stale_reading_aborts(no_auto_restarts, monkeypatch):
+    monkeypatch.setattr(config, "emergency_stale_reading_seconds", 30)
+    monkeypatch.setattr(config, "ignore_tc_stale_reading", False)
+    monkeypatch.setattr(config, "emergency_heat_rate", 0)
+    oven = _running_oven_with_stale_sensor(31)
+    oven.reset_if_emergency()
+    assert oven.state == "IDLE"
+
+
+def test_reset_if_emergency_fresh_reading_keeps_running(no_auto_restarts, monkeypatch):
+    monkeypatch.setattr(config, "emergency_stale_reading_seconds", 30)
+    monkeypatch.setattr(config, "ignore_tc_stale_reading", False)
+    monkeypatch.setattr(config, "emergency_heat_rate", 0)
+    oven = _running_oven_with_stale_sensor(29)
+    oven.reset_if_emergency()
+    assert oven.state == "RUNNING"
+
+
+def test_reset_if_emergency_stale_reading_ignored_when_told_to(no_auto_restarts, monkeypatch):
+    monkeypatch.setattr(config, "emergency_stale_reading_seconds", 30)
+    monkeypatch.setattr(config, "ignore_tc_stale_reading", True)
+    monkeypatch.setattr(config, "emergency_heat_rate", 0)
+    oven = _running_oven_with_stale_sensor(3600)
+    oven.reset_if_emergency()
+    assert oven.state == "RUNNING"
+
+
+def test_reset_if_emergency_stale_reading_emits_alert(no_auto_restarts, monkeypatch):
+    monkeypatch.setattr(config, "emergency_stale_reading_seconds", 30)
+    monkeypatch.setattr(config, "ignore_tc_stale_reading", True)
+    monkeypatch.setattr(config, "emergency_heat_rate", 0)
+    oven = _running_oven_with_stale_sensor(120)
+    emitted = []
+    oven.alert_manager = types.SimpleNamespace(
+        emit=lambda alert_id, context=None: emitted.append((alert_id, context))
+    )
+    oven.reset_if_emergency()
+    assert [alert_id for alert_id, _ in emitted] == ["tc_failure"]
+
+
+def test_reset_if_emergency_simulated_sensor_never_stale(no_auto_restarts, monkeypatch):
+    monkeypatch.setattr(config, "emergency_stale_reading_seconds", 30)
+    monkeypatch.setattr(config, "ignore_tc_stale_reading", False)
+    monkeypatch.setattr(config, "emergency_heat_rate", 0)
+    oven = SimulatedOven()
+    oven.state = "RUNNING"
+    oven.reset_if_emergency()
+    assert oven.state == "RUNNING"
+
+
+def test_reset_if_emergency_no_reading_since_start_aborts(no_auto_restarts, monkeypatch):
+    # no good read has ever arrived: the sensor's baseline is its start
+    # time, so a sensor that never produces a value goes stale too
+    monkeypatch.setattr(config, "emergency_stale_reading_seconds", 30)
+    monkeypatch.setattr(config, "ignore_tc_stale_reading", False)
+    monkeypatch.setattr(config, "emergency_heat_rate", 0)
+    sensor = make_sensor()
+    sensor.status = ThermocoupleTracker()
+    sensor.temptracker = TempTracker()
+    sensor.last_good_read = time.monotonic() - 31
+    oven = Oven()
+    oven.board = types.SimpleNamespace(temp_sensor=sensor)
+    oven.state = "RUNNING"
+    assert sensor.temperature() == 0  # what the control loop would see
+    oven.reset_if_emergency()
+    assert oven.state == "IDLE"
+
+
+def test_reset_if_emergency_missing_stale_setting_uses_default(no_auto_restarts, monkeypatch):
+    # an older config.py without the new settings must still be protected
+    monkeypatch.delattr(config, "emergency_stale_reading_seconds", raising=False)
+    monkeypatch.delattr(config, "ignore_tc_stale_reading", raising=False)
+    monkeypatch.setattr(config, "emergency_heat_rate", 0)
+    oven = _running_oven_with_stale_sensor(3600)
+    oven.reset_if_emergency()
+    assert oven.state == "IDLE"
+
+
 ########################################################################
 # Thermocouple errors
 ########################################################################
@@ -1740,7 +1932,9 @@ def test_reset_if_emergency_too_many_errors(no_auto_restarts, monkeypatch):
     oven.state = "RUNNING"
     status = types.SimpleNamespace(over_error_limit=lambda: True)
     oven.board = types.SimpleNamespace(
-        temp_sensor=types.SimpleNamespace(temperature=lambda: 100, status=status)
+        temp_sensor=types.SimpleNamespace(
+            temperature=lambda: 100, status=status, seconds_since_good_read=lambda: 0
+        )
     )
     oven.reset_if_emergency()
     assert oven.state == "IDLE"

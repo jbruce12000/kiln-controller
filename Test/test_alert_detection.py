@@ -43,6 +43,9 @@ class FakeTempSensor:
     def temperature(self):
         return self.temp
 
+    def seconds_since_good_read(self):
+        return 0
+
 
 class FakeBoard:
     def __init__(self, temp):
