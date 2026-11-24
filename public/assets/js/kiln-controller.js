@@ -824,6 +824,11 @@ function timeTickFormatter(val) {
 
 function runTask()
 {
+    // the server refuses a run while one is active. do not wipe the live
+    // graph for a request that cannot start.
+    if (running_profile_name) {
+        return;
+    }
     var cmd =
     {
         "cmd": "RUN",

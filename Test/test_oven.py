@@ -343,6 +343,7 @@ def test_run_sequence_increments_and_run_id_in_status(no_auto_restarts):
     oven.run_profile(get_profile(), startat=0, allow_seek=False)
     assert oven.run_sequence == 1
     assert oven.get_state()["run_id"] == 1
+    oven.abort_run()
     oven.run_profile(get_profile(), startat=0, allow_seek=False)
     assert oven.run_sequence == 2
     assert oven.get_state()["run_id"] == 2
@@ -2075,7 +2076,7 @@ def test_temp_sensor_real_hardware_spi(monkeypatch):
 
 
 ########################################################################
-# stop races
+# stop races and the run guard
 ########################################################################
 
 
@@ -2183,3 +2184,21 @@ def test_abort_run_ends_the_run_even_if_the_state_save_fails(tmp_path, monkeypat
     assert oven.should_i_automatic_restart() is False
     oven._run_once()
     assert oven.state == "IDLE"
+
+
+def test_run_profile_rejected_unless_idle(no_auto_restarts):
+    oven = Oven()
+    oven.board = FakeBoard(250)
+    oven.run_profile(get_profile(), startat=0, allow_seek=False)
+    oven.cost = 1.5
+    seq = oven.run_sequence
+    pid = oven.pid
+    for state in ("RUNNING", "PAUSED", "TUNING"):
+        oven.state = state
+        with pytest.raises(oven_module().OvenBusyError, match="oven state is %s" % state):
+            oven.run_profile(get_profile(), startat=0, allow_seek=False)
+        # nothing of the firing in progress was touched
+        assert oven.state == state
+        assert oven.run_sequence == seq
+        assert oven.cost == 1.5
+        assert oven.pid is pid

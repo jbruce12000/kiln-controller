@@ -1675,6 +1675,52 @@ def test_handle_api_run_success(monkeypatch):
     assert calls == ["cone-05"]
 
 
+@pytest.fixture
+def real_oven(monkeypatch):
+    """a real (unthreaded) Oven in place of the stub, so the state
+    guard in run_profile is exercised rather than faked"""
+    monkeypatch.setattr(config, "automatic_restarts", False)
+    real = oven.Oven()
+    sensor = types.SimpleNamespace(temperature=lambda: 20, status=None)
+    real.board = types.SimpleNamespace(temp_sensor=sensor)
+    monkeypatch.setattr(controller, "oven", real)
+    monkeypatch.setattr(controller, "find_profile", lambda name: {"name": name, "data": [[0, 200]]})
+    monkeypatch.setattr(controller.ovenWatcher, "record", lambda profile: None)
+    emitted = []
+    monkeypatch.setattr(
+        controller.alert_manager, "emit", lambda alert_id, context=None: emitted.append(alert_id)
+    )
+    real.emitted = emitted
+    return real
+
+
+@pytest.mark.parametrize("state", ["RUNNING", "PAUSED", "TUNING"])
+def test_handle_api_run_rejected_unless_idle(real_oven, state, monkeypatch, caplog):
+    real_oven.state = state
+    seq = real_oven.run_sequence
+    with caplog.at_level("WARNING"):
+        resp = api_call({"cmd": "run", "profile": "cone-05"}, monkeypatch)
+    assert resp == {"success": False, "error": "cannot run, oven state is %s" % state}
+    assert real_oven.state == state
+    assert real_oven.run_sequence == seq
+    assert real_oven.emitted == []  # no run_started alert for a run that did not start
+    assert "cannot run, oven state is %s" % state in caplog.text
+
+
+def test_handle_api_run_allowed_when_idle(real_oven, monkeypatch):
+    resp = api_call({"cmd": "run", "profile": "cone-05"}, monkeypatch)
+    assert resp == {"success": True}
+    assert real_oven.state == "RUNNING"
+    assert real_oven.emitted == ["run_started"]
+
+
+def test_handle_api_run_allowed_again_after_stop(real_oven, monkeypatch):
+    assert api_call({"cmd": "run", "profile": "cone-05"}, monkeypatch) == {"success": True}
+    assert api_call({"cmd": "stop"}, monkeypatch) == {"success": True}
+    assert api_call({"cmd": "run", "profile": "cone-05"}, monkeypatch) == {"success": True}
+    assert real_oven.state == "RUNNING"
+
+
 def test_handle_api_run_missing_profile(monkeypatch):
     monkeypatch.setattr(controller, "find_profile", lambda name: None)
     resp = api_call({"cmd": "run", "profile": "nope"}, monkeypatch)
@@ -1950,6 +1996,25 @@ def test_handle_control_run_and_stop(monkeypatch):
 
     assert runs == ["cone-05"]
     assert stops == [True]
+
+
+def test_handle_control_run_rejected_while_running(real_oven, monkeypatch, caplog):
+    real_oven.state = "RUNNING"
+    seq = real_oven.run_sequence
+    recorded = []
+    ws = FakeWebSocket(
+        [json.dumps({"cmd": "RUN", "profile": {"name": "cone-05", "data": [[0, 200]]}})]
+    )
+    monkeypatch.setattr(controller, "get_websocket_from_request", lambda: ws)
+    monkeypatch.setattr(controller.ovenWatcher, "record", lambda profile: recorded.append(profile))
+
+    with caplog.at_level("ERROR"):
+        controller.handle_control()
+
+    assert real_oven.state == "RUNNING"
+    assert real_oven.run_sequence == seq
+    assert recorded == []  # the watcher must not start recording a run that was refused
+    assert "cannot run, oven state is RUNNING" in caplog.text
 
 
 def test_handle_control_run_without_profile_is_ignored(monkeypatch):

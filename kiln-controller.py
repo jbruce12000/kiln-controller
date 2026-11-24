@@ -39,7 +39,7 @@ sys.path.insert(0, script_dir + "/lib/")
 profile_path = config.kiln_profiles_directory
 
 from temp import f_to_c, c_to_f, to_c
-from oven import SimulatedOven, RealOven, Profile
+from oven import SimulatedOven, RealOven, Profile, OvenBusyError
 from ovenWatcher import OvenWatcher
 from scheduler import Scheduler
 from tuner import Tuner, DEFAULT_METHOD
@@ -126,8 +126,12 @@ def handle_api():
         if "startat" in bottle.request.json:
             startat = bottle.request.json["startat"]
 
-        if not start_run(wanted, startat):
-            return {"success": False, "error": "profile %s not found" % wanted}
+        try:
+            if not start_run(wanted, startat):
+                return {"success": False, "error": "profile %s not found" % wanted}
+        except OvenBusyError as e:
+            log.error("api run of profile %s rejected: %s" % (wanted, e))
+            return {"success": False, "error": str(e)}
 
     # schedule a kiln run for a future date and time
     if bottle.request.json["cmd"] == "schedule":
@@ -1495,6 +1499,7 @@ def start_run(wanted, startat=0, allow_seek=None):
     allow_seek=False for scheduled runs so they always start from
     the beginning regardless of the current kiln temperature.
     returns True if the run started, False if the profile was not found.
+    raises OvenBusyError if the oven is not idle.
     """
     if allow_seek is None:
         allow_seek = True

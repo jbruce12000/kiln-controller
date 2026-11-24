@@ -34,6 +34,12 @@ class RestartRetry(Exception):
     and retry on a later tick without logging an error every second."""
 
 
+class OvenBusyError(Exception):
+    """a run was requested while the oven is not idle (a firing, a pause
+    or the autotuner is in progress). run_profile() refuses rather than
+    silently replacing the firing under the live control thread."""
+
+
 class Duplogger:
     def __init__(self):
         self.log = logging.getLogger("%s.dupfree" % (__name__))
@@ -501,6 +507,16 @@ class Oven(threading.Thread):
             self.heat_rate = ((temp2 - temp1) / (time2 - time1)) * 3600
 
     def run_profile(self, profile, startat=0, allow_seek=True):
+        with self._state_lock:
+            # reset() below wipes the pid, cost and profile of whatever is
+            # running while the control thread still drives the relay
+            # from them, and the old firing would end with no abort or
+            # alert. refuse unless idle.
+            if self.state != "IDLE":
+                raise OvenBusyError("cannot run, oven state is %s" % (self.state))
+            self._run_profile_locked(profile, startat, allow_seek)
+
+    def _run_profile_locked(self, profile, startat, allow_seek):
         log.debug("run_profile run on thread" + threading.current_thread().name)
         runtime = startat * 60
         if allow_seek:
