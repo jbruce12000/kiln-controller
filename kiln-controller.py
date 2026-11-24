@@ -1,7 +1,9 @@
 #!/usr/bin/env python
 
 import time
+import atexit
 import os
+import signal
 import sys
 import csv
 import logging
@@ -2594,7 +2596,21 @@ def get_config():
     )
 
 
+def exit_signal_handler(signum, frame):
+    """SIGTERM and SIGINT: force the heater off, then exit cleanly."""
+    oven.shutdown()
+    sys.exit(0)
+
+
 def main():
+    # Turn the heater off whenever the process gets to run code on its way
+    # out: normal exit (atexit), SIGTERM, SIGINT, or an unhandled exception
+    # (the finally below). Nothing can be done here about SIGKILL, power
+    # loss or a hung process; those need a hardware cut-off. See #189.
+    atexit.register(oven.shutdown)
+    signal.signal(signal.SIGTERM, exit_signal_handler)
+    signal.signal(signal.SIGINT, exit_signal_handler)
+
     ip = "0.0.0.0"
     port = config.listening_port
     log.info("listening on %s:%d" % (ip, port))
@@ -2616,7 +2632,10 @@ def main():
     # (the journal snapshot machinery above stays for log diagnostics.)
 
     server = WSGIServer((ip, port), app, handler_class=WebSocketHandler)
-    server.serve_forever()
+    try:
+        server.serve_forever()
+    finally:
+        oven.shutdown()
 
 
 if __name__ == "__main__":

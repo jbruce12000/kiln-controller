@@ -43,6 +43,9 @@ class StubOven:
     def abort_run(self):
         pass
 
+    def shutdown(self):
+        pass
+
     def get_display_pidstats(self):
         return {"ispoint": 0, "setpoint": 0, "err": 0, "pid": 0, "p": 0, "i": 0, "d": 0}
 
@@ -2067,6 +2070,9 @@ def test_main_starts_server(monkeypatch):
 
     monkeypatch.setattr(controller, "WSGIServer", FakeServer)
     monkeypatch.setattr(controller, "scheduler", types.SimpleNamespace(fire_due=lambda: None))
+    # main() installs process-wide exit hooks; keep them out of the test runner
+    monkeypatch.setattr(controller.atexit, "register", lambda f, *a: None)
+    monkeypatch.setattr(controller.signal, "signal", lambda sig, h: None)
 
     ran = []
 
@@ -2084,6 +2090,97 @@ def test_main_starts_server(monkeypatch):
     assert captured["handler"] == controller.WebSocketHandler
     assert captured["served"] is True
     assert ran == [True]
+
+
+class FakePin:
+    def __init__(self):
+        self.value = None
+
+
+def _real_output_with_fake_pin(monkeypatch):
+    """a real oven.Output driving a fake pin, wrapped in a stand-in for
+    RealOven so the exit paths can be checked against the pin level."""
+    monkeypatch.setattr(config, "gpio_heat_invert", False, raising=False)
+    monkeypatch.setattr(config, "gpio_heat", 23, raising=False)
+    monkeypatch.setattr(
+        oven,
+        "digitalio",
+        types.SimpleNamespace(
+            DigitalInOut=lambda pin: FakePin(),
+            Direction=types.SimpleNamespace(OUTPUT=1),
+        ),
+    )
+    out = oven.Output()
+    out.heat(0)
+    assert out.heater.value is True
+    return types.SimpleNamespace(output=out, shutdown=out.shutdown)
+
+
+def _patch_main(monkeypatch, serve):
+    class FakeServer:
+        def __init__(self, ip_port, app, handler_class=None):
+            pass
+
+        def serve_forever(self):
+            serve()
+
+    monkeypatch.setattr(controller, "WSGIServer", FakeServer)
+    monkeypatch.setattr(controller, "gevent", types.SimpleNamespace(spawn_later=lambda *a: None))
+    registered = []
+    monkeypatch.setattr(controller.atexit, "register", lambda f, *a: registered.append(f))
+    handlers = {}
+    monkeypatch.setattr(controller.signal, "signal", lambda sig, h: handlers.__setitem__(sig, h))
+    return registered, handlers
+
+
+def test_main_registers_exit_hooks_and_signal_handlers(monkeypatch):
+    fake = _real_output_with_fake_pin(monkeypatch)
+    monkeypatch.setattr(controller, "oven", fake)
+    registered, handlers = _patch_main(monkeypatch, lambda: None)
+
+    controller.main()
+
+    assert registered == [fake.shutdown]
+    assert set(handlers) == {controller.signal.SIGTERM, controller.signal.SIGINT}
+    registered[0]()  # what atexit would run
+    assert fake.output.heater.value is False
+
+
+@pytest.mark.parametrize("signame", ["SIGTERM", "SIGINT"])
+def test_exit_signal_handler_turns_heater_off_and_exits_cleanly(monkeypatch, signame):
+    fake = _real_output_with_fake_pin(monkeypatch)
+    monkeypatch.setattr(controller, "oven", fake)
+    _, handlers = _patch_main(monkeypatch, lambda: None)
+    controller.main()
+
+    handler = handlers[getattr(controller.signal, signame)]
+    with pytest.raises(SystemExit) as excinfo:
+        handler(getattr(controller.signal, signame), None)
+    assert excinfo.value.code == 0
+    assert fake.output.heater.value is False
+
+
+def test_main_turns_heater_off_when_server_raises(monkeypatch):
+    fake = _real_output_with_fake_pin(monkeypatch)
+    monkeypatch.setattr(controller, "oven", fake)
+
+    def boom():
+        raise RuntimeError("server died")
+
+    _patch_main(monkeypatch, boom)
+
+    with pytest.raises(RuntimeError, match="server died"):
+        controller.main()
+    assert fake.output.heater.value is False
+
+
+def test_main_turns_heater_off_when_server_returns(monkeypatch):
+    fake = _real_output_with_fake_pin(monkeypatch)
+    monkeypatch.setattr(controller, "oven", fake)
+    _patch_main(monkeypatch, lambda: None)
+
+    controller.main()
+    assert fake.output.heater.value is False
 
 
 def test_controller_uses_real_oven_when_not_simulated(monkeypatch):
