@@ -1879,6 +1879,89 @@ def test_output_heater_cycles(monkeypatch):
     assert out.heater.value is False
 
 
+@pytest.mark.parametrize("invert", [False, True])
+def test_output_shutdown_drives_pin_off(monkeypatch, invert):
+    _patch_hardware_deps(monkeypatch)
+    monkeypatch.setattr(config, "gpio_heat_invert", invert, raising=False)
+    out = oven_module().Output()
+    out.heat(0)
+    assert out.heater.value is out.on
+    out.shutdown()
+    assert out.heater.value is out.off
+    # idempotent
+    out.shutdown()
+    assert out.heater.value is out.off
+
+
+def test_output_shutdown_is_final(monkeypatch):
+    """the control thread may still be inside heat() when shutdown() runs
+    and loop straight back to heat(); that must not switch the pin on."""
+    _patch_hardware_deps(monkeypatch)
+    out = oven_module().Output()
+    out.shutdown()
+    out.heat(0)
+    assert out.heater.value is out.off
+    out.cool(0)
+    assert out.heater.value is out.off
+
+
+def test_output_shutdown_never_raises(monkeypatch):
+    _patch_hardware_deps(monkeypatch)
+    out = oven_module().Output()
+
+    class BrokenPin:
+        @property
+        def value(self):
+            return None
+
+        @value.setter
+        def value(self, v):
+            raise OSError("pin already released")
+
+    out.heater = BrokenPin()
+    out.shutdown()  # must not raise
+    out.shutdown()
+
+
+def test_output_shutdown_from_another_thread(monkeypatch):
+    import threading
+
+    _patch_hardware_deps(monkeypatch)
+    out = oven_module().Output()
+    out.heat(0)
+    t = threading.Thread(target=out.shutdown)
+    t.start()
+    t.join()
+    assert out.heater.value is out.off
+
+
+def test_real_oven_shutdown_turns_heater_off(monkeypatch):
+    _patch_hardware_deps(monkeypatch)
+
+    class FakeSensor:
+        def start(self):
+            pass
+
+        def temperature(self):
+            return 100.0
+
+    monkeypatch.setattr(oven_module(), "Max31855", lambda: FakeSensor())
+    monkeypatch.setitem(sys.modules, "board", types.SimpleNamespace(board_id="TEST_BOARD"))
+    monkeypatch.setattr(oven_module().Oven, "start", lambda self: None)
+
+    oven = oven_module().RealOven()
+    oven.output.heat(0)
+    assert oven.output.heater.value is True
+    oven.shutdown()
+    assert oven.output.heater.value is False
+    oven.shutdown()  # safe to call twice
+    assert oven.output.heater.value is False
+
+
+def test_simulated_oven_shutdown_is_a_noop():
+    assert make_sim().shutdown() is None
+
+
 def test_temp_sensor_real_init_and_run(monkeypatch):
     _patch_hardware_deps(monkeypatch)
     sensor = oven_module().TempSensorReal()

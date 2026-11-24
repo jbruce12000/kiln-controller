@@ -61,15 +61,33 @@ class Output(object):
         self.heater.direction = digitalio.Direction.OUTPUT
         self.off = config.gpio_heat_invert
         self.on = not self.off
+        self.shut_down = False
 
     def heat(self, sleepfor):
-        self.heater.value = self.on
+        # once shutdown() has run the heater stays off, even if the control
+        # thread is still inside its loop while the process exits
+        self.heater.value = self.off if self.shut_down else self.on
         time.sleep(sleepfor)
 
     def cool(self, sleepfor):
         """no active cooling, so sleep"""
         self.heater.value = self.off
         time.sleep(sleepfor)
+
+    def shutdown(self):
+        """drive the heater pin to its off state and keep it there. safe to
+        call more than once, from any thread or a signal handler, and it
+        never raises. there is deliberately no lock: a signal handler must
+        not wait on a lock that the interrupted thread holds.
+
+        This only helps when the process gets to run code on its way out
+        (normal exit, SIGTERM, SIGINT, an unhandled exception). It cannot
+        help after SIGKILL, power loss, or a hung process."""
+        self.shut_down = True
+        try:
+            self.heater.value = self.off
+        except Exception:
+            log.error("could not drive the heater pin off", exc_info=True)
 
 
 # wrapper for blinka board
@@ -440,6 +458,10 @@ class Oven(threading.Thread):
         self.run_sequence = 0
         self.ended_run_sequence = 0
         self.idle_since = time.time()
+
+    def shutdown(self):
+        """force the heater off because the process is exiting. nothing
+        to do for an oven with no real output; RealOven overrides this."""
 
     def reset(self):
         self.cost = 0
@@ -1360,6 +1382,9 @@ class RealOven(Oven):
     def reset(self):
         super().reset()
         self.output.cool(0)
+
+    def shutdown(self):
+        self.output.shutdown()
 
     def heat_then_cool(self):
         pid = self.pid.compute(
