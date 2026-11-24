@@ -196,6 +196,13 @@ emergency_shutoff_temp = 2264  # cone 7
 emergency_heat_rate = 23  # degrees per hour (display scale)
 emergency_heat_rate_window = 22.5  # minutes
 
+# emergency shutoff if the thermocouple has produced no valid reading for
+# this many seconds. a failed read is counted as an error, but if the
+# sensor thread stops or reads never succeed (for example after boot),
+# nothing else notices and the controller keeps acting on an old or zero
+# temperature. simulated sensors are never stale. set to 0 to disable.
+emergency_stale_reading_seconds = 30
+
 # If the current temperature is outside the pid control window,
 # delay the schedule until it does back inside. This allows for heating
 # and cooling as fast as possible and not continuing until temp is reached.
@@ -254,6 +261,10 @@ ignore_tc_unknown_error = False
 # This overrides all possible thermocouple errors and prevents the
 # process from exiting.
 ignore_tc_too_many_errors = False
+
+# Keep firing even when no valid temperature has been read for
+# emergency_stale_reading_seconds. The controller is then blind.
+ignore_tc_stale_reading = False
 
 ########################################################################
 # alerts - detection thresholds for the web-configurable alert system

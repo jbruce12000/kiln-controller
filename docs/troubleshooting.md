@@ -250,6 +250,11 @@ appears stuck.
   repeatedly, the controller shuts down. Check wiring. If you're getting
   spurious errors you want to ignore, set `ignore_tc_too_many_errors = True`
   in `config.py` -- but only as a last resort.
+- **Stale temperature reading.** The controller aborts if the thermocouple
+  has produced no valid reading for `emergency_stale_reading_seconds`
+  (30 by default). This means the sensor thread stopped or reads keep
+  failing. Check wiring and the log. `ignore_tc_stale_reading = True`
+  keeps firing without a temperature, so use it only as a last resort.
 - **Temperature drops during a hold.** If the kiln cools below the target
   during a hold segment and `kiln_must_catch_up` is enabled, the schedule
   shifts and the firing continues. But if the drop is sudden (e.g., element
