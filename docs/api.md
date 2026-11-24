@@ -2,6 +2,9 @@ start a run
 
     curl -d '{"cmd":"run", "profile":"cone-05-long-bisque"}' -H "Content-Type: application/json" -X POST http://0.0.0.0:8081/api
 
+a run is only accepted while the oven is idle. otherwise the reply is
+`{"success": false, "error": "cannot run, oven state is RUNNING"}`; stop the firing first.
+
 skip the first part of a run
 restart the kiln on a specific profile and start at minute 60
 

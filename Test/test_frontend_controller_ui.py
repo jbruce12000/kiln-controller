@@ -935,6 +935,30 @@ def test_running_profile_row_hides_run_edit_and_delete(js):
     assert "selectProfile(1, null)" in html  # Delete
 
 
+def test_run_is_not_sent_while_a_firing_is_running(js):
+    # the server refuses a run unless the oven is idle; the ui must not
+    # clear the live graph for a request that cannot start
+    js.eval(extract_function(open(JS_PATH).read(), "runTask"))
+    js.eval(
+        "var sent = []; var cleared = 0; var selected_profile = 0;"
+        'var profiles = [{"name": "glaze", "data": []}];'
+        "var graph = {live: {data: [1, 2]}};"
+        "function syncChartData() {} function updateAxis() {}"
+        "function clear_persisted_all() { cleared++; }"
+        "var ws_control = {send: function(m) { sent.push(m); }};"
+        "var running_profile_name = null;"
+    )
+    js.eval("runTask();")
+    assert js.eval("sent.length") == 1
+    assert js.eval("cleared") == 1
+
+    js.eval('running_profile_name = "bisque"; graph.live.data = [1, 2];')
+    js.eval("runTask();")
+    assert js.eval("sent.length") == 1
+    assert js.eval("cleared") == 1
+    assert js.eval("graph.live.data.length") == 2
+
+
 def test_edit_and_delete_return_when_the_run_ends(js):
     _setup_profiles_context(js)
     js.eval('running_profile_name = "bisque";')

@@ -343,6 +343,7 @@ def test_run_sequence_increments_and_run_id_in_status(no_auto_restarts):
     oven.run_profile(get_profile(), startat=0, allow_seek=False)
     assert oven.run_sequence == 1
     assert oven.get_state()["run_id"] == 1
+    oven.abort_run()
     oven.run_profile(get_profile(), startat=0, allow_seek=False)
     assert oven.run_sequence == 2
     assert oven.get_state()["run_id"] == 2
@@ -2072,3 +2073,132 @@ def test_temp_sensor_real_hardware_spi(monkeypatch):
     monkeypatch.setitem(sys.modules, "board", types.SimpleNamespace(SPI=lambda: "hw-spi"))
     sensor = oven_module().TempSensorReal()
     assert sensor.spi == "hw-spi"
+
+
+########################################################################
+# stop races and the run guard
+########################################################################
+
+
+def _slow_fsync_on(monkeypatch, thread_name, delay=0.4):
+    """make the state file write slow, but only on the named thread (an
+    SD card that stalls one writer while the other goes straight through)"""
+    import threading
+
+    real_fsync = os.fsync
+
+    def fsync(fd):
+        if threading.current_thread().name == thread_name:
+            threading.Event().wait(delay)
+        real_fsync(fd)
+
+    monkeypatch.setattr(os, "fsync", fsync)
+
+
+def _running_oven(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "automatic_restarts", True)
+    monkeypatch.setattr(config, "thermocouple_offset", 0)
+    monkeypatch.setattr(config, "automatic_restart_state_file", str(tmp_path / "state.json"))
+    oven = Oven()
+    oven.board = FakeBoard(250)
+    oven.run_profile(get_profile(), startat=0, allow_seek=False)
+    return oven
+
+
+def test_stop_during_slow_save_is_not_undone(tmp_path, monkeypatch):
+    # the oven thread starts its per-tick save while RUNNING and stalls in
+    # fsync; STOP lands meanwhile. the stalled save must not land last
+    # carrying RUNNING (the next idle tick would resume the stopped
+    # firing), and the two writers must not share a tmp file.
+    import threading
+
+    oven = _running_oven(tmp_path, monkeypatch)
+    _slow_fsync_on(monkeypatch, "slow-saver")
+    errors = []
+
+    def tick_save():
+        try:
+            oven.save_automatic_restart_state()
+        except Exception as e:
+            errors.append(e)
+
+    saver = threading.Thread(target=tick_save, name="slow-saver")
+    saver.start()
+    time.sleep(0.1)  # the saver has taken its snapshot and is stalled
+    oven.abort_run()
+    saver.join()
+
+    assert errors == []
+    with open(tmp_path / "state.json") as f:
+        assert json.load(f)["state"] == "IDLE"
+    assert not os.path.exists(tmp_path / "state.json.tmp")
+
+
+def test_idle_tick_does_not_resume_a_firing_being_stopped(tmp_path, monkeypatch):
+    # abort_run resets to IDLE and then saves. if that save stalls, the
+    # file on disk still says RUNNING and is fresh, so an idle tick in
+    # that window used to resume the firing the user just stopped.
+    import threading
+
+    oven = _running_oven(tmp_path, monkeypatch)
+    oven.save_state()  # the RUNNING file an earlier tick left behind
+    _slow_fsync_on(monkeypatch, "stopper")
+    monkeypatch.setattr(oven_module().time, "sleep", lambda secs: None)
+
+    stopper = threading.Thread(target=oven.abort_run, name="stopper")
+    stopper.start()
+    time.sleep(0.1)  # reset() has run, the IDLE save is stalled
+    assert oven.state == "IDLE"
+    oven._run_once()
+    stopper.join()
+
+    assert oven.state == "IDLE"
+    with open(tmp_path / "state.json") as f:
+        assert json.load(f)["state"] == "IDLE"
+
+
+def test_abort_run_ends_the_run_even_if_the_state_save_fails(tmp_path, monkeypatch, caplog):
+    # a full or read-only disk made save_automatic_restart_state raise
+    # out of abort_run, skipping end_of_run: no run_aborted alert, and
+    # the stale RUNNING file was resumed by the next idle tick.
+    oven = _running_oven(tmp_path, monkeypatch)
+    oven.save_state()  # fresh RUNNING file on disk
+    emitted = []
+    oven.alert_manager = types.SimpleNamespace(
+        emit=lambda alert_id, context=None: emitted.append(alert_id)
+    )
+
+    def disk_full():
+        raise OSError(28, "No space left on device")
+
+    monkeypatch.setattr(oven, "save_state", disk_full)
+    monkeypatch.setattr(oven_module().time, "sleep", lambda secs: None)
+
+    with caplog.at_level("ERROR"):
+        oven.abort_run(reason="emergency")  # must not raise
+
+    assert oven.state == "IDLE"
+    assert emitted == ["run_aborted"]
+    assert "No space left on device" in caplog.text
+    # the file on disk is stale (still RUNNING and fresh): do not resume it
+    assert oven.should_i_automatic_restart() is False
+    oven._run_once()
+    assert oven.state == "IDLE"
+
+
+def test_run_profile_rejected_unless_idle(no_auto_restarts):
+    oven = Oven()
+    oven.board = FakeBoard(250)
+    oven.run_profile(get_profile(), startat=0, allow_seek=False)
+    oven.cost = 1.5
+    seq = oven.run_sequence
+    pid = oven.pid
+    for state in ("RUNNING", "PAUSED", "TUNING"):
+        oven.state = state
+        with pytest.raises(oven_module().OvenBusyError, match="oven state is %s" % state):
+            oven.run_profile(get_profile(), startat=0, allow_seek=False)
+        # nothing of the firing in progress was touched
+        assert oven.state == state
+        assert oven.run_sequence == seq
+        assert oven.cost == 1.5
+        assert oven.pid is pid

@@ -34,6 +34,12 @@ class RestartRetry(Exception):
     and retry on a later tick without logging an error every second."""
 
 
+class OvenBusyError(Exception):
+    """a run was requested while the oven is not idle (a firing, a pause
+    or the autotuner is in progress). run_profile() refuses rather than
+    silently replacing the firing under the live control thread."""
+
+
 class Duplogger:
     def __init__(self):
         self.log = logging.getLogger("%s.dupfree" % (__name__))
@@ -432,6 +438,15 @@ class Oven(threading.Thread):
         # outage left an unresumed firing behind
         self.restart_outage_checked = False
         self.cooled_safe_armed_for = None
+        # serialises everything that moves the oven between states or
+        # writes the restart file: run_profile, abort_run, save_state and
+        # the idle-tick resume. reentrant because abort_run saves and
+        # automatic_restart runs run_profile.
+        self._state_lock = threading.RLock()
+        # True when the last attempt to write the restart file failed, so
+        # the file on disk may still describe a firing that has ended and
+        # must not be resumed
+        self.restart_file_stale = False
         self.reset()
         # each firing gets an increasing run_sequence. ended_run_sequence
         # remembers the highest sequence that has finished so scheduled
@@ -492,6 +507,16 @@ class Oven(threading.Thread):
             self.heat_rate = ((temp2 - temp1) / (time2 - time1)) * 3600
 
     def run_profile(self, profile, startat=0, allow_seek=True):
+        with self._state_lock:
+            # reset() below wipes the pid, cost and profile of whatever is
+            # running while the control thread still drives the relay
+            # from them, and the old firing would end with no abort or
+            # alert. refuse unless idle.
+            if self.state != "IDLE":
+                raise OvenBusyError("cannot run, oven state is %s" % (self.state))
+            self._run_profile_locked(profile, startat, allow_seek)
+
+    def _run_profile_locked(self, profile, startat, allow_seek):
         log.debug("run_profile run on thread" + threading.current_thread().name)
         runtime = startat * 60
         if allow_seek:
@@ -521,6 +546,14 @@ class Oven(threading.Thread):
         tell a clean finish from a failure: 'completed' (schedule ran to
         its end), 'stopped' (user or api requested stop), anything else
         is treated as an abort worth alerting on."""
+        # the lock spans reset() through the save so the idle tick cannot
+        # see an IDLE oven whose restart file still says RUNNING, and a
+        # save the oven thread started earlier cannot land after this one
+        with self._state_lock:
+            context, was_active = self._end_run_locked(reason)
+        self.end_of_run(reason, context, was_active)
+
+    def _end_run_locked(self, reason):
         # capture run context before reset() clears it
         context = {
             "profile": self.profile.name if self.profile else None,
@@ -546,8 +579,18 @@ class Oven(threading.Thread):
                     watcher.started = None
         except Exception:
             pass
-        self.save_automatic_restart_state()
-        self.end_of_run(reason, context, was_active)
+        # a failed save (disk full, read-only) must not skip end_of_run.
+        # the file may still say RUNNING, so mark it stale: the idle tick
+        # must not resume a firing that was ended.
+        try:
+            self.save_automatic_restart_state()
+        except Exception as e:
+            self.restart_file_stale = True
+            log.error(
+                "COULD NOT SAVE RESTART STATE after ending the run, the state file may still "
+                "say RUNNING (automatic restart is blocked until a save succeeds): %s" % (e)
+            )
+        return context, was_active
 
     def end_of_run(self, reason, context, was_active):
         """emit lifecycle alerts for a just-ended run and arm the
@@ -873,6 +916,14 @@ class Oven(threading.Thread):
         return display_pidstats(self.pid.pidstats)
 
     def save_state(self):
+        # one writer at a time, and the snapshot is taken inside the lock:
+        # a save that started before a STOP must not land after it with
+        # the state it saw before the stop.
+        with self._state_lock:
+            self._save_state_locked()
+            self.restart_file_stale = False
+
+    def _save_state_locked(self):
         # atomic write (tmp + rename) with fsync: a power cut mid-write
         # must leave either the previous state or the new one, never a
         # truncated file that can never resume.
@@ -930,6 +981,9 @@ class Oven(threading.Thread):
     def should_i_automatic_restart(self):
         # only automatic restart if the feature is enabled
         if not config.automatic_restarts == True:
+            return False
+        if self.restart_file_stale:
+            duplog.info("automatic restart blocked. the last state file save failed.")
             return False
         if self.state_file_is_old():
             duplog.info("automatic restart not possible. state file does not exist or is too old.")
@@ -1165,8 +1219,12 @@ class Oven(threading.Thread):
             if not self.restart_outage_checked:
                 self.restart_outage_checked = True
                 self.check_unresumed_outage()
-            if self.should_i_automatic_restart() == True:
-                self.automatic_restart()
+            # under the lock, and re-checking the state, so a firing that
+            # is being stopped (or started) on the API thread is never
+            # resumed from a restart file that is about to be rewritten
+            with self._state_lock:
+                if self.state == "IDLE" and self.should_i_automatic_restart() == True:
+                    self.automatic_restart()
             self.check_safety_detectors()
             self.check_cooled_safe()
             time.sleep(1)
